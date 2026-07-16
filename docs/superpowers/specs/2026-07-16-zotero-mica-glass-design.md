@@ -27,9 +27,15 @@ Window injection and native application are idempotent: the managers first check
 
 ## Native DWM bridge contract
 
-For each eligible top-level Zotero window, the bridge reads and stores the pre-plugin values before writing them. It calls `DwmSetWindowAttribute(HWND, DWMWA_SYSTEMBACKDROP_TYPE, ...)` with `DWMSBT_MAINWINDOW` (value `2`) for the library and standalone reader, and `DWMSBT_TRANSIENTWINDOW` (value `3`) for supported utility windows. It calls `DWMWA_USE_IMMERSIVE_DARK_MODE` (value `20`) only when Zotero is in dark mode; on a light Zotero theme it restores the saved frame-mode value rather than forcing dark chrome.
+The bridge imports `ctypes` through `ChromeUtils.importESModule("resource://gre/modules/ctypes.sys.mjs")` and first preflights that it is on 64-bit Windows. It resolves the DLL only at `Services.dirsvc.get("SysD", Ci.nsIFile).path + "\\dwmapi.dll"`; it never calls `ctypes.open("dwmapi.dll")` with a bare name. It declares both DWM functions with `ctypes.winapi_abi` and the exact signature `HRESULT (HWND, DWORD, void*, DWORD)`, where `HRESULT` is signed 32-bit `ctypes.long`, `HWND` is `ctypes.voidptr_t`, `DWORD` is `ctypes.uint32_t`, and every DWM enum/`BOOL` argument is a `ctypes.int32_t` buffer of exactly four bytes.
 
-The bridge treats every failing HRESULT, missing `ctypes` capability, missing `nativeHandle`, or unsupported DWM attribute as a per-window native failure. It records the reason, leaves the window usable, and applies the opaque CSS fallback. It must never use undocumented `SetWindowCompositionAttribute`, patch Zotero binaries, or start another process. On disable/uninstall it restores the stored backdrop and dark-frame attributes for each tracked `HWND`; if a prior value could not be read, it sets the backdrop to `DWMSBT_AUTO` and removes only plugin-owned CSS.
+`DWMWA_SYSTEMBACKDROP_TYPE` is the 32-bit attribute ID `38`. For each eligible top-level Zotero window, the bridge reads and stores both this attribute and `DWMWA_USE_IMMERSIVE_DARK_MODE` (attribute `20`) before writing either one. It calls `DwmSetWindowAttribute` with `DWMSBT_MAINWINDOW` (value `2`) for the library and standalone reader, and `DWMSBT_TRANSIENTWINDOW` (value `3`) for supported utility windows. An HRESULT fails only when `hr < 0` (`FAILED(hr)`), not merely when it is nonzero.
+
+`nativeHandle` is converted from its string representation into an unsigned 64-bit `ctypes` CData value and then into `ctypes.voidptr_t`; it must never pass through a JavaScript `Number`. The conversion helper asserts pointer width before applying a DWM call and rejects malformed, null, or truncating values. Its unit tests include high-bit 64-bit handles.
+
+Both original attributes must be successfully snapshotted before *any* `DwmSetWindowAttribute` call. A missing `ctypes` capability, missing/invalid `nativeHandle`, failed snapshot, or unsupported DWM attribute is a per-window native failure: the bridge records the reason, leaves the window usable, and applies opaque CSS fallback only. It must never use undocumented `SetWindowCompositionAttribute`, patch Zotero binaries, or start another process. On disable/uninstall it restores only successfully snapshotted attributes, and only if the current value is still the value written by the plugin; it never guesses with `DWMSBT_AUTO`.
+
+The bridge observes Zotero's resolved theme using a `matchMedia("(prefers-color-scheme: dark)")` change listener on each tracked top-level document. The refresh routine updates `DWMWA_USE_IMMERSIVE_DARK_MODE` for every tracked `HWND` while preserving the original snapshots: dark sets a 32-bit `BOOL` true, light sets false. It does not replace a snapshot after startup. The listener is removed during document cleanup; verification includes light → dark → light while enabled.
 
 ## Window eligibility matrix
 
@@ -47,7 +53,7 @@ Only documents positively classified by the following matrix receive a styleshee
 
 The observer registers a `Services.wm` listener during startup and unregisters the identical listener during shutdown. Its `onOpenWindow` receives the opened XUL window, obtains `docShell.domWindow`, and attaches a one-shot top-level `load` listener before classification. Main-window and reader-shell observers use a `MutationObserver` for browser/iframe nodes added after the host document loads, then attach a one-shot `load` listener and inject only if the exact `src` in the matrix matches. The manager attaches one unload listener per tracked document. The implementation will not use a catch-all selector or style content from arbitrary web origins.
 
-In-document XUL/HTML popup menus are not separate windows and are not observed through `Services.wm`: they are styled by the same bundle injected into their owning main, reader-shell, note, preferences, or dialog document. The window mediator is reserved for top-level Zotero windows and dialogs.
+In-document XUL/HTML popup menus are not separate windows and are not observed through `Services.wm`: they are styled by the same bundle injected into their owning main, reader-shell, note, preferences, or dialog document. The window mediator is reserved for top-level Zotero windows and dialogs. Each eligible document root receives `data-mica-glass-native="active"` only after the DWM bridge successfully applies to its owning top-level window; transparent content rules are scoped to that marker. A bridge failure or restoration replaces the marker with `fallback`, which activates opaque panel rules before any native state changes.
 
 ## Visual system
 
@@ -78,7 +84,7 @@ Root `prefs.js` defines `extensions.mica-glass.enabled` (default `true`) and `ex
 3. A clean Zotero 9.0.6 profile validates the URI/type matrix and native-handle path before a release package is produced.
 4. Manual smoke tests cover every eligible matrix row: main library, PDF reader, notes, preferences, Zotero-rendered menus, and each finite whitelisted dialog.
 5. Test Standard Mica and Enhanced Readability in both Zotero light and dark modes, checking the stated contrast targets and native frame behavior.
-6. Repeatedly open/close reader and preferences documents and assert one owned stylesheet link per eligible document, one DWM bridge record per top-level window, no duplicate injection, and no error output.
+6. Repeatedly open/close reader and preferences documents and assert one owned stylesheet link per eligible document, one DWM bridge record per top-level window, no duplicate injection, correct `active`/`fallback` state markers, and no error output.
 7. Run enable/disable/uninstall/re-enable cycles and assert zero owned links, observers, preference listeners, menu registrations, or active bridge records after each cleanup, with stored DWM values restored.
 
 ## Acceptance criteria
