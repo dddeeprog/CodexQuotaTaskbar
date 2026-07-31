@@ -5,4 +5,7 @@
   <ItemGroup>
     <ProjectReference Include="..\\..\\src\\CodexQuotaTaskbar.Core\\CodexQuotaTaskbar.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="CodexQuotaTaskbar.Core.Tests" />
+  </ItemGroup>
 </Project>
