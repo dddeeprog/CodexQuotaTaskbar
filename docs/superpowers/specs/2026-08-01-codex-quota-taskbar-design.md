@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-01
 
-**Status:** Approved for implementation planning
+**Status:** Independently reviewed and approved for implementation planning
 
 **Target:** Windows 11 x64
 
@@ -48,6 +48,15 @@ The user approved the following decisions during visual and requirements review:
 
 The fork will preserve required MIT notices. Upstream code will be imported in a traceable commit so future upstream changes can be compared cleanly.
 
+The import is deliberately narrower than the upstream product. Production code must delete or exclude all upstream features that manage Codex accounts, including:
+
+- account-manager and account-switching code;
+- account and IDE-profile migration code;
+- `Data/Accounts` storage and related settings surfaces;
+- any host or bridge code that resolves, parses, opens, copies, or replaces `auth.json`.
+
+A build-time forbidden-dependency check and a process-level file-access test enforce this boundary. The rule applies to this product’s host and native bridge; the official `codex app-server` child process remains responsible for its own authentication and may access Codex-owned credentials internally.
+
 ### 3.3 Provider change from upstream
 
 The existing TaskbarWidgets Codex provider uses an experimental WebSocket app-server listener. This product will replace that transport with the official default `stdio` transport. The official Codex app-server documentation describes `stdio` as newline-delimited JSON and marks WebSocket transport as experimental and unsupported:
@@ -64,7 +73,7 @@ This change removes a local TCP listener, avoids choosing or exposing a port, an
 - Read current Codex quota through the installed Codex CLI’s official app-server.
 - Display remaining percentage and reset time accurately.
 - Keep authentication, network, parsing, settings, and the detail popover outside Explorer.
-- Recover from Codex and Explorer restarts without user intervention.
+- Recover from normal Codex and Explorer restarts without user intervention; require explicit recovery after a safety breaker trips.
 - Fail safely after incompatible Windows updates.
 - Ship as a per-user installer and a portable diagnostic build.
 - Remain usable without telemetry or a cloud service operated by this project.
@@ -94,7 +103,7 @@ Host application (outside Explorer)
     ├── Snapshot normalizer + settings + notifications
     └── Detail popover / tray fallback
              │
-             │ versioned, bounded local IPC snapshot
+             │ versioned, bounded atomic state/command files
              ▼
 Native taskbar bridge (inside Explorer)
     └── Liquid Capsule renderer + click forwarding only
@@ -121,9 +130,14 @@ The provider starts the installed `codex app-server` with redirected standard in
 
 - `account/read` to confirm authentication state;
 - `account/rateLimits/read` for the initial snapshot and manual/periodic refresh;
-- listens for `account/rateLimits/updated` notifications for prompt updates.
+- listens for `account/rateLimits/updated` as an invalidation signal that triggers a debounced full read;
+- listens for `account/updated`, immediately clears data belonging to the previous account, and re-reads account and quota state.
 
-The provider never launches a login flow itself. When Codex reports a logged-out state, the UI instructs the user to sign in through Codex.
+The provider never launches a login flow itself. When Codex reports a logged-out state, the UI instructs the user to sign in through Codex. An authenticated non-ChatGPT mode such as API-key or Bedrock auth is reported as “当前登录方式不提供 ChatGPT 额度,” not as logged out.
+
+Every account-state change increments an in-memory account generation. Each account and quota request captures the generation at dispatch; its response may update identity, quota, notification state, or files only when that generation still matches. Late responses from the prior account are discarded.
+
+The first release has a bounded verified Codex CLI range: 0.142.0 through the highest version tested at packaging time. Startup performs a capability and schema probe for the initialization handshake, `account/read`, and `account/rateLimits/read`; version alone is not treated as proof of compatibility. Versions newer than the recorded maximum may run only when the probes pass. A CLI below 0.142.0 or missing the required methods produces “请更新 Codex”; a newer but incompatible protocol produces “请更新本应用，当前 Codex 组合暂不支持.” Contract tests cover 0.142.0, the packaging-time maximum, unknown additive fields, and an incompatible newer schema.
 
 ### 5.3 Snapshot normalizer
 
@@ -131,7 +145,6 @@ The normalizer converts app-server results into an immutable display snapshot co
 
 - schema version and sequence number;
 - provider state;
-- sanitized plan/account label when available;
 - two display windows;
 - remaining percentage;
 - window duration;
@@ -141,6 +154,8 @@ The normalizer converts app-server results into an immutable display snapshot co
 - threshold color state.
 
 No access token, raw protocol message, cookie, authorization header, full email address, or filesystem authentication path may enter the snapshot.
+
+Account identity stays in host memory for the host-owned detail card and never crosses into the taskbar state file. When available, the card displays plan type plus a masked address such as `t***@e***.com`. The full address is never logged or persisted, and an `account/updated` event clears it before any new account read begins.
 
 ### 5.4 Native taskbar bridge
 
@@ -167,11 +182,12 @@ The expanded detail card is an app-owned, per-monitor, DPI-aware tool window anc
 
 - opens on primary click;
 - shows both quota windows, remaining percentage, and localized reset time;
+- shows the current masked account and plan when the app-server provides them;
 - shows freshness state such as “刚刚更新” or “更新于 10:28”;
 - provides “立即刷新” and “打开 Codex” actions;
 - closes on outside click, `Esc`, a second capsule click, taskbar recreation, or display topology change.
 
-It must not steal keyboard focus merely by appearing. Keyboard focus is allowed only after the user explicitly interacts with a popover control.
+The explicit capsule click may activate the popover, which makes `Esc` and keyboard navigation available. A popover reopened only because of a background refresh or display event must not take focus from another application.
 
 ## 6. App-Server Data Contract
 
@@ -196,10 +212,10 @@ If only one window is returned, the second row renders an em dash and an unavail
 ### 6.2 Remaining quota calculation
 
 ```text
-remainingPercent = clamp(100 - usedPercent, 0, 100)
+remainingPercent = 100 - usedPercent
 ```
 
-Invalid, non-finite, missing, or out-of-range input is rejected before IPC. A rejected response does not overwrite the last valid snapshot.
+`usedPercent` must be finite and within the inclusive range 0–100 before the calculation. Missing, non-finite, or out-of-range input is rejected rather than clamped. A rejected response does not overwrite the last valid snapshot.
 
 ### 6.3 Reset time
 
@@ -208,7 +224,8 @@ Invalid, non-finite, missing, or out-of-range input is rejected before IPC. A re
 ### 6.4 Refresh policy
 
 - Initial read immediately after successful app-server initialization.
-- Event-driven updates from `account/rateLimits/updated`.
+- `account/rateLimits/updated` triggers a debounced `account/rateLimits/read`; sparse notification payloads are never treated as complete state.
+- `account/updated` immediately clears the previous account snapshot and notification-deduplication state, then triggers full account and quota reads.
 - Five-minute fallback read to heal missed notifications.
 - Manual refresh debounced to one request per five seconds.
 - A snapshot becomes stale after ten minutes without a successful read.
@@ -249,21 +266,28 @@ Color is not the sole status signal: percentage text and stale/unavailable glyph
 - Notifications are enabled by default and configurable.
 - Notify once when either window crosses from >= 10% to < 10% remaining.
 - Deduplicate using the window identity plus `resetsAt`.
-- Re-arm only when the reset timestamp changes or remaining quota returns above the threshold.
+- Persist the deduplication key across host restarts.
+- Re-arm only when the reset timestamp changes or remaining quota returns to >= 10%.
 - Never notify repeatedly because the provider reconnects.
 
 ## 8. IPC and Process Safety
 
-IPC follows the upstream TaskbarWidgets process-separation pattern, with these additional constraints:
+The product retains TaskbarWidgets’ atomic file channel instead of adding a second general-purpose IPC mechanism.
 
-- IPC endpoints are scoped to the current Windows user and use an ACL restricted to that user and the expected Explorer context.
-- Every message begins with a protocol version, message type, and bounded payload length.
-- Strings use fixed maximum lengths and are normalized before crossing the boundary.
-- Percentages, timestamps, enum values, and dimensions are validated again by the native bridge.
-- Unknown versions and message types are ignored safely.
-- The renderer keeps its previous valid snapshot when a message is rejected.
-- Click events contain only an instance/monitor identifier and action type.
-- No general command execution or arbitrary file path crosses IPC.
+- State is written only to a fixed file under `%LOCALAPPDATA%\CodexQuotaTaskbar\Data\State`.
+- The host writes a temporary file in the same directory, flushes it, and atomically replaces the state file.
+- The native bridge accepts at most 16 KiB, rejects reparse points, and validates schema version, strings, percentages, timestamps, enums, and dimensions before rendering.
+- Commands are written only under a fixed `%LOCALAPPDATA%\CodexQuotaTaskbar\Data\Commands` directory as unique, bounded files of at most 4 KiB.
+- The data root disables inherited write access and grants access only to the current user and `SYSTEM`. The design does not claim to defend against a malicious process already running as the same user.
+- Each activation receives a random, non-persistent session nonce delivered to the bridge during activation. Command files must contain that nonce, a fresh timestamp, a known action, and the originating capsule instance.
+- A click command may carry a validated screen-pixel anchor rectangle, monitor identifier, effective DPI, and taskbar edge so the host can position the popover reliably. The anchor must intersect the target monitor bounds and remain inside the already-validated taskbar window bounds. After choosing an edge-relative placement, the host clamps the detail card itself to the monitor work area.
+- The bridge writes each command to a temporary file in the command directory, flushes it, and atomically renames it to a unique final command name. The host atomically renames a final command into a processing name before reading it, so only one consumer can claim it.
+- On startup and periodically, the host removes expired temporary, final, and processing command files older than five minutes without executing them.
+- The renderer keeps its previous valid snapshot when a state file is rejected.
+- Unknown schema versions and commands are ignored safely.
+- Fixed directories and filenames are opened without following reparse points; no arbitrary command, executable, or caller-supplied path crosses the boundary.
+
+A named shutdown event and a bounded host-lease timestamp are permitted only for lifecycle control. They do not carry provider data or arbitrary messages.
 
 ## 9. Compatibility and Fail-Closed Behavior
 
@@ -272,6 +296,9 @@ True insertion into the Windows 11 taskbar depends on undocumented implementatio
 ### 9.1 Version gate
 
 - Maintain an allowlist of verified Windows build ranges and taskbar signatures inherited from or validated against upstream.
+- Treat the user’s current Windows build `10.0.26200` and its exact Explorer/taskbar signatures as the first release gate.
+- Make a minimal attach, insert, layout, remove, Explorer-restart, and multi-monitor probe the first implementation milestone. Record the tested signatures with the build artifact.
+- If that probe cannot embed and detach safely on build 26200, stop before full provider/UI implementation and return to design review with the user; tray fallback alone does not satisfy the core request on this machine.
 - Validate required symbols and expected visual-tree structure before inserting any visual.
 - If validation fails, do not partially patch the taskbar.
 
@@ -287,7 +314,14 @@ On unsupported or failed injection:
 
 ### 9.3 Circuit breaker
 
-If Explorer exits unexpectedly twice within ten minutes of bridge activation, disable bridge activation for the rest of that host session and enter tray fallback. The user may retry manually after seeing the warning.
+Safety state is persisted outside Explorer. Before activation, the host records a pending activation containing the app version, Windows build/signature, Explorer PID, and timestamp. It marks the record clean only after a successful detach or a stable activation interval.
+
+- A previous pending/unclean activation starts the next host or Windows session in tray-only safe mode.
+- The bridge monitors a host lease and removes its visual, stops command processing, and detaches when the lease expires for 30 seconds or the named shutdown event is signaled.
+- Activation must complete within ten seconds; timeout enters safe mode.
+- Three consecutive Explorer responsiveness probe failures or two unexpected Explorer exits within ten minutes of activation trip the breaker.
+- After the breaker trips, automatic injection remains disabled across host and Windows restarts until the user explicitly retries or a new app version/signature rule passes the minimal compatibility probe.
+- Install a Start-menu “Codex Quota Taskbar（安全模式）” entry and support `--safe-mode` so the user can always launch tray-only and change settings.
 
 ### 9.4 Explorer and display changes
 
@@ -301,7 +335,10 @@ If Explorer exits unexpectedly twice within ten minutes of bridge activation, di
 | State | Capsule | Detail card / action |
 |---|---|---|
 | Codex CLI not found | Gray `—` | Explain requirement and offer to open installation guidance |
+| Codex CLI below 0.142.0/missing required methods | Gray update glyph | Explain the minimum capability and offer official Codex update guidance |
+| Newer Codex protocol fails schema probe | Gray compatibility glyph | Explain that this combination is unsupported and ask the user to update this application |
 | Logged out | Gray lock state | Ask user to sign in through Codex |
+| Non-ChatGPT auth mode | Gray `—` | Explain that this auth mode does not expose ChatGPT quota |
 | Initial connection | Muted animated track | “正在连接 Codex…” |
 | Temporary app-server failure | Last valid values, stale marker | Show last update and automatic retry state |
 | Invalid response | Preserve last valid values | Record sanitized diagnostic; retry later |
@@ -328,12 +365,13 @@ First-version settings:
 
 - Start with Windows: on by default after installation, user-toggleable.
 - Low-quota notification: on by default.
-- Low-quota threshold: 10% default, configurable from 1–50%.
 - Fallback refresh interval: 5 minutes default, configurable from 1–30 minutes.
 - Display on: all taskbars by default; primary-only option.
 - Launch Codex action: prefer the installed Codex desktop app when discoverable, otherwise open a configured command/surface.
 
-Settings are stored per user. Diagnostics use a bounded rolling log with no telemetry. Logs must not contain raw app-server JSON, tokens, authorization values, full account identifiers, or environment-variable dumps.
+Settings and notification-deduplication state are stored per user. Diagnostics use a bounded rolling log with no project-operated telemetry. Logs must not contain raw app-server JSON or stderr, tokens, authorization values, full account identifiers, or environment-variable dumps.
+
+The product is not an offline quota source: the official `codex app-server` child uses the user’s existing Codex login to request quota from OpenAI. Its initialization `clientInfo` may appear in OpenAI compliance logs. Product documentation must disclose this flow and state that this host persists only settings, safety state, notification keys, and sanitized derived quota values.
 
 ## 13. Installation and Removal
 
@@ -351,11 +389,18 @@ Settings are stored per user. Diagnostics use a bounded rolling log with no tele
 - Parse successful `account/read` and `account/rateLimits/read` responses.
 - Prefer the `codex` multi-bucket entry and fall back correctly.
 - Map primary/secondary windows by duration.
-- Calculate remaining percentage and clamp boundaries.
+- Calculate remaining percentage at the inclusive 0% and 100% boundaries.
+- Reject used percentages outside 0–100 rather than clamping them.
 - Convert reset timestamps across time zones and daylight-saving changes.
 - Reject malformed JSON, non-finite numbers, oversized strings, and unknown shapes.
 - Preserve the previous snapshot after an invalid update.
 - Deduplicate low-quota notifications by window/reset identity.
+- Persist and restore notification deduplication across host restarts.
+- Treat `account/rateLimits/updated` as invalidation and perform a full read.
+- Clear previous identity, quota, and deduplication state on `account/updated`.
+- Discard late account/quota responses whose captured account generation is no longer current.
+- Distinguish logged out, ChatGPT auth, API-key auth, and Bedrock auth.
+- Mask account labels and prove the full identifier never enters state files or logs.
 
 ### 14.2 Provider integration tests
 
@@ -363,21 +408,28 @@ Use a fake JSONL app-server process to cover:
 
 - initialization handshake;
 - initial read and update notifications;
+- sparse update notification followed by a complete rate-limit read;
 - request/response correlation;
 - stderr noise isolation;
 - process exit and backoff;
 - hung process cancellation;
 - manual refresh debounce;
 - orderly shutdown with no orphan child process.
+- capability failure on an old/missing endpoint and tolerance of unknown additive fields.
+- incompatible newer-schema guidance that asks for an application update rather than a Codex downgrade/update.
 
 No integration test requires a real user token.
 
+A separate host-process file-access test uses a fake app-server and an audited sentinel `auth.json` path to prove that the host and bridge never open it. A real-Codex diagnostic trace must filter the official app-server child PID separately, because that child legitimately owns its authentication behavior.
+
 ### 14.3 IPC/native tests
 
-- Round-trip each supported snapshot version.
-- Reject truncated, oversized, unknown-version, and invalid-enum payloads.
-- Fuzz the native snapshot decoder.
-- Verify no auth-bearing fields exist in the IPC schema.
+- Round-trip each supported state and command schema version through atomic files.
+- Prove command temp-write, flush, atomic publish, single-consumer claim, and stale-file cleanup semantics.
+- Reject reparse points, wrong owners/ACLs, truncated files, oversized files, stale/nonced commands, unknown versions, and invalid enums.
+- Fuzz the native state and command decoders.
+- Verify no auth-bearing fields exist in either file schema.
+- Validate anchor rectangles and DPI against current monitor geometry.
 - Exercise repeated connect/disconnect and Explorer-restart simulation.
 
 ### 14.4 Windows UI tests
@@ -387,34 +439,43 @@ Manual and automated smoke coverage on supported Windows 11 x64 builds:
 - left/center taskbar alignment;
 - 100%, 125%, 150%, and 200% scaling;
 - one and multiple monitors;
+- bottom taskbar geometry validated against monitor/taskbar bounds while the detail card is clamped to the work area;
+- auto-hide taskbar geometry and mixed-DPI monitor placement;
 - top-level taskbar recreation after Explorer restart;
 - light/dark Windows theme and transparency disabled;
 - auto-hide taskbar;
 - capsule click, right click, tooltip, outside click, and `Esc`;
 - no overlap with notification icons or clock;
 - fallback tray behavior on deliberately failed compatibility validation.
+- high-contrast mode and transparency disabled;
+- reduced-motion settings with no nonessential animation;
+- UI Automation names, percentage values, and Invoke patterns;
+- keyboard navigation, focus order, and `Esc` after the clicked popover is activated.
 
 ### 14.5 Reliability checks
 
-- Repeatedly publish at least 1,000 snapshots without observable Explorer handle/resource growth.
+- Publish 1,000 snapshots over at least 30 minutes with no crash or hang; after warm-up, Explorer GDI and USER handles must each finish within +10 of baseline and private bytes within +20 MiB.
 - Run provider reconnect and Explorer-restart soak tests.
 - Verify the host has no busy loop while idle.
 - Verify uninstall and host exit remove all live capsule instances.
+- Simulate host death and lease expiry, then verify the bridge removes its UI within 30 seconds.
+- Simulate an unclean activation across host and Windows-session restart and verify startup remains tray-only until explicit retry.
 
 ## 15. Acceptance Criteria
 
 The first release candidate is acceptable when all of the following are true:
 
-1. On a verified Windows 11 x64 build, the capsule is inserted into each selected taskbar and matches the approved Liquid Capsule layout.
+1. On the user’s Windows 11 x64 build `10.0.26200` with the recorded Explorer/taskbar signatures, the capsule is inserted into each selected taskbar, detaches cleanly, and matches the approved Liquid Capsule layout.
 2. Values match the installed Codex CLI’s app-server response after converting from used to remaining percentage.
-3. Clicking the capsule opens the approved detail card with localized reset times, Refresh, and Open Codex actions.
-4. The application reads quota without opening `auth.json`, browser cookies, or private ChatGPT endpoints.
+3. Clicking the capsule opens the approved detail card at the clicked monitor with masked account/plan, localized reset times, Refresh, and Open Codex actions.
+4. Static checks and process-level file tracing prove that the host and bridge do not contain upstream account-management/migration code and do not open `auth.json`, browser cookies, or private ChatGPT endpoints.
 5. Network/auth/provider code does not execute inside Explorer.
-6. Provider restarts, Explorer restarts, and a missing second window produce the specified recoverable states.
-7. Unsupported taskbar validation enters tray fallback without an Explorer crash loop.
-8. Unit, provider integration, IPC validation, and packaging smoke tests pass.
-9. Installer and portable build launch successfully on a clean Windows 11 x64 test account with Codex already installed and logged in.
-10. Documentation states the private-taskbar compatibility risk, unsigned-build warning, supported builds, data handling, and uninstall behavior.
+6. CLI capability probing works across the bounded verified range from Codex 0.142.0 through the packaging-time maximum; compatible additive fields are tolerated, while old, newer-incompatible, and non-ChatGPT modes produce distinct guidance.
+7. Sparse notifications, deliberately reordered old-account responses, account changes, provider restarts, Explorer restarts, and a missing second window produce the specified recoverable states without leaking the prior account.
+8. Unsupported validation, activation timeout, Explorer unresponsiveness, host death, and an unclean prior activation enter persistent tray-only safe mode without an Explorer crash/login loop.
+9. Unit, provider integration, state/command validation, accessibility, reliability, and packaging smoke tests pass.
+10. Installer and portable build launch successfully on a clean Windows 11 x64 test account with a ChatGPT-authenticated Codex version inside the recorded verified range; a newer version is accepted only after capability and schema probes pass.
+11. Documentation states the private-taskbar compatibility risk, unsigned-build warning, supported signatures, OpenAI/app-server data flow, local persistence, safe-mode recovery, and uninstall behavior.
 
 ## 16. Principal Risks
 
@@ -422,10 +483,12 @@ The first release candidate is acceptable when all of the following are true:
 |---|---|
 | Windows update changes private taskbar internals | Explicit build/signature validation, upstream tracking, fail-closed tray fallback |
 | Code inside Explorer destabilizes the shell | Keep bridge minimal, validate all IPC, circuit breaker, no provider/network logic in bridge |
-| App-server schema evolves | Generate schemas from the installed Codex version during development, tolerate unknown fields, test backward-compatible views |
+| App-server schema evolves | Publish a bounded verified CLI range, probe capabilities/schema, tolerate compatible additive fields, and direct newer incompatibilities to an application update |
 | User expects percentage to mean “used” | Label all detailed values as “剩余额度”; tests lock `100 - usedPercent` behavior |
-| Duplicate notifications after reconnect | Deduplicate using threshold crossing plus reset timestamp |
+| Duplicate notifications after reconnect/restart | Persist deduplication using threshold crossing plus reset timestamp |
 | Missing/renamed quota windows | Derive labels from duration and render missing data honestly |
+| Imported upstream account features touch credentials | Curated import, forbidden-dependency scan, and process-level file-access test |
+| Bad bridge activation repeats at login | Persistent activation journal, lease-based detach, breaker, and safe-mode launcher |
 | Unsigned installer warning | Provide checksums and source-built artifacts; pursue signing separately rather than weakening Windows security |
 
 ## 17. Implementation Planning Boundary
