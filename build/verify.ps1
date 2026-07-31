@@ -6,8 +6,16 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
-$cmake = & (Join-Path $PSScriptRoot 'resolve-cmake.ps1')
 $nativeBuildDirectory = Join-Path $repositoryRoot 'artifacts\\native-verify'
+$powerShell = [System.Environment]::ProcessPath
+if ([string]::IsNullOrWhiteSpace($powerShell)) {
+    $powerShell = (Get-Process -Id $PID).Path
+}
+
+& $powerShell -NoProfile -NonInteractive -File (Join-Path $PSScriptRoot 'verify-sensitive-boundary.ps1')
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+$cmake = & (Join-Path $PSScriptRoot 'resolve-cmake.ps1')
 
 & dotnet test (Join-Path $repositoryRoot 'CodexQuotaTaskbar.slnx') -c $Configuration
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

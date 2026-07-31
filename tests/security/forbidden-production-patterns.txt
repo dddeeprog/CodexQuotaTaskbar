@@ -1,0 +1,7 @@
+AccountManager
+auth.json
+Data[\\/]Accounts
+Data[\\/]IdeProfiles
+active-codex-account.txt
+chatgpt.com/backend-api/wham
+TaskbarStats
