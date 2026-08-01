@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\\CodexQuotaTaskbar.Core\\CodexQuotaTaskbar.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="CodexQuotaTaskbar.BridgeControl.Tests" />
+    <InternalsVisibleTo Include="CodexQuotaTaskbar.CompatibilityProbe" />
+  </ItemGroup>
+</Project>

@@ -1,8 +1,10 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/CodexQuotaTaskbar.BridgeControl/CodexQuotaTaskbar.BridgeControl.csproj" />
     <Project Path="src/CodexQuotaTaskbar.Core/CodexQuotaTaskbar.Core.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/CodexQuotaTaskbar.BridgeControl.Tests/CodexQuotaTaskbar.BridgeControl.Tests.csproj" />
     <Project Path="tests/CodexQuotaTaskbar.Core.Tests/CodexQuotaTaskbar.Core.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">

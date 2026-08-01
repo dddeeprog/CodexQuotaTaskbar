@@ -3,6 +3,7 @@
     <OutputType>Exe</OutputType>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\\..\\src\\CodexQuotaTaskbar.BridgeControl\\CodexQuotaTaskbar.BridgeControl.csproj" />
     <ProjectReference Include="..\\..\\src\\CodexQuotaTaskbar.Core\\CodexQuotaTaskbar.Core.csproj" />
   </ItemGroup>
   <ItemGroup>

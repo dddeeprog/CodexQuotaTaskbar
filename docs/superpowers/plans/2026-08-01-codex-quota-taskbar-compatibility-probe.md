@@ -385,7 +385,7 @@ git commit -m "feat: add minimal taskbar structure probe"
 - Modify: `tools/CodexQuotaTaskbar.CompatibilityProbe/CodexQuotaTaskbar.CompatibilityProbe.csproj`
 - Modify: `CodexQuotaTaskbar.slnx`
 
-- [ ] **Step 1: Write failing injection-state tests with a fake Win32 boundary**
+- [x] **Step 1: Write failing injection-state tests with a fake Win32 boundary**
 
 Create the BCL-only BridgeControl project and its test project, add both to `CodexQuotaTaskbar.slnx`, reference Core from BridgeControl, reference BridgeControl from the probe, and reference both Core and BridgeControl from BridgeControl.Tests. Neither BridgeControl nor its tests may reference WPF, Host, a provider, or account code.
 
@@ -406,7 +406,7 @@ dotnet test tests\CodexQuotaTaskbar.BridgeControl.Tests -c Release --filter "Act
 
 Expected: FAIL.
 
-- [ ] **Step 2: Implement the journal and safe CLI modes**
+- [x] **Step 2: Implement the journal and safe CLI modes**
 
 Supported commands:
 
@@ -423,7 +423,7 @@ Resolve a relative output path against the caller's current directory and normal
 
 Store the shared journal under `%LOCALAPPDATA%\CodexQuotaTaskbar\Probe\activation.json`. It contains app version, build, sanitized signatures, Explorer PID, start time, and `Pending|Stable|Clean|Unsafe`; no username or full path. The probe is a thin CLI over BridgeControl services from its first implementation, so the later product never needs to reference the WPF Host or duplicate injection code.
 
-- [ ] **Step 3: Implement the injector from the upstream loader pattern**
+- [x] **Step 3: Implement the injector from the upstream loader pattern**
 
 Adapt pinned `Program.cs:296-327,437-634` into focused classes. Before creating the remote thread:
 
@@ -435,11 +435,11 @@ Adapt pinned `Program.cs:296-327,437-634` into focused classes. Before creating 
 
 Wait for a per-Explorer ready event for at most ten seconds. Request detach through a named shutdown event, require the bridge's `quiesced` event, then poll the Explorer module list until the versioned DLL is absent. Do not remote-`FreeLibrary` the TAP bridge. A ten-second detach/unload timeout records `Unsafe`, leaves the mapped file untouched, and blocks reinjection until explicit recovery.
 
-- [ ] **Step 4: Implement responsiveness and emergency recovery**
+- [x] **Step 4: Implement responsiveness and emergency recovery**
 
 Use `SendMessageTimeout(WM_NULL, 2 seconds)` only as a responsiveness signal. Three consecutive failures mark the report unsafe and prevent reinjection. `recover-probe.ps1` signals all known probe shutdown events and starts Explorer only if Explorer has already exited; it never force-kills a responsive Explorer.
 
-- [ ] **Step 5: Run all non-live tests**
+- [x] **Step 5: Run all non-live tests**
 
 Run:
 
@@ -449,7 +449,7 @@ Run:
 
 Expected: PASS; no Explorer injection.
 
-- [ ] **Step 6: Commit the probe controller**
+- [x] **Step 6: Commit the probe controller**
 
 ```powershell
 git add CodexQuotaTaskbar.slnx src/CodexQuotaTaskbar.BridgeControl tools tests/CodexQuotaTaskbar.BridgeControl.Tests
