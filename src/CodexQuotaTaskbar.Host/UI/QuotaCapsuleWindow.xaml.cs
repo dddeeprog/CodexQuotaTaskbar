@@ -21,6 +21,11 @@ public partial class QuotaCapsuleWindow : Window
     private readonly System.Windows.Media.Brush normalBackdropBackground;
     private ScreenRect physicalBounds;
     private bool blurReady;
+    private ScreenRect dragOriginBounds;
+    private int dragOriginX;
+    private int dragOriginY;
+    private bool pointerDown;
+    private bool userDragging;
 
     internal QuotaCapsuleWindow(string monitorId)
     {
@@ -36,7 +41,10 @@ public partial class QuotaCapsuleWindow : Window
             blurReady = true;
             ApplySystemAppearance();
         };
-        MouseLeftButtonUp += (_, _) => PrimaryInvoked?.Invoke(this, EventArgs.Empty);
+        AddHandler(Mouse.PreviewMouseDownEvent, new MouseButtonEventHandler(OnMouseLeftButtonDown), true);
+        AddHandler(Mouse.PreviewMouseMoveEvent, new System.Windows.Input.MouseEventHandler(OnMouseMove), true);
+        AddHandler(Mouse.PreviewMouseUpEvent, new MouseButtonEventHandler(OnMouseLeftButtonUp), true);
+        LostMouseCapture += (_, _) => ResetDragState();
         MouseRightButtonUp += (_, _) => ContextInvoked?.Invoke(this, EventArgs.Empty);
         SystemParameters.StaticPropertyChanged += OnSystemParametersChanged;
         Closed += (_, _) => SystemParameters.StaticPropertyChanged -= OnSystemParametersChanged;
@@ -45,8 +53,10 @@ public partial class QuotaCapsuleWindow : Window
 
     internal string MonitorId { get; }
     internal ScreenRect PhysicalBounds => physicalBounds;
+    internal bool IsUserDragging => userDragging;
     internal event EventHandler? PrimaryInvoked;
     internal event EventHandler? ContextInvoked;
+    internal event Action<ScreenRect>? UserMoved;
 
     internal void Apply(QuotaSnapshot snapshot)
     {
@@ -71,6 +81,77 @@ public partial class QuotaCapsuleWindow : Window
     {
         physicalBounds = bounds;
         WindowInteropPolicy.Position(this, bounds);
+    }
+
+    internal static bool ExceedsDragThreshold(int deltaX, int deltaY) => Math.Abs(deltaX) >= 4 || Math.Abs(deltaY) >= 4;
+
+    internal static ScreenRect TranslateBounds(ScreenRect bounds, int deltaX, int deltaY) => new(
+        bounds.Left + deltaX,
+        bounds.Top + deltaY,
+        bounds.Right + deltaX,
+        bounds.Bottom + deltaY);
+
+    private void OnMouseLeftButtonDown(object sender, MouseButtonEventArgs eventArgs)
+    {
+        if (eventArgs.ChangedButton != MouseButton.Left || !WindowInteropPolicy.TryGetCursorPosition(out dragOriginX, out dragOriginY))
+        {
+            return;
+        }
+
+        dragOriginBounds = physicalBounds;
+        pointerDown = true;
+        userDragging = false;
+        Mouse.Capture(this);
+        eventArgs.Handled = true;
+    }
+
+    private void OnMouseMove(object sender, System.Windows.Input.MouseEventArgs eventArgs)
+    {
+        if (!pointerDown || eventArgs.LeftButton != MouseButtonState.Pressed
+            || !WindowInteropPolicy.TryGetCursorPosition(out var cursorX, out var cursorY))
+        {
+            return;
+        }
+
+        var deltaX = cursorX - dragOriginX;
+        var deltaY = cursorY - dragOriginY;
+        if (!userDragging && !ExceedsDragThreshold(deltaX, deltaY))
+        {
+            return;
+        }
+
+        userDragging = true;
+        Cursor = System.Windows.Input.Cursors.SizeAll;
+        var moved = TranslateBounds(dragOriginBounds, deltaX, deltaY);
+        Place(moved);
+        UserMoved?.Invoke(moved);
+        eventArgs.Handled = true;
+    }
+
+    private void OnMouseLeftButtonUp(object sender, MouseButtonEventArgs eventArgs)
+    {
+        if (!pointerDown || eventArgs.ChangedButton != MouseButton.Left)
+        {
+            return;
+        }
+
+        var invokePrimary = !userDragging;
+        pointerDown = false;
+        userDragging = false;
+        Cursor = System.Windows.Input.Cursors.Arrow;
+        ReleaseMouseCapture();
+        eventArgs.Handled = true;
+        if (invokePrimary)
+        {
+            PrimaryInvoked?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private void ResetDragState()
+    {
+        pointerDown = false;
+        userDragging = false;
+        Cursor = System.Windows.Input.Cursors.Arrow;
     }
 
     private static void ApplyRow(QuotaCapsuleRow row, System.Windows.Controls.TextBlock label, System.Windows.Controls.ProgressBar bar, System.Windows.Controls.TextBlock value)

@@ -28,6 +28,20 @@ internal static class WindowInteropPolicy
         }
     }
 
+    internal static bool TryGetCursorPosition(out int x, out int y)
+    {
+        if (NativeMethods.GetCursorPos(out var point))
+        {
+            x = point.X;
+            y = point.Y;
+            return true;
+        }
+
+        x = 0;
+        y = 0;
+        return false;
+    }
+
     private static nint NoActivateHook(nint window, int message, nint wParam, nint lParam, ref bool handled)
     {
         if (message == NativeMethods.WmMouseActivate)

@@ -7,7 +7,7 @@ public sealed class AppServerProtocolException(string message, Exception? inner 
 
 public static class AppServerRateLimitsParser
 {
-    public static QuotaSnapshot Parse(string json, DateTimeOffset capturedAt)
+    public static QuotaSnapshot Parse(string json, DateTimeOffset capturedAt, string? subscriptionPlan = null)
     {
         try
         {
@@ -35,7 +35,7 @@ public static class AppServerRateLimitsParser
                 throw new AppServerProtocolException("额度响应不包含有效窗口。");
             }
 
-            return QuotaSnapshot.Available(windows, capturedAt);
+            return QuotaSnapshot.Available(windows, capturedAt, subscriptionPlan);
         }
         catch (AppServerProtocolException)
         {

@@ -63,7 +63,13 @@
         </StackPanel>
         <Button x:Name="CloseButton" Grid.Column="1" Content="×" Style="{StaticResource CircleButton}" AutomationProperties.Name="关闭" />
       </Grid>
-      <TextBlock x:Name="StatusText" Grid.Row="1" Margin="1,10,0,14" Foreground="#9EAFAFB3" FontFamily="Segoe UI Variable Text" FontSize="11" TextWrapping="Wrap" />
+      <Grid Grid.Row="1" Margin="1,10,0,14">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <TextBlock x:Name="StatusText" Foreground="#9EAFAFB3" FontFamily="Segoe UI Variable Text" FontSize="11" TextWrapping="Wrap" VerticalAlignment="Center" />
+        <Border x:Name="PlanBadge" Grid.Column="1" Margin="10,0,0,0" Padding="9,4" Background="#18FFFFFF" BorderBrush="#28FFFFFF" BorderThickness="1" CornerRadius="10" VerticalAlignment="Center">
+          <TextBlock x:Name="PlanText" Text="订阅 · 未知" Foreground="#E8FFFFFF" FontFamily="Segoe UI Variable Text" FontSize="10.5" FontWeight="SemiBold" />
+        </Border>
+      </Grid>
       <StackPanel x:Name="RowsPanel" Grid.Row="2" />
       <Grid Grid.Row="3" Margin="0,16,0,0">
         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="9"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>

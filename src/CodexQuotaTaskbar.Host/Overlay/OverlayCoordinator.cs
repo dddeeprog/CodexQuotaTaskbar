@@ -14,6 +14,7 @@ internal sealed class OverlayCoordinator : IDisposable
     private const double PopoverWidth = 328;
     private readonly TaskbarTopologySource topology = new();
     private readonly Dictionary<string, QuotaCapsuleWindow> windows = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ScreenRect> userPositions = new(StringComparer.Ordinal);
     private readonly DispatcherTimer timer;
     private bool showAllTaskbars;
     private bool sessionLocked;
@@ -65,6 +66,7 @@ internal sealed class OverlayCoordinator : IDisposable
         {
             windows[stale].Close();
             windows.Remove(stale);
+            userPositions.Remove(stale);
         }
 
         foreach (var anchor in anchors.Values)
@@ -92,7 +94,12 @@ internal sealed class OverlayCoordinator : IDisposable
             {
                 window.Show();
             }
-            window.Place(OverlayPlacementCalculator.Calculate(anchor, CapsuleWidth, CapsuleHeight, 12, 8));
+            if (!window.IsUserDragging)
+            {
+                window.Place(userPositions.TryGetValue(anchor.MonitorId, out var userPosition)
+                    ? userPosition
+                    : OverlayPlacementCalculator.Calculate(anchor, CapsuleWidth, CapsuleHeight, 12, 8));
+            }
         }
     }
 
@@ -101,6 +108,7 @@ internal sealed class OverlayCoordinator : IDisposable
         var window = new QuotaCapsuleWindow(monitorId);
         window.PrimaryInvoked += (_, _) => TogglePopover(window);
         window.ContextInvoked += (_, _) => ContextRequested?.Invoke(window, EventArgs.Empty);
+        window.UserMoved += bounds => userPositions[window.MonitorId] = bounds;
         return window;
     }
 

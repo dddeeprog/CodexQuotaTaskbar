@@ -53,6 +53,7 @@ public partial class QuotaPopoverWindow : Window
     internal void Apply(QuotaSnapshot snapshot)
     {
         StatusText.Text = snapshot.StatusText + (snapshot.CapturedAt is { } captured ? $" · {captured.ToLocalTime():HH:mm:ss}" : string.Empty);
+        PlanText.Text = $"订阅 · {snapshot.SubscriptionPlan ?? "未知"}";
         RowsPanel.Children.Clear();
         if (snapshot.Windows.Count == 0)
         {
@@ -164,6 +165,9 @@ public partial class QuotaPopoverWindow : Window
         SetBlurEnabled(!opaque);
         TitleText.Foreground = opaque ? System.Windows.SystemColors.WindowTextBrush : System.Windows.Media.Brushes.White;
         StatusText.Foreground = opaque ? System.Windows.SystemColors.WindowTextBrush : new SolidColorBrush(System.Windows.Media.Color.FromRgb(174, 174, 178));
+        PlanText.Foreground = opaque ? System.Windows.SystemColors.ControlTextBrush : new SolidColorBrush(System.Windows.Media.Color.FromRgb(242, 242, 247));
+        PlanBadge.Background = opaque ? System.Windows.SystemColors.ControlBrush : new SolidColorBrush(System.Windows.Media.Color.FromArgb(24, 255, 255, 255));
+        PlanBadge.BorderBrush = opaque ? System.Windows.SystemColors.ActiveBorderBrush : new SolidColorBrush(System.Windows.Media.Color.FromArgb(40, 255, 255, 255));
         var rowText = RowsPanel.Children.OfType<TextBlock>()
             .Concat(RowsPanel.Children.OfType<Border>().SelectMany(border =>
                 border.Child is Grid grid ? grid.Children.OfType<TextBlock>() : []));

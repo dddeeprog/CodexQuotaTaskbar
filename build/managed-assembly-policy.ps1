@@ -35,8 +35,11 @@ $script:ApprovedStagedOpaqueRelativePaths = [System.Collections.Generic.HashSet[
 $script:ApprovedSingleFileHost = [pscustomobject]@{
     RelativePath = 'CodexQuotaTaskbar.CompatibilityProbe.exe'
     FileName = 'singlefilehost.exe'
-    Size = 9982464
-    Sha256 = 'a7eb510e9a85d1dc26970bcca9d8bc4435b06b42e5ee631e567132b645cfe034'
+    TemplateRelativePath = 'dotnet\packs\Microsoft.NETCore.App.Host.win-x64\10.0.10\runtimes\win-x64\native\singlefilehost.exe'
+    TemplateSize = 9980928
+    TemplateSha256 = 'c458e524b227783239693d1fdf7f474a757b49e2829c7fb00a5ac9e5274f83e8'
+    AppPathPlaceholder = 'c3ab8ff13720e8ad9047dd39466b3c8974e592c2fa383d4a3960714caef0c4f2'
+    ExpectedAppPath = 'CodexQuotaTaskbar.CompatibilityProbe.dll'
 }
 $script:TrustedFrameworkPublicKeyTokens = [System.Collections.Generic.HashSet[string]]::new(
     [string[]]@(
@@ -246,6 +249,205 @@ function Get-Sha256FileHex {
     return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
 }
 
+function Get-Sha256RangeHex {
+    param(
+        [Parameter(Mandatory = $true)][byte[]]$Bytes,
+        [Parameter(Mandatory = $true)][int]$Offset,
+        [Parameter(Mandatory = $true)][int]$Count
+    )
+
+    $algorithm = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $null = $algorithm.TransformBlock($Bytes, $Offset, $Count, $null, 0)
+        $null = $algorithm.TransformFinalBlock([byte[]]::new(0), 0, 0)
+        return ([System.BitConverter]::ToString($algorithm.Hash)).Replace('-', '').ToLowerInvariant()
+    }
+    finally {
+        $algorithm.Dispose()
+    }
+}
+
+function Find-ByteSequenceOffset {
+    param(
+        [Parameter(Mandatory = $true)][byte[]]$Bytes,
+        [Parameter(Mandatory = $true)][byte[]]$Sequence
+    )
+
+    $matchOffset = -1
+    for ($offset = 0; $offset -le $Bytes.Length - $Sequence.Length; $offset++) {
+        $matches = $true
+        for ($index = 0; $index -lt $Sequence.Length; $index++) {
+            if ($Bytes[$offset + $index] -ne $Sequence[$index]) {
+                $matches = $false
+                break
+            }
+        }
+        if ($matches) {
+            if ($matchOffset -ge 0) {
+                throw 'Managed policy SDK host template contains a duplicate app-path placeholder.'
+            }
+            $matchOffset = $offset
+        }
+    }
+    if ($matchOffset -lt 0) {
+        throw 'Managed policy SDK host template is missing its app-path placeholder.'
+    }
+    return $matchOffset
+}
+
+function Test-ObjectPropertiesEqualExcept {
+    param(
+        [Parameter(Mandatory = $true)]$Expected,
+        [Parameter(Mandatory = $true)]$Actual,
+        [string[]]$ExcludedNames = @()
+    )
+
+    $excluded = [System.Collections.Generic.HashSet[string]]::new(
+        [string[]]$ExcludedNames,
+        [System.StringComparer]::Ordinal)
+    foreach ($property in $Expected.GetType().GetProperties()) {
+        if ($excluded.Contains($property.Name)) {
+            continue
+        }
+        if (-not [object]::Equals($property.GetValue($Expected), $property.GetValue($Actual))) {
+            return $false
+        }
+    }
+    return $true
+}
+
+function Test-ApprovedPatchedSingleFileHost {
+    param([Parameter(Mandatory = $true)][System.IO.FileInfo]$File)
+
+    $approved = $script:ApprovedSingleFileHost
+    if ($File.Name -cne $approved.FileName) {
+        return $false
+    }
+    $templatePath = Join-Path $env:ProgramFiles $approved.TemplateRelativePath
+    if (-not (Test-Path -LiteralPath $templatePath -PathType Leaf)) {
+        throw 'Managed policy could not locate the pinned Microsoft .NET single-file host template.'
+    }
+    $templateFile = Get-Item -LiteralPath $templatePath -Force
+    if ($templateFile.Length -ne $approved.TemplateSize -or
+        (Get-Sha256FileHex -Path $templateFile.FullName) -cne $approved.TemplateSha256) {
+        throw 'Managed policy Microsoft .NET single-file host template does not match the pinned SDK payload.'
+    }
+
+    $templateBytes = [System.IO.File]::ReadAllBytes($templateFile.FullName)
+    $candidateBytes = [System.IO.File]::ReadAllBytes($File.FullName)
+    $templateStream = [System.IO.MemoryStream]::new($templateBytes, $false)
+    $candidateStream = [System.IO.MemoryStream]::new($candidateBytes, $false)
+    try {
+        $templateReader = [System.Reflection.PortableExecutable.PEReader]::new($templateStream)
+        $candidateReader = [System.Reflection.PortableExecutable.PEReader]::new($candidateStream)
+        try {
+            $templateHeaders = $templateReader.PEHeaders
+            $candidateHeaders = $candidateReader.PEHeaders
+            if ($null -eq $templateHeaders.PEHeader -or $null -eq $candidateHeaders.PEHeader -or
+                -not (Test-ObjectPropertiesEqualExcept -Expected $templateHeaders.CoffHeader -Actual $candidateHeaders.CoffHeader) -or
+                -not (Test-ObjectPropertiesEqualExcept -Expected $templateHeaders.PEHeader -Actual $candidateHeaders.PEHeader `
+                    -ExcludedNames @('SizeOfInitializedData', 'ResourceTableDirectory'))) {
+                return $false
+            }
+
+            $templateSections = @($templateHeaders.SectionHeaders)
+            $candidateSections = @($candidateHeaders.SectionHeaders)
+            if ($templateSections.Count -ne $candidateSections.Count) {
+                return $false
+            }
+            $resourceIndex = [array]::IndexOf([string[]]@($templateSections | ForEach-Object Name), '.rsrc')
+            $relocationIndex = [array]::IndexOf([string[]]@($templateSections | ForEach-Object Name), '.reloc')
+            $dataIndex = [array]::IndexOf([string[]]@($templateSections | ForEach-Object Name), '.data')
+            if ($resourceIndex -lt 0 -or $relocationIndex -lt 0 -or $dataIndex -lt 0) {
+                return $false
+            }
+            $templateResource = $templateSections[$resourceIndex]
+            $candidateResource = $candidateSections[$resourceIndex]
+            $resourceDelta = $candidateResource.SizeOfRawData - $templateResource.SizeOfRawData
+            if ($resourceDelta -lt 0 -or $resourceDelta -gt 4194304 -or ($resourceDelta % 512) -ne 0 -or
+                $candidateResource.PointerToRawData -ne $templateResource.PointerToRawData -or
+                $candidateResource.VirtualSize -le 0 -or
+                $candidateResource.VirtualSize -gt ($candidateSections[$relocationIndex].VirtualAddress - $candidateResource.VirtualAddress) -or
+                ($candidateResource.SectionCharacteristics -band [System.Reflection.PortableExecutable.SectionCharacteristics]::MemExecute) -ne 0 -or
+                $candidateHeaders.PEHeader.SizeOfInitializedData -ne ($templateHeaders.PEHeader.SizeOfInitializedData + $resourceDelta) -or
+                $candidateHeaders.PEHeader.ResourceTableDirectory.RelativeVirtualAddress -ne $candidateResource.VirtualAddress -or
+                $candidateHeaders.PEHeader.ResourceTableDirectory.Size -ne $candidateResource.VirtualSize -or
+                $candidateBytes.Length -ne ($templateBytes.Length + $resourceDelta)) {
+                return $false
+            }
+
+            for ($index = 0; $index -lt $templateSections.Count; $index++) {
+                $expectedSection = $templateSections[$index]
+                $actualSection = $candidateSections[$index]
+                if ($expectedSection.Name -cne $actualSection.Name -or
+                    $expectedSection.VirtualAddress -ne $actualSection.VirtualAddress -or
+                    $expectedSection.SectionCharacteristics -ne $actualSection.SectionCharacteristics) {
+                    return $false
+                }
+                if ($index -eq $resourceIndex) {
+                    continue
+                }
+                if ($index -eq $relocationIndex) {
+                    if ($actualSection.PointerToRawData -ne ($expectedSection.PointerToRawData + $resourceDelta) -or
+                        $actualSection.SizeOfRawData -ne $expectedSection.SizeOfRawData -or
+                        $actualSection.VirtualSize -ne $expectedSection.VirtualSize) {
+                        return $false
+                    }
+                }
+                elseif (-not (Test-ObjectPropertiesEqualExcept -Expected $expectedSection -Actual $actualSection)) {
+                    return $false
+                }
+            }
+
+            $placeholderBytes = [System.Text.Encoding]::ASCII.GetBytes($approved.AppPathPlaceholder)
+            $placeholderOffset = Find-ByteSequenceOffset -Bytes $templateBytes -Sequence $placeholderBytes
+            $templateData = $templateSections[$dataIndex]
+            if ($placeholderOffset -lt $templateData.PointerToRawData -or
+                $placeholderOffset + $placeholderBytes.Length -gt $templateData.PointerToRawData + $templateData.SizeOfRawData) {
+                return $false
+            }
+            $expectedAppPathBytes = [byte[]]::new($placeholderBytes.Length)
+            $appPathBytes = [System.Text.Encoding]::UTF8.GetBytes($approved.ExpectedAppPath)
+            if ($appPathBytes.Length -ge $expectedAppPathBytes.Length) {
+                return $false
+            }
+            [System.Array]::Copy($appPathBytes, $expectedAppPathBytes, $appPathBytes.Length)
+            for ($index = 0; $index -lt $expectedAppPathBytes.Length; $index++) {
+                if ($candidateBytes[$placeholderOffset + $index] -ne $expectedAppPathBytes[$index]) {
+                    return $false
+                }
+            }
+            $candidateForComparison = [byte[]]$candidateBytes.Clone()
+            [System.Array]::Copy($placeholderBytes, 0, $candidateForComparison, $placeholderOffset, $placeholderBytes.Length)
+
+            for ($index = 0; $index -lt $templateSections.Count; $index++) {
+                if ($index -eq $resourceIndex) {
+                    continue
+                }
+                $expectedSection = $templateSections[$index]
+                $actualSection = $candidateSections[$index]
+                $expectedHash = Get-Sha256RangeHex -Bytes $templateBytes -Offset $expectedSection.PointerToRawData -Count $expectedSection.SizeOfRawData
+                $actualHash = Get-Sha256RangeHex -Bytes $candidateForComparison -Offset $actualSection.PointerToRawData -Count $actualSection.SizeOfRawData
+                if ($expectedHash -cne $actualHash) {
+                    return $false
+                }
+            }
+            return $true
+        }
+        finally {
+            $candidateReader.Dispose()
+            $templateReader.Dispose()
+        }
+    }
+    catch [System.BadImageFormatException] {
+        return $false
+    }
+    finally {
+        $candidateStream.Dispose()
+        $templateStream.Dispose()
+    }
+}
+
 function Test-ApprovedStagedOpaqueInput {
     param(
         [Parameter(Mandatory = $true)][System.IO.FileInfo]$File,
@@ -257,9 +459,7 @@ function Test-ApprovedStagedOpaqueInput {
     }
     $singleFileHost = $script:ApprovedSingleFileHost
     return $RelativePath -ceq $singleFileHost.RelativePath -and
-        $File.Name -ceq $singleFileHost.FileName -and
-        $File.Length -eq $singleFileHost.Size -and
-        (Get-Sha256FileHex -Path $File.FullName) -ceq $singleFileHost.Sha256
+        (Test-ApprovedPatchedSingleFileHost -File $File)
 }
 
 function Get-PublicKeyToken {

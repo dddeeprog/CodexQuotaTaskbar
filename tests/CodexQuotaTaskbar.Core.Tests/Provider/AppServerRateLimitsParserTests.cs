@@ -11,11 +11,12 @@ public sealed class AppServerRateLimitsParserTests
         {"rateLimits":{"limitId":"codex","primary":{"usedPercent":28,"windowDurationMins":300,"resetsAt":1785661200},"secondary":{"usedPercent":59,"windowDurationMins":10080,"resetsAt":1786266000}},"rateLimitsByLimitId":{}}
         """;
 
-        var snapshot = AppServerRateLimitsParser.Parse(json, DateTimeOffset.UnixEpoch);
+        var snapshot = AppServerRateLimitsParser.Parse(json, DateTimeOffset.UnixEpoch, "Pro Lite");
 
         Assert.Equal(2, snapshot.Windows.Count);
         Assert.Equal(72, snapshot.Windows[0].RemainingPercent);
         Assert.Equal(41, snapshot.Windows[1].RemainingPercent);
+        Assert.Equal("Pro Lite", snapshot.SubscriptionPlan);
     }
 
     [Theory]

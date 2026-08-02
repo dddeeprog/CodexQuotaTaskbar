@@ -15,7 +15,7 @@ internal sealed class DemoQuotaProvider : IQuotaProvider
         var now = DateTimeOffset.Now;
         Current = QuotaSnapshot.Available([
             new(QuotaWindowKind.Primary, 72, 300, now.AddHours(3)),
-            new(QuotaWindowKind.Secondary, 41, 10080, now.AddDays(4))], now);
+            new(QuotaWindowKind.Secondary, 41, 10080, now.AddDays(4))], now, "Pro Lite");
         SnapshotChanged?.Invoke(this, Current);
         return Task.CompletedTask;
     }

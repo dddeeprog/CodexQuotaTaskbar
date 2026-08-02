@@ -47,7 +47,7 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
         {
             var generation = Interlocked.Read(ref accountGeneration);
             var accountResult = await client.RequestAsync("account/read", new { refreshToken = false }, cancellationToken);
-            if (!TryValidateChatGptAccount(accountResult, out var accountMessage))
+            if (!TryValidateChatGptAccount(accountResult, out var accountMessage, out var subscriptionPlan))
             {
                 Set(QuotaSnapshot.Unavailable(accountMessage));
                 return;
@@ -59,12 +59,12 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
                 return;
             }
 
-            Set(AppServerRateLimitsParser.Parse(result.GetRawText(), DateTimeOffset.Now));
+            Set(AppServerRateLimitsParser.Parse(result.GetRawText(), DateTimeOffset.Now, subscriptionPlan));
         }
         catch (Exception exception) when (exception is InvalidOperationException or IOException or TimeoutException or AppServerProtocolException)
         {
             Set(Current.Windows.Count > 0 && Current.CapturedAt is { } captured
-                ? QuotaSnapshot.Stale(Current.Windows, captured, "连接中断，显示上次额度")
+                ? QuotaSnapshot.Stale(Current.Windows, captured, "连接中断，显示上次额度", Current.SubscriptionPlan)
                 : QuotaSnapshot.Unavailable("暂时无法读取 Codex 额度"));
         }
         finally
@@ -73,8 +73,9 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
         }
     }
 
-    private static bool TryValidateChatGptAccount(JsonElement result, out string message)
+    private static bool TryValidateChatGptAccount(JsonElement result, out string message, out string? subscriptionPlan)
     {
+        subscriptionPlan = null;
         if (!result.TryGetProperty("account", out var account) || account.ValueKind == JsonValueKind.Null)
         {
             message = "请先在 Codex 中登录 ChatGPT";
@@ -88,6 +89,10 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
             return false;
         }
 
+        var rawPlan = account.TryGetProperty("planType", out var planNode) && planNode.ValueKind == JsonValueKind.String
+            ? planNode.GetString()
+            : null;
+        subscriptionPlan = SubscriptionPlanFormatter.Format(rawPlan);
         message = string.Empty;
         return true;
     }
