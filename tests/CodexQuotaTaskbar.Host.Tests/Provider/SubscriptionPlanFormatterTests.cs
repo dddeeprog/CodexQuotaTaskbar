@@ -4,6 +4,12 @@ namespace CodexQuotaTaskbar.Host.Tests.Provider;
 
 public sealed class SubscriptionPlanFormatterTests
 {
+    [Fact]
+    public void Automatic_refresh_uses_the_three_minute_fallback_interval()
+    {
+        Assert.Equal(TimeSpan.FromMinutes(3), CodexRateLimitProvider.AutomaticRefreshInterval);
+    }
+
     [Theory]
     [InlineData("free", "Free")]
     [InlineData("plus", "Plus")]

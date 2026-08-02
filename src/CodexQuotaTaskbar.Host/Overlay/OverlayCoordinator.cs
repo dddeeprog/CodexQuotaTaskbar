@@ -20,6 +20,7 @@ internal sealed class OverlayCoordinator : IDisposable
     private bool sessionLocked;
     private QuotaSnapshot snapshot = QuotaSnapshot.Unavailable("正在连接 Codex…");
     private QuotaPopoverWindow? popover;
+    private QuotaCapsuleWindow? popoverOwner;
 
     internal OverlayCoordinator(bool showAllTaskbars)
     {
@@ -108,8 +109,38 @@ internal sealed class OverlayCoordinator : IDisposable
         var window = new QuotaCapsuleWindow(monitorId);
         window.PrimaryInvoked += (_, _) => TogglePopover(window);
         window.ContextInvoked += (_, _) => ContextRequested?.Invoke(window, EventArgs.Empty);
-        window.UserMoved += bounds => userPositions[window.MonitorId] = bounds;
+        window.UserMoved += (previous, current) => OnWindowMoved(window, previous, current);
         return window;
+    }
+
+    internal static ScreenRect CalculateFollowerBounds(ScreenRect follower, ScreenRect previousOwner, ScreenRect currentOwner) =>
+        new(
+            follower.Left + currentOwner.Left - previousOwner.Left,
+            follower.Top + currentOwner.Top - previousOwner.Top,
+            follower.Right + currentOwner.Left - previousOwner.Left,
+            follower.Bottom + currentOwner.Top - previousOwner.Top);
+
+    private void OnWindowMoved(QuotaCapsuleWindow window, ScreenRect previous, ScreenRect current)
+    {
+        userPositions[window.MonitorId] = current;
+        if (popover is null || !ReferenceEquals(popoverOwner, window))
+        {
+            return;
+        }
+
+        var handle = new System.Windows.Interop.WindowInteropHelper(popover).Handle;
+        if (!NativeMethods.GetWindowRect(handle, out var nativeBounds))
+        {
+            return;
+        }
+
+        var follower = CalculateFollowerBounds(
+            new ScreenRect(nativeBounds.Left, nativeBounds.Top, nativeBounds.Right, nativeBounds.Bottom),
+            previous,
+            current);
+        _ = NativeMethods.SetWindowPos(handle, NativeMethods.HwndTopmost,
+            follower.Left, follower.Top, follower.Width, follower.Height,
+            NativeMethods.SwpNoActivate | NativeMethods.SwpShowWindow);
     }
 
     private void TogglePopover(QuotaCapsuleWindow owner)
@@ -122,10 +153,16 @@ internal sealed class OverlayCoordinator : IDisposable
         }
 
         var details = new QuotaPopoverWindow { Owner = owner };
+        popover = details;
+        popoverOwner = owner;
         details.Apply(snapshot);
         details.RefreshRequested += (_, _) => RefreshRequested?.Invoke(this, EventArgs.Empty);
         details.OpenCodexRequested += (_, _) => OpenCodexRequested?.Invoke(this, EventArgs.Empty);
-        details.Closed += (_, _) => popover = null;
+        details.Closed += (_, _) =>
+        {
+            popover = null;
+            popoverOwner = null;
+        };
         details.Show();
         var anchor = topology.Capture().FirstOrDefault(value => value.MonitorId == owner.MonitorId);
         var dpi = anchor?.Dpi ?? 96;

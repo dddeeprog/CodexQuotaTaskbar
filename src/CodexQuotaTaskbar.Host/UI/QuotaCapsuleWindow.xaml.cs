@@ -56,7 +56,7 @@ public partial class QuotaCapsuleWindow : Window
     internal bool IsUserDragging => userDragging;
     internal event EventHandler? PrimaryInvoked;
     internal event EventHandler? ContextInvoked;
-    internal event Action<ScreenRect>? UserMoved;
+    internal event Action<ScreenRect, ScreenRect>? UserMoved;
 
     internal void Apply(QuotaSnapshot snapshot)
     {
@@ -123,8 +123,9 @@ public partial class QuotaCapsuleWindow : Window
         userDragging = true;
         Cursor = System.Windows.Input.Cursors.SizeAll;
         var moved = TranslateBounds(dragOriginBounds, deltaX, deltaY);
+        var previous = physicalBounds;
         Place(moved);
-        UserMoved?.Invoke(moved);
+        UserMoved?.Invoke(previous, moved);
         eventArgs.Handled = true;
     }
 

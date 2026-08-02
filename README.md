@@ -21,6 +21,7 @@
 - 普通 Codex 额度标记为 `Codex`，`codex_bengalfox` 周额度标记为 `Spark`。
 - 订阅计划只读取账号响应中的 `planType`；应用不会读取或显示邮箱。
 - 无法刷新时会保留最近一次数据并标记为陈旧，过期后显示不可用。
+- 启动时立即刷新；服务端通知后约 300 毫秒刷新，并且每 3 分钟自动兜底刷新一次。
 
 ## 直接使用
 
@@ -70,4 +71,4 @@
 
 ## 第三方组件
 
-界面模糊效果使用 [BlurredBackground.WPF](https://github.com/NullTale/BlurredBackground.WPF)。完整第三方声明见 `THIRD_PARTY_NOTICES.md`。本仓库尚未单独声明开源许可证，分发或二次发布前请先向项目所有者确认授权。
+本项目采用 [GNU General Public License v3.0](LICENSE) 开源。界面模糊效果使用 [BlurredBackground.WPF](https://github.com/NullTale/BlurredBackground.WPF)，完整第三方声明见 `THIRD_PARTY_NOTICES.md`。

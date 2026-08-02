@@ -50,7 +50,7 @@ internal sealed class CodexAppServerClient : IAsyncDisposable
 
         await RequestAsync("initialize", new
         {
-            clientInfo = new { name = "codex_quota_taskbar", title = "Codex Quota Taskbar", version = "0.1.0" },
+            clientInfo = new { name = "codex_quota_taskbar", title = "Codex Quota Taskbar", version = "0.1.1" },
         }, cancellationToken);
         await SendAsync(new { method = "initialized", @params = new { } }, cancellationToken);
     }

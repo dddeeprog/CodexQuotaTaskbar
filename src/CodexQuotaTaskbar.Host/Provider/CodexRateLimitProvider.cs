@@ -10,8 +10,11 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
     private readonly CodexAppServerClient client = new();
     private readonly SemaphoreSlim refreshLock = new(1, 1);
     private readonly CancellationTokenSource lifetime = new();
+    private Task? periodicRefreshTask;
     private long accountGeneration;
     private bool started;
+
+    internal static TimeSpan AutomaticRefreshInterval { get; } = TimeSpan.FromMinutes(3);
 
     internal CodexRateLimitProvider()
     {
@@ -28,6 +31,7 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
             await client.StartAsync(cancellationToken);
             started = true;
             await RefreshAsync(cancellationToken);
+            periodicRefreshTask = RefreshPeriodicallyAsync(lifetime.Token);
         }
         catch (Exception exception) when (exception is InvalidOperationException or IOException or System.ComponentModel.Win32Exception or TimeoutException)
         {
@@ -123,6 +127,21 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
         }
     }
 
+    private async Task RefreshPeriodicallyAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var timer = new PeriodicTimer(AutomaticRefreshInterval);
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await RefreshAsync(cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
     private void Set(QuotaSnapshot snapshot)
     {
         Current = snapshot;
@@ -132,6 +151,10 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
     public async ValueTask DisposeAsync()
     {
         lifetime.Cancel();
+        if (periodicRefreshTask is not null)
+        {
+            await periodicRefreshTask.ConfigureAwait(false);
+        }
         client.Notification -= OnNotification;
         await client.DisposeAsync().ConfigureAwait(false);
         refreshLock.Dispose();
