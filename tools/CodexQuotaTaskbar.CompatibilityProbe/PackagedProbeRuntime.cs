@@ -137,7 +137,9 @@ internal sealed class PackagedProbeRuntime : IProbeRuntime
             var injected = injector.InjectAsync(permit).GetAwaiter().GetResult();
             if (!injected.Succeeded || injected.Session is null)
             {
-                return ProbeActivationResult.Failed(ProbeActivationStatus.Rejected);
+                return ProbeActivationResult.Failed(
+                    ProbeActivationStatus.Rejected,
+                    ProbeActivationDiagnostic.FromInjectorFailure(injected.Failure));
             }
 
             return ProbeActivationResult.Ready(

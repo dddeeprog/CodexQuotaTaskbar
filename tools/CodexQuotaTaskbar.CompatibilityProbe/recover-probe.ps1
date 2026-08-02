@@ -3,14 +3,6 @@ param()
 
 $ErrorActionPreference = 'Stop'
 
-function Get-CurrentSessionExplorer {
-    $currentSession = [System.Diagnostics.Process]::GetCurrentProcess().SessionId
-    return @(
-        [System.Diagnostics.Process]::GetProcessesByName('explorer') |
-            Where-Object { -not $_.HasExited -and $_.SessionId -eq $currentSession }
-    )
-}
-
 function Get-ValidatedActivation {
     param([Parameter(Mandatory = $true)][string]$JournalPath)
 
@@ -182,22 +174,6 @@ function Send-KnownShutdown {
     }
 }
 
-function Start-ExplorerIfExited {
-    $runningExplorer = Get-CurrentSessionExplorer
-    try {
-        if ($runningExplorer.Count -eq 0) {
-            $windowsDirectory = [Environment]::GetFolderPath(
-                [Environment+SpecialFolder]::Windows)
-            Start-Process -FilePath (Join-Path $windowsDirectory 'explorer.exe')
-        }
-    }
-    finally {
-        foreach ($runningProcess in $runningExplorer) {
-            $runningProcess.Dispose()
-        }
-    }
-}
-
 try {
     $localAppData = [Environment]::GetFolderPath(
         [Environment+SpecialFolder]::LocalApplicationData)
@@ -208,7 +184,6 @@ try {
         $shutdownStatus = Send-KnownShutdown -Activation $activation
     }
 
-    Start-ExplorerIfExited
     Write-Output ('CodexQuotaTaskbar probe recovery request completed: {0}.' -f $shutdownStatus)
 }
 catch {

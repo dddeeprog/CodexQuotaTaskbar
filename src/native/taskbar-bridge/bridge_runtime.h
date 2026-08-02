@@ -17,6 +17,14 @@ enum class WorkSignal {
   failure,
 };
 
+enum class BridgeLifecyclePhase : std::uint8_t {
+  ControlEvents,
+  InitializeDiagnostics,
+  InitializeTaskbarThreads,
+  AdviseWatcher,
+  Ready,
+};
+
 enum class DetachResult : std::uint8_t {
   quiesced,
   not_quiesced,
@@ -33,6 +41,7 @@ class BridgeOperations {
   [[nodiscard]] virtual bool acquire_shutdown_event() noexcept = 0;
   [[nodiscard]] virtual bool acquire_quiesced_event() noexcept = 0;
   [[nodiscard]] virtual bool acquire_ready_event() noexcept = 0;
+  virtual void report_phase(BridgeLifecyclePhase) noexcept {}
   [[nodiscard]] virtual bool initialize_xaml_threads() noexcept = 0;
   [[nodiscard]] virtual bool initialize_xaml_diagnostics() noexcept = 0;
   [[nodiscard]] virtual bool advise_watcher() noexcept = 0;

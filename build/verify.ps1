@@ -15,9 +15,17 @@ if ([string]::IsNullOrWhiteSpace($powerShell)) {
 & $powerShell -NoProfile -NonInteractive -File (Join-Path $PSScriptRoot 'verify-sensitive-boundary.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+$policyPowerShell = (Get-Command pwsh.exe -CommandType Application -ErrorAction Stop).Source
+& $policyPowerShell -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File `
+    (Join-Path $repositoryRoot 'tests\security\managed-assembly-policy.selftest.ps1')
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 $cmake = & (Join-Path $PSScriptRoot 'resolve-cmake.ps1')
 
 & dotnet test (Join-Path $repositoryRoot 'CodexQuotaTaskbar.slnx') -c $Configuration
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+& (Join-Path $PSScriptRoot 'package-host.ps1') -Configuration $Configuration
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 & $cmake -S (Join-Path $repositoryRoot 'src\\native') -B $nativeBuildDirectory -A x64 -DBUILD_TESTING=ON

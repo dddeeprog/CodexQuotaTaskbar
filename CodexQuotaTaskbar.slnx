@@ -2,10 +2,12 @@
   <Folder Name="/src/">
     <Project Path="src/CodexQuotaTaskbar.BridgeControl/CodexQuotaTaskbar.BridgeControl.csproj" />
     <Project Path="src/CodexQuotaTaskbar.Core/CodexQuotaTaskbar.Core.csproj" />
+    <Project Path="src/CodexQuotaTaskbar.Host/CodexQuotaTaskbar.Host.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/CodexQuotaTaskbar.BridgeControl.Tests/CodexQuotaTaskbar.BridgeControl.Tests.csproj" />
     <Project Path="tests/CodexQuotaTaskbar.Core.Tests/CodexQuotaTaskbar.Core.Tests.csproj" />
+    <Project Path="tests/CodexQuotaTaskbar.Host.Tests/CodexQuotaTaskbar.Host.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/CodexQuotaTaskbar.CompatibilityProbe/CodexQuotaTaskbar.CompatibilityProbe.csproj" />

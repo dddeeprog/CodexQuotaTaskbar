@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <EmbedBridgePayload Condition="'$(EmbedBridgePayload)' == ''">false</EmbedBridgePayload>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\\..\\src\\CodexQuotaTaskbar.BridgeControl\\CodexQuotaTaskbar.BridgeControl.csproj" />
@@ -9,4 +11,40 @@
   <ItemGroup>
     <InternalsVisibleTo Include="CodexQuotaTaskbar.Core.Tests" />
   </ItemGroup>
+  <Target Name="ValidateEmbeddedBridgePayload" BeforeTargets="PrepareResources" Condition="'$(EmbedBridgePayload)' == 'true'">
+    <Error Condition="'$(BridgePayloadPath)' == '' Or '$(BridgePayloadSha256Path)' == ''"
+           Text="Bridge payload paths are required when EmbedBridgePayload is true." />
+    <Error Condition="!Exists('$(BridgePayloadPath)') Or !Exists('$(BridgePayloadSha256Path)')"
+           Text="The requested bridge payload or its SHA-256 file does not exist." />
+  </Target>
+  <ItemGroup Condition="'$(EmbedBridgePayload)' == 'true'">
+    <EmbeddedResource Include="$(BridgePayloadPath)"
+                      LogicalName="CodexQuotaTaskbar.CompatibilityProbe.Payload.CodexQuotaTaskbar.Bridge.dll" />
+    <EmbeddedResource Include="$(BridgePayloadSha256Path)"
+                      LogicalName="CodexQuotaTaskbar.CompatibilityProbe.Payload.CodexQuotaTaskbar.Bridge.sha256" />
+  </ItemGroup>
+  <Target Name="AuditActualBundleInputs"
+          BeforeTargets="GenerateSingleFileBundle"
+          DependsOnTargets="PrepareForBundle"
+          Condition="'$(CqtbAuditBundle)' == 'true'">
+    <Error Condition="'$(CqtbBundleAuditManifestPath)' == '' Or
+                      '$(CqtbBundleAuditScriptPath)' == '' Or
+                      '$(CqtbPolicyPowerShellPath)' == '' Or
+                      '$(CqtbAuditStagingRoot)' == ''"
+           Text="Compatibility-probe bundle auditing requires its staging and policy paths." />
+    <ItemGroup>
+      <_CqtbBundleAuditRecord Include="@(FilesToBundle->'input|%(FullPath)|%(RelativePath)')" />
+      <_CqtbBundleAuditRecord Include="@(IntermediateAssembly->'intermediate|%(FullPath)|')" />
+      <_CqtbBridgeAuditResource Include="@(EmbeddedResource)"
+                                Condition="'%(EmbeddedResource.LogicalName)' == 'CodexQuotaTaskbar.CompatibilityProbe.Payload.CodexQuotaTaskbar.Bridge.dll' Or
+                                           '%(EmbeddedResource.LogicalName)' == 'CodexQuotaTaskbar.CompatibilityProbe.Payload.CodexQuotaTaskbar.Bridge.sha256'" />
+      <_CqtbBundleAuditRecord Include="@(_CqtbBridgeAuditResource->'resource|%(FullPath)|%(LogicalName)')" />
+    </ItemGroup>
+    <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(CqtbBundleAuditManifestPath)'))" />
+    <WriteLinesToFile File="$(CqtbBundleAuditManifestPath)"
+                      Lines="@(_CqtbBundleAuditRecord)"
+                      Overwrite="true"
+                      Encoding="UTF-8" />
+    <Exec Command="&quot;$(CqtbPolicyPowerShellPath)&quot; -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File &quot;$(CqtbBundleAuditScriptPath)&quot; -ManifestPath &quot;$(CqtbBundleAuditManifestPath)&quot; -StagingRoot &quot;$(CqtbAuditStagingRoot)&quot; -BridgePayloadPath &quot;$(BridgePayloadPath)&quot; -BridgePayloadSha256Path &quot;$(BridgePayloadSha256Path)&quot;" />
+  </Target>
 </Project>

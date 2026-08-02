@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('Verify', 'Build', 'Probe')]
+    [ValidateSet('Verify', 'Build', 'Host', 'Package', 'Probe')]
     [string]$Target,
 
     [ValidateSet('Debug', 'Release')]
@@ -20,8 +20,16 @@ switch ($Target) {
         & dotnet build (Join-Path $repositoryRoot 'CodexQuotaTaskbar.slnx') -c $Configuration
         exit $LASTEXITCODE
     }
+    'Host' {
+        & dotnet build (Join-Path $repositoryRoot 'src\CodexQuotaTaskbar.Host\CodexQuotaTaskbar.Host.csproj') -c $Configuration
+        exit $LASTEXITCODE
+    }
+    'Package' {
+        & (Join-Path $repositoryRoot 'build\package-host.ps1') -Configuration $Configuration
+        exit $LASTEXITCODE
+    }
     'Probe' {
-        & dotnet run --project (Join-Path $repositoryRoot 'tools\\CodexQuotaTaskbar.CompatibilityProbe\\CodexQuotaTaskbar.CompatibilityProbe.csproj') -c $Configuration
+        & (Join-Path $repositoryRoot 'build\\package-probe.ps1') -Configuration $Configuration
         exit $LASTEXITCODE
     }
 }

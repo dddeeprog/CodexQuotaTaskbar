@@ -74,7 +74,8 @@ internal sealed record InjectorFailure(
     InjectorFailureCode Code,
     InjectorSafetyDisposition Disposition,
     int? NativeError = null,
-    int? RemoteHResult = null);
+    int? RemoteHResult = null,
+    BridgeLifecyclePhase? ObservedPhase = null);
 
 internal sealed record ExplorerInjectionResult
 {
@@ -666,6 +667,7 @@ internal sealed class ExplorerInjector
                 }
             }
 
+            using var phaseCapture = LifecyclePhaseCapture.Open(processApi, binding);
             var readyDeadline = timeProvider.GetTimestamp();
             shutdown = await OpenEventUntilDeadlineAsync(
                 names.Shutdown,
@@ -696,24 +698,26 @@ internal sealed class ExplorerInjector
             }
 
             var readyWait = ready.Wait(Remaining(readyDeadline));
+            var observedPhase = phaseCapture.ReadHighestSignaledPhase();
             if (readyWait.Kind != NativeWaitKind.Signaled)
             {
+                var code = readyWait.Kind == NativeWaitKind.TimedOut
+                    ? InjectorFailureCode.ReadyTimeout
+                    : InjectorFailureCode.ReadyWaitFailed;
                 await EmergencyDetachAsync(
                     process,
                     shutdown,
                     quiesced,
                     contract.CanonicalPath,
                     contract.SizeOfImage);
-                var code = readyWait.Kind == NativeWaitKind.TimedOut
-                    ? InjectorFailureCode.ReadyTimeout
-                    : InjectorFailureCode.ReadyWaitFailed;
                 return CommitUnsafeFailure(
                     activation,
                     Failure(
                         InjectorStage.Ready,
                         code,
                         InjectorSafetyDisposition.UnsafeRetained,
-                        readyWait.ErrorCode));
+                        nativeError: readyWait.ErrorCode,
+                        observedPhase: observedPhase));
             }
 
             if (!ValidateIdentity(process, permit).Succeeded ||
@@ -1217,6 +1221,83 @@ internal sealed class ExplorerInjector
         return null;
     }
 
+    private sealed class LifecyclePhaseCapture : IDisposable
+    {
+        private readonly Dictionary<BridgeLifecyclePhase, INamedEvent> phaseEvents = [];
+        private bool disposed;
+
+        private LifecyclePhaseCapture()
+        {
+        }
+
+        internal static LifecyclePhaseCapture Open(
+            IExplorerProcessApi processApi,
+            ExplorerInstanceBinding binding)
+        {
+            var capture = new LifecyclePhaseCapture();
+            foreach (var phase in Enum.GetValues<BridgeLifecyclePhase>())
+            {
+                try
+                {
+                    var opened = processApi.TryOpenEvent(
+                        BridgeEventNames.ForPhase(binding, phase),
+                        NativeEventAccess.Wait);
+                    if (opened.Succeeded && opened.Value is not null)
+                    {
+                        capture.phaseEvents.Add(phase, opened.Value);
+                    }
+                }
+                catch (Exception)
+                {
+                    // Lifecycle markers are optional diagnostics and never alter probe behavior.
+                }
+            }
+
+            return capture;
+        }
+
+        internal BridgeLifecyclePhase? ReadHighestSignaledPhase()
+        {
+            foreach (var phase in Enum.GetValues<BridgeLifecyclePhase>().Reverse())
+            {
+                if (!phaseEvents.TryGetValue(phase, out var phaseEvent))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    if (phaseEvent.Wait(TimeSpan.Zero).Kind == NativeWaitKind.Signaled)
+                    {
+                        return phase;
+                    }
+                }
+                catch (Exception)
+                {
+                    // Lifecycle markers are optional diagnostics and never alter probe behavior.
+                }
+            }
+
+            return null;
+        }
+
+        public void Dispose()
+        {
+            if (disposed)
+            {
+                return;
+            }
+
+            disposed = true;
+            foreach (var phaseEvent in phaseEvents.Values)
+            {
+                DisposeBestEffort(phaseEvent);
+            }
+
+            phaseEvents.Clear();
+        }
+    }
+
     private async Task<bool> EmergencyDetachAsync(
         IExplorerReadLease process,
         INamedEvent? shutdown,
@@ -1328,17 +1409,19 @@ internal sealed class ExplorerInjector
         InjectorFailureCode code,
         InjectorSafetyDisposition disposition,
         int? nativeError = null,
-        int? remoteHResult = null) =>
+        int? remoteHResult = null,
+        BridgeLifecyclePhase? observedPhase = null) =>
         ExplorerInjectionResult.Failed(
-            Failure(stage, code, disposition, nativeError, remoteHResult));
+            Failure(stage, code, disposition, nativeError, remoteHResult, observedPhase));
 
     private static InjectorFailure Failure(
         InjectorStage stage,
         InjectorFailureCode code,
         InjectorSafetyDisposition disposition,
         int? nativeError = null,
-        int? remoteHResult = null) =>
-        new(stage, code, disposition, nativeError, remoteHResult);
+        int? remoteHResult = null,
+        BridgeLifecyclePhase? observedPhase = null) =>
+        new(stage, code, disposition, nativeError, remoteHResult, observedPhase);
 
     private sealed record StartAndWaitResult(
         uint? ExitCode,

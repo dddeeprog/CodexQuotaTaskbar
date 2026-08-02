@@ -1,0 +1,79 @@
+<Window x:Class="CodexQuotaTaskbar.Host.UI.QuotaCapsuleWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Codex 额度" Width="218" Height="42"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ResizeMode="NoResize" ShowInTaskbar="False" ShowActivated="False"
+        SnapsToDevicePixels="True">
+  <!--
+  THESIS: Codex quota is a glanceable frosted taskbar surface, not a dashboard card.
+  OWN-WORLD: native WPF background blur, quiet cyan status, precise paired rails.
+  STORY: see two remaining windows; click for reset details; right-click for control.
+  FIRST VIEWPORT: 218x42 capsule, 32-DIP squircle mark left, two compact quota rows right.
+  FORM: native frosted glass powered by BlurredBackground.WPF.
+  -->
+  <Window.Resources>
+    <Style x:Key="LiquidProgress" TargetType="ProgressBar">
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ProgressBar">
+            <Grid Height="4">
+              <Border Background="#24FFFFFF" CornerRadius="2" />
+              <Grid x:Name="PART_Track">
+                <Border x:Name="PART_Indicator" HorizontalAlignment="Left" Background="{TemplateBinding Foreground}" CornerRadius="2" />
+              </Grid>
+            </Grid>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </Window.Resources>
+  <Grid x:Name="Shell">
+    <Border x:Name="BackdropLayer" CornerRadius="21">
+      <Border.Background>
+        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+          <GradientStop Color="#E51C1C1E" Offset="0"/>
+          <GradientStop Color="#D82C2C2E" Offset="0.52"/>
+          <GradientStop Color="#E3151517" Offset="1"/>
+        </LinearGradientBrush>
+      </Border.Background>
+    </Border>
+    <Border x:Name="GlassBorder" CornerRadius="21" Background="#72161618" BorderBrush="#50FFFFFF" BorderThickness="1">
+    <Grid Margin="7,5,11,5">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="32" />
+        <ColumnDefinition Width="8" />
+        <ColumnDefinition Width="*" />
+      </Grid.ColumnDefinitions>
+      <Border Width="32" Height="32" CornerRadius="12" Background="#1AFFFFFF" BorderBrush="#34FFFFFF" BorderThickness="1" VerticalAlignment="Center">
+        <Rectangle Width="19" Height="19" Fill="#F5FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality">
+          <Rectangle.OpacityMask>
+            <ImageBrush ImageSource="/CodexQuotaTaskbar;component/Assets/OpenAILogo.png"
+                        ViewboxUnits="Absolute"
+                        Viewbox="1124,274,1591,1613"
+                        Stretch="Uniform" />
+          </Rectangle.OpacityMask>
+        </Rectangle>
+      </Border>
+      <Grid Grid.Column="2">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="16" />
+          <RowDefinition Height="16" />
+        </Grid.RowDefinitions>
+        <Grid x:Name="FirstRow" Grid.Row="0">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="39"/><ColumnDefinition Width="*"/><ColumnDefinition Width="35"/></Grid.ColumnDefinitions>
+          <TextBlock x:Name="FirstLabel" Foreground="#D8D8DC" FontFamily="Segoe UI Variable Text" FontSize="9.5" FontWeight="Medium" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+          <ProgressBar x:Name="FirstBar" Grid.Column="1" Style="{StaticResource LiquidProgress}" VerticalAlignment="Center" Minimum="0" Maximum="100" Foreground="#F2F2F7" />
+          <TextBlock x:Name="FirstValue" Grid.Column="2" Foreground="#FAFFFFFF" FontFamily="Segoe UI Variable Text" FontSize="10.5" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center" />
+        </Grid>
+        <Grid x:Name="SecondRow" Grid.Row="1">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="39"/><ColumnDefinition Width="*"/><ColumnDefinition Width="35"/></Grid.ColumnDefinitions>
+          <TextBlock x:Name="SecondLabel" Foreground="#D8D8DC" FontFamily="Segoe UI Variable Text" FontSize="9.5" FontWeight="Medium" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+          <ProgressBar x:Name="SecondBar" Grid.Column="1" Style="{StaticResource LiquidProgress}" VerticalAlignment="Center" Minimum="0" Maximum="100" Foreground="#F2F2F7" />
+          <TextBlock x:Name="SecondValue" Grid.Column="2" Foreground="#FAFFFFFF" FontFamily="Segoe UI Variable Text" FontSize="10.5" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center" />
+        </Grid>
+      </Grid>
+    </Grid>
+    </Border>
+  </Grid>
+</Window>

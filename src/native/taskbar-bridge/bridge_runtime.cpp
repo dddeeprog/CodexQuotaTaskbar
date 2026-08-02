@@ -59,6 +59,7 @@ bool BridgeLifecycle::initialize() noexcept {
     initialization_attempted_ = true;
   }
 
+  operations_.report_phase(BridgeLifecyclePhase::InitializeDiagnostics);
   if (!operations_.initialize_xaml_diagnostics()) {
     return false;
   }
@@ -67,6 +68,7 @@ bool BridgeLifecycle::initialize() noexcept {
     diagnostics_initialized_ = true;
   }
 
+  operations_.report_phase(BridgeLifecyclePhase::InitializeTaskbarThreads);
   if (!operations_.initialize_xaml_threads()) {
     return false;
   }
@@ -75,6 +77,7 @@ bool BridgeLifecycle::initialize() noexcept {
     xaml_threads_initialized_ = true;
   }
 
+  operations_.report_phase(BridgeLifecyclePhase::AdviseWatcher);
   if (!operations_.advise_watcher()) {
     return false;
   }
@@ -224,9 +227,14 @@ int BridgeWorker::run() noexcept {
     ready_event_acquired = operations_.acquire_ready_event();
   }
 
+  if (shutdown_event_acquired && quiesced_event_acquired &&
+      ready_event_acquired) {
+    operations_.report_phase(BridgeLifecyclePhase::ControlEvents);
+  }
   if (shutdown_event_acquired && quiesced_event_acquired && ready_event_acquired &&
       lifecycle_.initialize()) {
     result = 0;
+    operations_.report_phase(BridgeLifecyclePhase::Ready);
     operations_.signal_ready();
     while (!lifecycle_.shutdown_requested()) {
       switch (operations_.wait_for_work()) {
@@ -313,14 +321,125 @@ CQTB_StartProbeRequestV1 g_active_request{};
          activation_hex(binding) + L"." + suffix;
 }
 
+[[nodiscard]] const wchar_t* phase_event_suffix(
+    BridgeLifecyclePhase phase) noexcept {
+  switch (phase) {
+    case BridgeLifecyclePhase::ControlEvents:
+      return L"Phase.ControlEvents";
+    case BridgeLifecyclePhase::InitializeDiagnostics:
+      return L"Phase.InitializeDiagnostics";
+    case BridgeLifecyclePhase::InitializeTaskbarThreads:
+      return L"Phase.InitializeTaskbarThreads";
+    case BridgeLifecyclePhase::AdviseWatcher:
+      return L"Phase.AdviseWatcher";
+    case BridgeLifecyclePhase::Ready:
+      return L"Phase.Ready";
+  }
+  return nullptr;
+}
+
+struct PhaseEventHandles final {
+  PhaseEventHandles() = default;
+  PhaseEventHandles(const PhaseEventHandles&) = delete;
+  PhaseEventHandles& operator=(const PhaseEventHandles&) = delete;
+
+  ~PhaseEventHandles() { close_all(); }
+
+  [[nodiscard]] HANDLE take(BridgeLifecyclePhase phase) noexcept {
+    switch (phase) {
+      case BridgeLifecyclePhase::ControlEvents:
+        return std::exchange(control_events, nullptr);
+      case BridgeLifecyclePhase::InitializeDiagnostics:
+        return std::exchange(initialize_diagnostics, nullptr);
+      case BridgeLifecyclePhase::InitializeTaskbarThreads:
+        return std::exchange(initialize_taskbar_threads, nullptr);
+      case BridgeLifecyclePhase::AdviseWatcher:
+        return std::exchange(advise_watcher, nullptr);
+      case BridgeLifecyclePhase::Ready:
+        return std::exchange(ready, nullptr);
+    }
+    return nullptr;
+  }
+
+  HANDLE control_events = nullptr;
+  HANDLE initialize_diagnostics = nullptr;
+  HANDLE initialize_taskbar_threads = nullptr;
+  HANDLE advise_watcher = nullptr;
+  HANDLE ready = nullptr;
+
+ private:
+  static void close(HANDLE& handle) noexcept {
+    if (handle) {
+      CloseHandle(std::exchange(handle, nullptr));
+    }
+  }
+
+  void close_all() noexcept {
+    close(ready);
+    close(advise_watcher);
+    close(initialize_taskbar_threads);
+    close(initialize_diagnostics);
+    close(control_events);
+  }
+};
+
+[[nodiscard]] HANDLE create_diagnostic_phase_event(
+    const CQTB_ExplorerInstanceBindingV1& binding,
+    BridgeLifecyclePhase phase) noexcept {
+  const auto suffix = phase_event_suffix(phase);
+  if (!suffix) {
+    return nullptr;
+  }
+
+  try {
+    const auto name = event_name(binding, suffix);
+    HANDLE event = CreateEventW(nullptr, TRUE, FALSE, name.c_str());
+    if (!event) {
+      return nullptr;
+    }
+    if (GetLastError() == ERROR_ALREADY_EXISTS) {
+      CloseHandle(event);
+      return nullptr;
+    }
+    return event;
+  } catch (...) {
+    return nullptr;
+  }
+}
+
+void precreate_diagnostic_phase_events(
+    const CQTB_ExplorerInstanceBindingV1& binding,
+    PhaseEventHandles& events) noexcept {
+  events.control_events = create_diagnostic_phase_event(
+      binding, BridgeLifecyclePhase::ControlEvents);
+  events.initialize_diagnostics = create_diagnostic_phase_event(
+      binding, BridgeLifecyclePhase::InitializeDiagnostics);
+  events.initialize_taskbar_threads = create_diagnostic_phase_event(
+      binding, BridgeLifecyclePhase::InitializeTaskbarThreads);
+  events.advise_watcher = create_diagnostic_phase_event(
+      binding, BridgeLifecyclePhase::AdviseWatcher);
+  events.ready = create_diagnostic_phase_event(
+      binding, BridgeLifecyclePhase::Ready);
+}
+
 class Win32BridgeOperations final : public BridgeOperations {
  public:
   Win32BridgeOperations(const CQTB_ExplorerInstanceBindingV1& binding,
                         HMODULE initial_module,
-                        HMODULE worker_module) noexcept
+                        HMODULE worker_module,
+                        PhaseEventHandles& phase_events) noexcept
       : binding_(binding),
         initial_module_(initial_module),
-        worker_module_(worker_module) {}
+        worker_module_(worker_module),
+        phase_control_events_event_(
+            phase_events.take(BridgeLifecyclePhase::ControlEvents)),
+        phase_initialize_diagnostics_event_(
+            phase_events.take(BridgeLifecyclePhase::InitializeDiagnostics)),
+        phase_initialize_taskbar_threads_event_(
+            phase_events.take(BridgeLifecyclePhase::InitializeTaskbarThreads)),
+        phase_advise_watcher_event_(
+            phase_events.take(BridgeLifecyclePhase::AdviseWatcher)),
+        phase_ready_event_(phase_events.take(BridgeLifecyclePhase::Ready)) {}
 
   void attach_lifecycle(BridgeLifecycle& lifecycle) noexcept {
     probe_.reset(new (std::nothrow)
@@ -351,6 +470,15 @@ class Win32BridgeOperations final : public BridgeOperations {
     } catch (...) {
       return false;
     }
+  }
+
+  void report_phase(BridgeLifecyclePhase phase) noexcept override {
+    auto* const phase_event = phase_event_handle(phase);
+    if (!phase_event || !*phase_event) {
+      return;
+    }
+    // Phase evidence is diagnostics-only and must not alter probe behavior.
+    SetEvent(*phase_event);
   }
 
   bool initialize_xaml_threads() noexcept override {
@@ -428,6 +556,11 @@ class Win32BridgeOperations final : public BridgeOperations {
   }
 
   void close_control_handles() noexcept override {
+    close_handle(phase_ready_event_);
+    close_handle(phase_advise_watcher_event_);
+    close_handle(phase_initialize_taskbar_threads_event_);
+    close_handle(phase_initialize_diagnostics_event_);
+    close_handle(phase_control_events_event_);
     close_handle(ready_event_);
     close_handle(quiesced_event_);
     close_handle(shutdown_event_);
@@ -444,6 +577,22 @@ class Win32BridgeOperations final : public BridgeOperations {
   }
 
  private:
+  HANDLE* phase_event_handle(BridgeLifecyclePhase phase) noexcept {
+    switch (phase) {
+      case BridgeLifecyclePhase::ControlEvents:
+        return &phase_control_events_event_;
+      case BridgeLifecyclePhase::InitializeDiagnostics:
+        return &phase_initialize_diagnostics_event_;
+      case BridgeLifecyclePhase::InitializeTaskbarThreads:
+        return &phase_initialize_taskbar_threads_event_;
+      case BridgeLifecyclePhase::AdviseWatcher:
+        return &phase_advise_watcher_event_;
+      case BridgeLifecyclePhase::Ready:
+        return &phase_ready_event_;
+    }
+    return nullptr;
+  }
+
   static bool create_unique_event(const std::wstring& name,
                                   HANDLE& destination) noexcept {
     destination = CreateEventW(nullptr, TRUE, FALSE, name.c_str());
@@ -469,6 +618,11 @@ class Win32BridgeOperations final : public BridgeOperations {
   HANDLE shutdown_event_ = nullptr;
   HANDLE quiesced_event_ = nullptr;
   HANDLE ready_event_ = nullptr;
+  HANDLE phase_control_events_event_ = nullptr;
+  HANDLE phase_initialize_diagnostics_event_ = nullptr;
+  HANDLE phase_initialize_taskbar_threads_event_ = nullptr;
+  HANDLE phase_advise_watcher_event_ = nullptr;
+  HANDLE phase_ready_event_ = nullptr;
   std::unique_ptr<XamlTaskbarProbe> probe_;
 };
 
@@ -477,13 +631,16 @@ struct BootstrapContext final {
   HMODULE initial_module = nullptr;
   HMODULE worker_module = nullptr;
   HANDLE start_released_event = nullptr;
+  PhaseEventHandles phase_events;
 };
 
 struct BridgeRuntimeContext final {
   BridgeRuntimeContext(const CQTB_ExplorerInstanceBindingV1& binding,
                        HMODULE initial_module,
-                       HMODULE worker_module) noexcept
-      : operations(binding, initial_module, worker_module), worker(operations) {
+                       HMODULE worker_module,
+                       PhaseEventHandles& phase_events) noexcept
+      : operations(binding, initial_module, worker_module, phase_events),
+        worker(operations) {
     operations.attach_lifecycle(worker.lifecycle());
   }
 
@@ -501,7 +658,8 @@ DWORD WINAPI bootstrap_worker(void* parameter) noexcept {
   CloseHandle(std::exchange(context->start_released_event, nullptr));
   std::unique_ptr<BridgeRuntimeContext> runtime{
       new (std::nothrow) BridgeRuntimeContext(
-          context->binding, context->initial_module, context->worker_module)};
+          context->binding, context->initial_module, context->worker_module,
+          context->phase_events)};
   if (!runtime) {
     return static_cast<DWORD>(kBridgeWorkerUnsafeRetained);
   }
@@ -576,6 +734,7 @@ std::int32_t start_probe_worker(
   context->initial_module = g_bridge_module.load(std::memory_order_acquire);
   context->worker_module = worker_module;
   context->start_released_event = start_released_event;
+  precreate_diagnostic_phase_events(request.binding, context->phase_events);
 
   HANDLE worker = CreateThread(nullptr, 0, bootstrap_worker, context.get(), 0,
                                nullptr);

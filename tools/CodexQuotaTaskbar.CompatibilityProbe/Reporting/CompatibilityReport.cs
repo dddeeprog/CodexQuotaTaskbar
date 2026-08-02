@@ -1,4 +1,6 @@
 using System.Runtime.InteropServices;
+using System.Text.Json.Serialization;
+using CodexQuotaTaskbar.CompatibilityProbe;
 using CodexQuotaTaskbar.CompatibilityProbe.Windows;
 using CodexQuotaTaskbar.Core.Compatibility;
 
@@ -223,4 +225,8 @@ internal sealed record CompatibilityReportLifecycle(
     string Responsiveness,
     string Detach,
     string Restart,
-    int DisplaySeconds);
+    int DisplaySeconds)
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ProbeActivationDiagnostic? ActivationDiagnostic { get; init; }
+}

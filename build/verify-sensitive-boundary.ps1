@@ -32,6 +32,8 @@ $script:MaxZipEndRecordCandidates = 256
 $script:MinimumRatioCheckBytes = 1048576
 $script:MaxArchiveCompressionRatio = 200.0
 $script:MaxNestedArchiveDepth = 0
+$script:TrustedMicrosoftWindowsSdkFileName = 'Microsoft.Windows.SDK.NET.dll'
+$script:TrustedMicrosoftWindowsSdkPublicKeyToken = '31bf3856ad364e35'
 
 function New-Finding {
     param(
@@ -45,6 +47,44 @@ function New-Finding {
         Path = $Path
         Pattern = $Pattern
     }
+}
+
+function Test-IsTrustedMicrosoftWindowsSdkAssembly {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$RulePath
+    )
+
+    if ([System.IO.Path]::GetFileName($RulePath) -cne $script:TrustedMicrosoftWindowsSdkFileName -or
+        -not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        return $false
+    }
+
+    try {
+        $identity = [System.Reflection.AssemblyName]::GetAssemblyName($Path)
+        $token = ([System.BitConverter]::ToString($identity.GetPublicKeyToken())).Replace('-', '').ToLowerInvariant()
+        if ($identity.Name -cne 'Microsoft.Windows.SDK.NET' -or
+            $token -cne $script:TrustedMicrosoftWindowsSdkPublicKeyToken) {
+            return $false
+        }
+
+        $signature = Get-AuthenticodeSignature -LiteralPath $Path
+        return $signature.Status -eq [System.Management.Automation.SignatureStatus]::Valid -and
+            $null -ne $signature.SignerCertificate -and
+            $signature.SignerCertificate.Subject.StartsWith('CN=Microsoft Corporation,', [StringComparison]::Ordinal)
+    }
+    catch {
+        return $false
+    }
+}
+
+function Test-IsTrustedRuntimeFindingAllowed {
+    param(
+        [Parameter(Mandatory = $true)][bool]$TrustedMicrosoftWindowsSdk,
+        [Parameter(Mandatory = $true)]$Finding
+    )
+
+    return $TrustedMicrosoftWindowsSdk -and $Finding.Pattern -ceq 'AccountManager'
 }
 
 function Get-NormalizedRelativePath {
@@ -186,7 +226,8 @@ function Read-BoundaryPolicy {
                 Regex = [regex]::new(
                     $pattern,
                     [System.Text.RegularExpressions.RegexOptions]::CultureInvariant -bor
-                    [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
+                    [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
+                    [System.Text.RegularExpressions.RegexOptions]::Compiled
                 )
             }
         }
@@ -195,8 +236,11 @@ function Read-BoundaryPolicy {
         }
     }
 
+    $compiledPatterns = @($compiledPatterns)
+    [System.Text.RegularExpressions.Regex[]]$binaryScanRegexes = @($compiledPatterns | ForEach-Object { $_.Regex })
     return [pscustomobject]@{
-        Patterns = @($compiledPatterns)
+        Patterns = $compiledPatterns
+        BinaryScanRegexes = $binaryScanRegexes
         DocumentationPath = 'docs/privacy.md'
         DocumentationPattern = 'auth.json'
         HarnessPath = $harnessAllowances[0]
@@ -234,7 +278,7 @@ function Find-PatternsInText {
     }
 }
 
-function Find-PatternsInBytes {
+function Find-PatternsInBytesFallback {
     param(
         [Parameter(Mandatory = $true)]$Policy,
         [Parameter(Mandatory = $true)][AllowEmptyCollection()][byte[]]$Bytes,
@@ -268,6 +312,95 @@ function Find-PatternsInBytes {
                 }
             }
             $text = $null
+        }
+    }
+}
+
+function Initialize-BoundaryBytePatternMatcher {
+    if ($null -ne ('CodexQuotaTaskbarBoundaryBytePatternMatcher' -as [type])) {
+        return
+    }
+
+    $typeDefinition = @'
+using System;
+using System.Text;
+using System.Text.RegularExpressions;
+
+public static class CodexQuotaTaskbarBoundaryBytePatternMatcher
+{
+    public static bool[] FindMatches(Regex[] patterns, byte[] bytes)
+    {
+        if (patterns == null)
+        {
+            throw new ArgumentNullException("patterns");
+        }
+        if (bytes == null)
+        {
+            throw new ArgumentNullException("bytes");
+        }
+
+        var matches = new bool[patterns.Length];
+        var remainingPatterns = patterns.Length;
+        var encodings = new Encoding[]
+        {
+            new UTF8Encoding(false, false),
+            new UnicodeEncoding(false, false, false),
+            new UnicodeEncoding(true, false, false),
+            new UTF32Encoding(false, false, false),
+            new UTF32Encoding(true, false, false)
+        };
+        var codeUnitWidths = new int[] { 1, 2, 2, 4, 4 };
+
+        for (var encodingIndex = 0; encodingIndex < encodings.Length && remainingPatterns > 0; encodingIndex++)
+        {
+            var codeUnitWidth = codeUnitWidths[encodingIndex];
+            for (var offset = 0; offset < codeUnitWidth && remainingPatterns > 0; offset++)
+            {
+                var byteCount = bytes.Length - offset;
+                byteCount -= byteCount % codeUnitWidth;
+                if (byteCount <= 0)
+                {
+                    continue;
+                }
+
+                var text = encodings[encodingIndex].GetString(bytes, offset, byteCount);
+                for (var patternIndex = 0; patternIndex < patterns.Length; patternIndex++)
+                {
+                    if (!matches[patternIndex] && patterns[patternIndex].IsMatch(text))
+                    {
+                        matches[patternIndex] = true;
+                        remainingPatterns--;
+                    }
+                }
+            }
+        }
+
+        return matches;
+    }
+}
+'@
+    Add-Type -TypeDefinition $typeDefinition -Language CSharp -ErrorAction Stop
+}
+
+function Find-PatternsInBytes {
+    param(
+        [Parameter(Mandatory = $true)]$Policy,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][byte[]]$Bytes,
+        [Parameter(Mandatory = $true)][string]$EntryPath,
+        [Parameter(Mandatory = $true)][string]$Kind
+    )
+
+    if ($EntryPath -ceq $Policy.DocumentationPath) {
+        Find-PatternsInBytesFallback -Policy $Policy -Bytes $Bytes -EntryPath $EntryPath -Kind $Kind
+        return
+    }
+
+    Initialize-BoundaryBytePatternMatcher
+    [System.Text.RegularExpressions.Regex[]]$regexes = $Policy.BinaryScanRegexes
+    $matches = [CodexQuotaTaskbarBoundaryBytePatternMatcher]::FindMatches($regexes, $Bytes)
+    for ($index = 0; $index -lt $Policy.Patterns.Count; $index++) {
+        if ($matches[$index]) {
+            New-Finding -Kind $Kind -Path $EntryPath -Pattern $Policy.Patterns[$index].Text
         }
     }
 }
@@ -804,14 +937,16 @@ function Invoke-ZipScan {
                 }
 
                 try {
-                    $tempPath = [System.IO.Path]::GetTempFileName()
+                    $tempExtension = [System.IO.Path]::GetExtension($entry.Name)
+                    $tempPath = Join-Path ([System.IO.Path]::GetTempPath()) (
+                        'codex-boundary-{0}{1}' -f [Guid]::NewGuid().ToString('N'), $tempExtension)
                     $tempStream = [System.IO.FileStream]::new(
                         $tempPath,
-                        [System.IO.FileMode]::Create,
+                        [System.IO.FileMode]::CreateNew,
                         [System.IO.FileAccess]::ReadWrite,
-                        [System.IO.FileShare]::None,
+                        [System.IO.FileShare]::Read,
                         $script:ScanChunkBytes,
-                        [System.IO.FileOptions]::DeleteOnClose)
+                        [System.IO.FileOptions]::SequentialScan)
                     try {
                         $stream = $entry.Open()
                         try {
@@ -820,18 +955,35 @@ function Invoke-ZipScan {
                         finally {
                             $stream.Dispose()
                         }
+                        $tempStream.Flush()
+                        $tempStream.Dispose()
+                        $tempStream = $null
+                        $trustedMicrosoftWindowsSdk = -not $scanResult.LimitExceeded -and
+                            -not $scanResult.ReadFailed -and
+                            $scanResult.BytesRead -eq $entry.Length -and
+                            (Test-IsTrustedMicrosoftWindowsSdkAssembly -Path $tempPath -RulePath $entryPath)
                         foreach ($finding in $scanResult.Findings) {
-                            $finding
+                            if (-not (Test-IsTrustedRuntimeFindingAllowed -TrustedMicrosoftWindowsSdk $trustedMicrosoftWindowsSdk -Finding $finding)) {
+                                $finding
+                            }
                         }
                         if (-not $scanResult.LimitExceeded -and -not $scanResult.ReadFailed -and $scanResult.BytesRead -eq $entry.Length) {
-                            $tempStream.Flush()
-                            $tempStream.Position = 0
-                            $nestedMetadata = Get-ZipDirectoryMetadata -Stream $tempStream -DisplayPath $entryDisplayPath
-                            if ($nestedMetadata.IsZip) {
-                                New-Finding -Kind 'archive-depth' -Path $entryDisplayPath -Pattern "nested archives exceed maximum depth $($script:MaxNestedArchiveDepth)"
+                            $nestedStream = [System.IO.FileStream]::new(
+                                $tempPath,
+                                [System.IO.FileMode]::Open,
+                                [System.IO.FileAccess]::Read,
+                                [System.IO.FileShare]::Read)
+                            try {
+                                $nestedMetadata = Get-ZipDirectoryMetadata -Stream $nestedStream -DisplayPath $entryDisplayPath
+                                if ($nestedMetadata.IsZip) {
+                                    New-Finding -Kind 'archive-depth' -Path $entryDisplayPath -Pattern "nested archives exceed maximum depth $($script:MaxNestedArchiveDepth)"
+                                }
+                                elseif ($null -ne $nestedMetadata.Finding) {
+                                    $nestedMetadata.Finding
+                                }
                             }
-                            elseif ($null -ne $nestedMetadata.Finding) {
-                                $nestedMetadata.Finding
+                            finally {
+                                $nestedStream.Dispose()
                             }
                         }
                     }
@@ -938,8 +1090,12 @@ function Invoke-FileScan {
             }
 
             $scanResult = Invoke-BoundedStreamScan -Policy $Policy -Stream $stream -RulePath $RulePath -DisplayPath $EntryPath -Kind 'content' -MaxBytes $script:MaxFileBytes -ExpectedLength $stream.Length
+            $trustedMicrosoftWindowsSdk = $Artifact -and
+                (Test-IsTrustedMicrosoftWindowsSdkAssembly -Path $File.FullName -RulePath $RulePath)
             foreach ($finding in $scanResult.Findings) {
-                $finding
+                if (-not (Test-IsTrustedRuntimeFindingAllowed -TrustedMicrosoftWindowsSdk $trustedMicrosoftWindowsSdk -Finding $finding)) {
+                    $finding
+                }
             }
         }
         finally {

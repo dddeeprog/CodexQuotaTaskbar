@@ -299,6 +299,51 @@ public sealed class ExplorerInjectorTests
     }
 
     [Fact]
+    public async Task Ready_timeout_records_the_highest_signaled_lifecycle_phase_before_emergency_detach()
+    {
+        var harness = new InjectorHarness();
+        harness.Api.ReadyWait = new NativeWaitResult(NativeWaitKind.TimedOut, 0);
+        harness.Api.SignaledLifecyclePhases.UnionWith(
+            ["ControlEvents", "InitializeTaskbarThreads", "AdviseWatcher"]);
+
+        var result = await harness.Injector.InjectAsync(harness.Permit);
+
+        Assert.Equal(InjectorFailureCode.ReadyTimeout, result.Failure!.Code);
+        Assert.Equal(BridgeLifecyclePhase.AdviseWatcher, result.Failure.ObservedPhase);
+        Assert.Equal(2, harness.Api.LifecyclePhaseWaitTimeouts.Count);
+        Assert.All(
+            harness.Api.LifecyclePhaseWaitTimeouts,
+            timeout => Assert.Equal(TimeSpan.Zero, timeout));
+        Assert.True(
+            harness.Trace.IndexOf("EventWait:Phase:AdviseWatcher") <
+            harness.Trace.IndexOf("EventSignal:Shutdown"));
+        Assert.Equal(InjectorSafetyDisposition.UnsafeRetained, result.Failure.Disposition);
+        Assert.Equal(ActivationState.Unsafe, harness.Journal.State);
+    }
+
+    [Fact]
+    public async Task Phase_captured_before_ready_timeout_survives_native_phase_handle_cleanup()
+    {
+        var harness = new InjectorHarness();
+        harness.Api.ReadyWait = new NativeWaitResult(NativeWaitKind.TimedOut, 0);
+        harness.Api.SignaledLifecyclePhases.UnionWith(
+            ["ControlEvents", "InitializeDiagnostics", "AdviseWatcher"]);
+        harness.Api.PhaseEventsDisappearWhenReadyWaitBegins = true;
+
+        var result = await harness.Injector.InjectAsync(harness.Permit);
+
+        Assert.Equal(InjectorFailureCode.ReadyTimeout, result.Failure!.Code);
+        Assert.All(
+            Enum.GetValues<BridgeLifecyclePhase>(),
+            phase => Assert.True(
+                harness.Trace.IndexOf($"EventOpen:Phase:{phase}") <
+                harness.Trace.IndexOf("EventWait:Ready")));
+        Assert.Equal(BridgeLifecyclePhase.AdviseWatcher, result.Failure.ObservedPhase);
+        Assert.Equal(InjectorSafetyDisposition.UnsafeRetained, result.Failure.Disposition);
+        Assert.Equal(ActivationState.Unsafe, harness.Journal.State);
+    }
+
+    [Fact]
     public async Task Unexpected_ready_wait_exception_requests_emergency_detach()
     {
         var harness = new InjectorHarness();
@@ -812,8 +857,17 @@ public sealed class ExplorerInjectorTests
 
             internal bool ThrowOnReadyWait { get; set; }
 
+            internal bool PhaseEventsDisappearWhenReadyWaitBegins { get; set; }
+
+            internal bool ReadyWaitStarted { get; private set; }
+
             internal HashSet<string> MissingEvents { get; } =
                 new(StringComparer.Ordinal);
+
+            internal HashSet<string> SignaledLifecyclePhases { get; } =
+                new(StringComparer.Ordinal);
+
+            internal List<TimeSpan> LifecyclePhaseWaitTimeouts { get; } = [];
 
             public NativeResult<IExplorerReadLease> OpenForCollection(int processId)
             {
@@ -847,14 +901,18 @@ public sealed class ExplorerInjectorTests
                 NativeEventAccess access)
             {
                 var kind = eventName[(eventName.LastIndexOf('.') + 1)..];
-                trace.Add($"EventOpen:{kind}");
-                if (MissingEvents.Contains(kind))
+                var isLifecyclePhase = eventName.Contains(".Phase.", StringComparison.Ordinal);
+                trace.Add(isLifecyclePhase ? $"EventOpen:Phase:{kind}" : $"EventOpen:{kind}");
+                if (MissingEvents.Contains(kind) ||
+                    (isLifecyclePhase &&
+                        PhaseEventsDisappearWhenReadyWaitBegins &&
+                        ReadyWaitStarted))
                 {
                     return NativeResult<INamedEvent>.Failure(2);
                 }
 
                 return NativeResult<INamedEvent>.Success(
-                    new FakeEvent(this, kind, access, trace));
+                    new FakeEvent(this, kind, access, isLifecyclePhase, trace));
             }
 
             public Task DelayAsync(TimeSpan delay, CancellationToken cancellationToken) =>
@@ -865,23 +923,39 @@ public sealed class ExplorerInjectorTests
                 private readonly FakeProcessApi owner;
                 private readonly string kind;
                 private readonly NativeEventAccess access;
+                private readonly bool isLifecyclePhase;
                 private readonly List<string> trace;
 
                 internal FakeEvent(
                     FakeProcessApi owner,
                     string kind,
                     NativeEventAccess access,
+                    bool isLifecyclePhase,
                     List<string> trace)
                 {
                     this.owner = owner;
                     this.kind = kind;
                     this.access = access;
+                    this.isLifecyclePhase = isLifecyclePhase;
                     this.trace = trace;
                 }
 
                 public NativeWaitResult Wait(TimeSpan timeout)
                 {
-                    trace.Add($"EventWait:{kind}");
+                    trace.Add(isLifecyclePhase ? $"EventWait:Phase:{kind}" : $"EventWait:{kind}");
+                    if (isLifecyclePhase)
+                    {
+                        owner.LifecyclePhaseWaitTimeouts.Add(timeout);
+                        return owner.SignaledLifecyclePhases.Contains(kind)
+                            ? new NativeWaitResult(NativeWaitKind.Signaled, 0)
+                            : new NativeWaitResult(NativeWaitKind.TimedOut, 0);
+                    }
+
+                    if (kind == "Ready")
+                    {
+                        owner.ReadyWaitStarted = true;
+                    }
+
                     if (kind == "Ready" && owner.ThrowOnReadyWait)
                     {
                         throw new IOException("fake ready wait failure");
@@ -931,7 +1005,8 @@ public sealed class ExplorerInjectorTests
                     return NativeResult.Success();
                 }
 
-                public void Dispose() => trace.Add($"EventDispose:{kind}");
+                public void Dispose() => trace.Add(
+                    isLifecyclePhase ? $"EventDispose:Phase:{kind}" : $"EventDispose:{kind}");
             }
         }
 

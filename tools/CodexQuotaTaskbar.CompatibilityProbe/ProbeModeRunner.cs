@@ -1,5 +1,6 @@
 using CodexQuotaTaskbar.CompatibilityProbe.Reporting;
 using CodexQuotaTaskbar.CompatibilityProbe.Safety;
+using CodexQuotaTaskbar.BridgeControl.Injection;
 using CodexQuotaTaskbar.Core.Compatibility;
 using System.Security;
 
@@ -22,21 +23,109 @@ internal enum ProbeRecordedDetachStatus
     Unsafe,
 }
 
-internal sealed record ProbeActivationResult(
-    ProbeActivationStatus Status,
-    IActiveProbeSession? Session)
+internal sealed class ProbeActivationDiagnostic
 {
-    internal static ProbeActivationResult Ready(IActiveProbeSession session) =>
-        new(ProbeActivationStatus.Ready, session ?? throw new ArgumentNullException(nameof(session)));
+    private static readonly HashSet<string> KnownStages = new(
+        Enum.GetNames<InjectorStage>(),
+        StringComparer.Ordinal);
+    private static readonly HashSet<string> KnownCodes = new(
+        Enum.GetNames<InjectorFailureCode>(),
+        StringComparer.Ordinal);
+    private static readonly HashSet<string> KnownBridgePhases = new(
+        Enum.GetNames<BridgeLifecyclePhase>(),
+        StringComparer.Ordinal);
 
-    internal static ProbeActivationResult Failed(ProbeActivationStatus status)
+    private ProbeActivationDiagnostic(
+        string stage,
+        string code,
+        int? nativeError,
+        int? remoteHResult,
+        string? bridgePhase)
+    {
+        Stage = stage;
+        Code = code;
+        NativeError = nativeError;
+        RemoteHResult = remoteHResult;
+        BridgePhase = bridgePhase;
+    }
+
+    public string Stage { get; }
+
+    public string Code { get; }
+
+    public int? NativeError { get; }
+
+    public int? RemoteHResult { get; }
+
+    public string? BridgePhase { get; }
+
+    internal static ProbeActivationDiagnostic? TryCreate(
+        string? stage,
+        string? code,
+        int? nativeError,
+        int? remoteHResult,
+        string? bridgePhase = null)
+    {
+        if (stage is null || code is null ||
+            !KnownStages.Contains(stage) || !KnownCodes.Contains(code) ||
+            bridgePhase is not null && !KnownBridgePhases.Contains(bridgePhase))
+        {
+            return null;
+        }
+
+        return new ProbeActivationDiagnostic(
+            stage,
+            code,
+            nativeError,
+            remoteHResult,
+            bridgePhase);
+    }
+
+    internal static ProbeActivationDiagnostic? FromInjectorFailure(InjectorFailure? failure) =>
+        failure is null
+            ? null
+            : TryCreate(
+                failure.Stage.ToString(),
+                failure.Code.ToString(),
+                failure.NativeError,
+                failure.RemoteHResult,
+                failure.ObservedPhase?.ToString());
+}
+
+internal sealed record ProbeActivationResult
+{
+    private ProbeActivationResult(
+        ProbeActivationStatus status,
+        IActiveProbeSession? session,
+        ProbeActivationDiagnostic? diagnostic)
+    {
+        Status = status;
+        Session = session;
+        Diagnostic = diagnostic;
+    }
+
+    internal ProbeActivationStatus Status { get; }
+
+    internal IActiveProbeSession? Session { get; }
+
+    internal ProbeActivationDiagnostic? Diagnostic { get; }
+
+    internal static ProbeActivationResult Ready(IActiveProbeSession session) =>
+        new(
+            ProbeActivationStatus.Ready,
+            session ?? throw new ArgumentNullException(nameof(session)),
+            diagnostic: null);
+
+    internal static ProbeActivationResult Failed(
+        ProbeActivationStatus status,
+        ProbeActivationDiagnostic? diagnostic = null)
     {
         if (status == ProbeActivationStatus.Ready)
         {
             throw new ArgumentOutOfRangeException(nameof(status));
         }
 
-        return new ProbeActivationResult(status, null);
+        return new ProbeActivationResult(status, null, diagnostic);
     }
 }
 
@@ -158,7 +247,10 @@ internal sealed class GuardedProbeModeRunner : IProbeModeRunner
                     "NotRun",
                     "NotRun",
                     "NotRun",
-                    options.DisplaySeconds),
+                    options.DisplaySeconds)
+                {
+                    ActivationDiagnostic = activation.Diagnostic,
+                },
                 "Unsafe",
                 ProbeExitCode.Unsafe);
         }

@@ -109,6 +109,58 @@ public sealed class ProbeModeRunnerTests
             "PayloadUnavailable",
             report.RootElement.GetProperty("lifecycle")
                 .GetProperty("activation").GetString());
+        Assert.False(report.RootElement.GetProperty("lifecycle")
+            .TryGetProperty("activationDiagnostic", out _));
+    }
+
+    [Fact]
+    public void Rejected_activation_preserves_an_allowlisted_injector_diagnostic_without_paths()
+    {
+        var diagnostic = ProbeActivationDiagnostic.TryCreate(
+            "StartProbe",
+            "StartProbeRejected",
+            nativeError: null,
+            remoteHResult: unchecked((int)0x80070057),
+            bridgePhase: "AdviseWatcher");
+        Assert.NotNull(diagnostic);
+        Assert.Null(ProbeActivationDiagnostic.TryCreate(
+            @"C:\private\bridge.dll",
+            "StartProbeRejected",
+            nativeError: 5,
+            remoteHResult: 1,
+            bridgePhase: null));
+        Assert.Null(ProbeActivationDiagnostic.TryCreate(
+            "StartProbe",
+            "StartProbeRejected",
+            nativeError: 5,
+            remoteHResult: 1,
+            bridgePhase: @"C:\private\bridge.dll"));
+
+        var runtime = new FakeProbeRuntime
+        {
+            Activation = ProbeActivationResult.Failed(ProbeActivationStatus.Rejected, diagnostic),
+        };
+        var storage = new FakeReportStorage();
+        var runner = CreateRunner(runtime, new FakeProbeClock(), storage);
+
+        var exitCode = runner.Run(new ProbeOptions(
+            ProbeMode.Live,
+            @"C:\reports\live.json",
+            ExplicitRetry: true,
+            DisplaySeconds: 5));
+
+        Assert.Equal(ProbeExitCode.Unsafe, exitCode);
+        using var report = JsonDocument.Parse(storage.Content!);
+        var lifecycle = report.RootElement.GetProperty("lifecycle");
+        var serializedDiagnostic = lifecycle.GetProperty("activationDiagnostic");
+        Assert.Equal("StartProbe", serializedDiagnostic.GetProperty("stage").GetString());
+        Assert.Equal("StartProbeRejected", serializedDiagnostic.GetProperty("code").GetString());
+        Assert.Equal(JsonValueKind.Null, serializedDiagnostic.GetProperty("nativeError").ValueKind);
+        Assert.Equal(unchecked((int)0x80070057), serializedDiagnostic
+            .GetProperty("remoteHResult").GetInt32());
+        Assert.Equal("AdviseWatcher", serializedDiagnostic.GetProperty("bridgePhase").GetString());
+        Assert.DoesNotContain(@"C:\private", Encoding.UTF8.GetString(storage.Content!),
+            StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

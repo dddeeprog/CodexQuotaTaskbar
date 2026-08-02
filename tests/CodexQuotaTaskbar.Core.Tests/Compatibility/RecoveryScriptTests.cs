@@ -90,18 +90,16 @@ public sealed class RecoveryScriptTests
     }
 
     [Fact]
-    public void Script_never_kills_explorer_and_only_starts_it_after_an_empty_session_sample()
+    public void Script_never_kills_or_starts_explorer()
     {
         var source = ReadScript();
         var forbidden = new Regex(
-            @"(?i)(\bStop-Process\b|\btaskkill(?:\.exe)?\b|\bTerminateProcess\b|\.Kill\s*\()",
+            @"(?i)(\bStop-Process\b|\bStart-Process\b|\btaskkill(?:\.exe)?\b|\bTerminateProcess\b|\.Kill\s*\()",
             RegexOptions.CultureInvariant);
 
         Assert.DoesNotMatch(forbidden, source);
-        var emptySessionGuard = source.IndexOf(
-            "if ($runningExplorer.Count -eq 0)", StringComparison.Ordinal);
-        var startExplorer = source.IndexOf("Start-Process", StringComparison.Ordinal);
-        Assert.True(emptySessionGuard >= 0 && startExplorer > emptySessionGuard);
+        Assert.DoesNotContain("Get-CurrentSessionExplorer", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("Start-ExplorerIfExited", source, StringComparison.Ordinal);
     }
 
     private static string ReadScript() =>

@@ -23,6 +23,34 @@ public sealed class BridgeEventNamesTests
         Assert.Equal(prefix + "Quiesced", names.Quiesced);
     }
 
+    [Fact]
+    public void Lifecycle_phase_names_follow_the_diagnostics_contract()
+    {
+        var binding = new ExplorerInstanceBinding(
+            0x1234,
+            0x0123456789abcdef,
+            Guid.Parse("00112233-4455-6677-8899-aabbccddeeff"));
+        const string prefix =
+            @"Local\CQTB.Probe.v1.00001234.0123456789abcdef.33221100554477668899aabbccddeeff.Phase.";
+
+        Assert.Equal(
+            [
+                "ControlEvents",
+                "InitializeDiagnostics",
+                "InitializeTaskbarThreads",
+                "AdviseWatcher",
+                "Ready",
+            ],
+            Enum.GetNames<BridgeLifecyclePhase>());
+
+        foreach (var phase in Enum.GetValues<BridgeLifecyclePhase>())
+        {
+            var actual = BridgeEventNames.ForPhase(binding, phase);
+
+            Assert.Equal(prefix + phase, actual);
+        }
+    }
+
     [Theory]
     [InlineData(0, 1UL, "00112233-4455-6677-8899-aabbccddeeff")]
     [InlineData(1, 0UL, "00112233-4455-6677-8899-aabbccddeeff")]

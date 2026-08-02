@@ -1,7 +1,12 @@
 #include "bridge_runtime.h"
 #include "bridge_exports.h"
 
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+#include <Windows.h>
+
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cstddef>
 #include <condition_variable>
@@ -26,6 +31,9 @@ using cq::bridge::ProbeResourceCounts;
 using cq::bridge::VisualNodeFacts;
 using cq::bridge::WorkSignal;
 using cq::bridge::BindingValidation;
+using cq::bridge::BridgeLifecyclePhase;
+using cq::bridge::cache_bridge_module;
+using cq::bridge::start_probe_worker;
 using cq::bridge::validate_start_request;
 
 [[noreturn]] void fail(const char* expression, int line) {
@@ -61,6 +69,7 @@ class FakeOperations final : public BridgeOperations {
   std::vector<WorkSignal> work{WorkSignal::shutdown};
   std::function<void()> on_wait;
   std::vector<std::string> trace;
+  std::vector<BridgeLifecyclePhase> phases;
   int retries = 0;
   int removes = 0;
   int unadvises = 0;
@@ -80,6 +89,27 @@ class FakeOperations final : public BridgeOperations {
   bool acquire_ready_event() noexcept override {
     trace.emplace_back("acquire-ready");
     return failure_point != FailurePoint::ready_event;
+  }
+
+  void report_phase(BridgeLifecyclePhase phase) noexcept override {
+    phases.push_back(phase);
+    switch (phase) {
+      case BridgeLifecyclePhase::ControlEvents:
+        trace.emplace_back("phase-control-events");
+        break;
+      case BridgeLifecyclePhase::InitializeDiagnostics:
+        trace.emplace_back("phase-initialize-diagnostics");
+        break;
+      case BridgeLifecyclePhase::InitializeTaskbarThreads:
+        trace.emplace_back("phase-initialize-taskbar-threads");
+        break;
+      case BridgeLifecyclePhase::AdviseWatcher:
+        trace.emplace_back("phase-advise-watcher");
+        break;
+      case BridgeLifecyclePhase::Ready:
+        trace.emplace_back("phase-ready");
+        break;
+    }
   }
 
   bool initialize_xaml_threads() noexcept override {
@@ -241,6 +271,47 @@ CQTB_StartProbeRequestV1 valid_start_request() {
   return request;
 }
 
+std::uint64_t current_process_creation_time_for_test() {
+  FILETIME creation{};
+  FILETIME exit{};
+  FILETIME kernel{};
+  FILETIME user{};
+  EXPECT(GetProcessTimes(GetCurrentProcess(), &creation, &exit, &kernel, &user));
+  ULARGE_INTEGER value{};
+  value.LowPart = creation.dwLowDateTime;
+  value.HighPart = creation.dwHighDateTime;
+  return value.QuadPart;
+}
+
+CQTB_StartProbeRequestV1 current_process_start_request() {
+  auto request = valid_start_request();
+  request.binding.explorer_pid = GetCurrentProcessId();
+  request.binding.explorer_creation_time_100ns =
+      current_process_creation_time_for_test();
+  for (std::size_t index = 0; index < CQTB_ACTIVATION_ID_BYTES; ++index) {
+    request.binding.activation_id[index] =
+        static_cast<std::uint8_t>(0xA0 + index);
+  }
+  return request;
+}
+
+std::wstring phase_event_name(const CQTB_ExplorerInstanceBindingV1& binding,
+                              const wchar_t* contract_name) {
+  constexpr wchar_t digits[] = L"0123456789abcdef";
+  wchar_t instance[64]{};
+  swprintf_s(instance, L"%08x.%016llx", binding.explorer_pid,
+             static_cast<unsigned long long>(
+                 binding.explorer_creation_time_100ns));
+  std::wstring activation;
+  activation.reserve(CQTB_ACTIVATION_ID_BYTES * 2);
+  for (const auto byte : binding.activation_id) {
+    activation.push_back(digits[(byte >> 4) & 0x0f]);
+    activation.push_back(digits[byte & 0x0f]);
+  }
+  return std::wstring{L"Local\\CQTB.Probe.v1."} + instance + L"." +
+         activation + L".Phase." + contract_name;
+}
+
 void start_abi_is_bounded_and_bound_to_the_same_explorer_instance() {
   static_assert(sizeof(CQTB_ExplorerInstanceBindingV1) == 32);
   static_assert(sizeof(CQTB_StartProbeRequestV1) == 56);
@@ -296,9 +367,92 @@ void diagnostics_session_precedes_root_binding_and_watcher_advice() {
 
   EXPECT(lifecycle.initialize());
   const std::vector<std::string> expected{
-      "initialize-diagnostics", "initialize-threads", "advise-watcher"};
+      "phase-initialize-diagnostics", "initialize-diagnostics",
+      "phase-initialize-taskbar-threads", "initialize-threads",
+      "phase-advise-watcher", "advise-watcher"};
   EXPECT(operations.trace == expected);
   EXPECT(lifecycle.detach() == DetachResult::quiesced);
+}
+
+void worker_reports_lifecycle_phases_in_order_before_each_operation() {
+  FakeOperations operations;
+  BridgeWorker worker(operations);
+
+  EXPECT(worker.run() == 0);
+  const std::vector<BridgeLifecyclePhase> expected_phases{
+      BridgeLifecyclePhase::ControlEvents,
+      BridgeLifecyclePhase::InitializeDiagnostics,
+      BridgeLifecyclePhase::InitializeTaskbarThreads,
+      BridgeLifecyclePhase::AdviseWatcher,
+      BridgeLifecyclePhase::Ready};
+  EXPECT(operations.phases == expected_phases);
+
+  const std::vector<std::string> expected_prefix{
+      "acquire-shutdown",
+      "acquire-quiesced",
+      "acquire-ready",
+      "phase-control-events",
+      "phase-initialize-diagnostics",
+      "initialize-diagnostics",
+      "phase-initialize-taskbar-threads",
+      "initialize-threads",
+      "phase-advise-watcher",
+      "advise-watcher",
+      "phase-ready",
+      "ready"};
+  EXPECT(operations.trace.size() >= expected_prefix.size());
+  EXPECT(std::equal(expected_prefix.begin(), expected_prefix.end(),
+                    operations.trace.begin()));
+}
+
+void initialization_failure_reports_its_final_reached_phase() {
+  struct TestCase {
+    FailurePoint failure;
+    std::vector<BridgeLifecyclePhase> expected_phases;
+  };
+
+  const std::vector<TestCase> test_cases{
+      {FailurePoint::diagnostics,
+       {BridgeLifecyclePhase::ControlEvents,
+        BridgeLifecyclePhase::InitializeDiagnostics}},
+      {FailurePoint::xaml_threads,
+       {BridgeLifecyclePhase::ControlEvents,
+        BridgeLifecyclePhase::InitializeDiagnostics,
+        BridgeLifecyclePhase::InitializeTaskbarThreads}},
+      {FailurePoint::watcher,
+       {BridgeLifecyclePhase::ControlEvents,
+        BridgeLifecyclePhase::InitializeDiagnostics,
+        BridgeLifecyclePhase::InitializeTaskbarThreads,
+        BridgeLifecyclePhase::AdviseWatcher}},
+  };
+
+  for (const auto& test_case : test_cases) {
+    FakeOperations operations;
+    operations.failure_point = test_case.failure;
+    BridgeWorker worker(operations);
+
+    EXPECT(worker.run() != 0);
+    EXPECT(operations.phases == test_case.expected_phases);
+    EXPECT(!operations.phases.empty());
+    EXPECT(operations.phases.back() == test_case.expected_phases.back());
+  }
+}
+
+void start_probe_precreates_all_unsignaled_lifecycle_phase_events() {
+  const auto request = current_process_start_request();
+  cache_bridge_module(GetModuleHandleW(nullptr));
+
+  EXPECT(start_probe_worker(request) == S_OK);
+  constexpr std::array contracts{
+      L"ControlEvents", L"InitializeDiagnostics", L"InitializeTaskbarThreads",
+      L"AdviseWatcher", L"Ready"};
+  for (const auto* contract : contracts) {
+    const auto name = phase_event_name(request.binding, contract);
+    HANDLE phase_event = OpenEventW(SYNCHRONIZE, FALSE, name.c_str());
+    EXPECT(phase_event != nullptr);
+    EXPECT(WaitForSingleObject(phase_event, 0) == WAIT_TIMEOUT);
+    CloseHandle(phase_event);
+  }
 }
 
 void every_acquisition_failure_quiesces_without_leaks() {
@@ -491,6 +645,8 @@ int main() {
   start_abi_is_bounded_and_bound_to_the_same_explorer_instance();
   initialize_insert_detach_detach_is_idempotent();
   diagnostics_session_precedes_root_binding_and_watcher_advice();
+  worker_reports_lifecycle_phases_in_order_before_each_operation();
+  initialization_failure_reports_its_final_reached_phase();
   every_acquisition_failure_quiesces_without_leaks();
   wrong_parent_never_invokes_the_mutator();
   malformed_names_and_failed_insertion_never_track_an_element();
@@ -501,5 +657,6 @@ int main() {
   truthful_remaining_count_blocks_quiescence_even_when_steps_report_success();
   retained_diagnostics_session_lease_blocks_quiescence_and_unload();
   worker_orders_detach_quiescence_close_and_self_unload();
+  start_probe_precreates_all_unsignaled_lifecycle_phase_events();
   return EXIT_SUCCESS;
 }

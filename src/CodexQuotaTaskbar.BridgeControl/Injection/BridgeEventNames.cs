@@ -13,6 +13,15 @@ internal readonly record struct ExplorerInstanceBinding(
         ActivationId != Guid.Empty;
 }
 
+internal enum BridgeLifecyclePhase
+{
+    ControlEvents = 0,
+    InitializeDiagnostics = 1,
+    InitializeTaskbarThreads = 2,
+    AdviseWatcher = 3,
+    Ready = 4,
+}
+
 internal sealed record BridgeEventNames(
     string StartReleased,
     string Ready,
@@ -22,6 +31,28 @@ internal sealed record BridgeEventNames(
     private const string Prefix = @"Local\CQTB.Probe.v1";
 
     internal static BridgeEventNames For(ExplorerInstanceBinding binding)
+    {
+        var instance = InstanceFor(binding);
+        return new BridgeEventNames(
+            $"{instance}.StartReleased",
+            $"{instance}.Ready",
+            $"{instance}.Shutdown",
+            $"{instance}.Quiesced");
+    }
+
+    internal static string ForPhase(
+        ExplorerInstanceBinding binding,
+        BridgeLifecyclePhase phase)
+    {
+        if (!Enum.IsDefined<BridgeLifecyclePhase>(phase))
+        {
+            throw new ArgumentOutOfRangeException(nameof(phase));
+        }
+
+        return $"{InstanceFor(binding)}.Phase.{phase}";
+    }
+
+    private static string InstanceFor(ExplorerInstanceBinding binding)
     {
         if (!binding.IsValid)
         {
@@ -34,12 +65,7 @@ internal sealed record BridgeEventNames(
             $"{Prefix}.{binding.ExplorerProcessId:x8}." +
             $"{binding.ExplorerCreationTimeFileTime100Nanoseconds:x16}." +
             $"{Convert.ToHexString(activationBytes).ToLowerInvariant()}");
-
-        return new BridgeEventNames(
-            $"{instance}.StartReleased",
-            $"{instance}.Ready",
-            $"{instance}.Shutdown",
-            $"{instance}.Quiesced");
+        return instance;
     }
 }
 

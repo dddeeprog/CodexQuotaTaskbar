@@ -237,8 +237,18 @@ function Invoke-SelfTest {
         $null = New-Item -ItemType Directory -Path $processFakeBin -Force
         $null = New-Item -ItemType Directory -Path (Join-Path $processTestRoot 'src') -Force
         Write-TestPolicy -SecurityDirectory $processSecurityDirectory
+        [System.IO.File]::WriteAllText(
+            (Join-Path $processSecurityDirectory 'managed-assembly-policy.selftest.ps1'),
+            "Write-Output 'MANAGED_SENTINEL'`nexit 0`n",
+            [System.Text.UTF8Encoding]::new($false)
+        )
         [System.IO.File]::Copy($ScannerPath, (Join-Path $processBuildDirectory 'verify-sensitive-boundary.ps1'))
         [System.IO.File]::Copy((Join-Path $BuildDirectory 'verify.ps1'), (Join-Path $processBuildDirectory 'verify.ps1'))
+        [System.IO.File]::WriteAllText(
+            (Join-Path $processBuildDirectory 'package-host.ps1'),
+            "Write-Output 'HOST_PACKAGE_SENTINEL'`nexit 0`n",
+            [System.Text.UTF8Encoding]::new($false)
+        )
         $fakeDotnet = Join-Path $processFakeBin 'dotnet.cmd'
         $fakeCmake = Join-Path $processFakeBin 'fake-cmake.cmd'
         [System.IO.File]::WriteAllLines($fakeDotnet, @('@echo off', 'echo VERIFY_SENTINEL', 'exit /b 0'))
@@ -259,7 +269,9 @@ function Invoke-SelfTest {
         Assert-SelfTest -Condition (
             $cleanVerifyResult.ExitCode -eq 0 -and
             $cleanVerifyResult.Output.Contains('Sensitive boundary: PASS') -and
+            $cleanVerifyResult.Output.Contains('MANAGED_SENTINEL') -and
             $cleanVerifyResult.Output.Contains('VERIFY_SENTINEL') -and
+            $cleanVerifyResult.Output.Contains('HOST_PACKAGE_SENTINEL') -and
             $cleanVerifyResult.Output.Contains('CMAKE_SENTINEL')
         ) -Message 'a clean scanner subprocess did not return control to Verify for managed/native commands'
 
@@ -346,13 +358,16 @@ function Invoke-SelfTest {
         [System.IO.File]::WriteAllText((Join-Path $artifactPackageRoot 'bin\blocked.txt'), 'AccountManager')
         [System.IO.File]::WriteAllText((Join-Path $artifactPackageRoot 'obj\blocked.txt'), 'TaskbarStats')
         [System.IO.File]::WriteAllText((Join-Path $fixtureRoot 'artifacts\CodexQuotaTaskbar.FileAccessAudit.dll'), 'clean artifact output')
+        [System.IO.File]::WriteAllText((Join-Path $fixtureRoot 'artifacts\Microsoft.Windows.SDK.NET.dll'), 'AccountManager')
         $artifactBypassFindings = @(Invoke-RepositoryScan -RepositoryRoot $fixtureRoot -SecurityDirectory $securityDirectory -ProductionRoots @('artifacts'))
         $artifactBinFinding = @($artifactBypassFindings | Where-Object { $_.Path -ceq 'artifacts/package/bin/blocked.txt' -and $_.Pattern -ceq 'AccountManager' })
         $artifactObjFinding = @($artifactBypassFindings | Where-Object { $_.Path -ceq 'artifacts/package/obj/blocked.txt' -and $_.Pattern -ceq 'TaskbarStats' })
         $flattenedHarnessFinding = @($artifactBypassFindings | Where-Object { $_.Path -ceq 'artifacts/CodexQuotaTaskbar.FileAccessAudit.dll' -and $_.Kind -ceq 'packaging' })
+        $unsignedSdkFinding = @($artifactBypassFindings | Where-Object { $_.Path -ceq 'artifacts/Microsoft.Windows.SDK.NET.dll' -and $_.Pattern -ceq 'AccountManager' })
         Assert-SelfTest -Condition ($artifactBinFinding.Count -eq 1) -Message 'artifact bin content bypassed the scanner'
         Assert-SelfTest -Condition ($artifactObjFinding.Count -eq 1) -Message 'artifact obj content bypassed the scanner'
         Assert-SelfTest -Condition ($flattenedHarnessFinding.Count -eq 1) -Message 'a flattened test-harness DLL was accepted as an artifact'
+        Assert-SelfTest -Condition ($unsignedSdkFinding.Count -eq 1) -Message 'an unsigned file named like the Microsoft SDK assembly bypassed the scanner'
 
         $binaryDirectory = Join-Path $fixtureRoot 'artifacts\binary-test'
         $null = New-Item -ItemType Directory -Path $binaryDirectory -Force
@@ -413,6 +428,23 @@ function Invoke-SelfTest {
             $shortFixtureFindings = @($binaryFindings | Where-Object { $_.Path -ceq $shortFixturePath })
             Assert-SelfTest -Condition ($shortFixtureFindings.Count -eq 0) -Message "an empty or sub-code-unit binary could not be scanned: $shortFixturePath"
         }
+
+        $performancePolicy = Read-BoundaryPolicy -RepositoryRoot $fixtureRoot -SecurityDirectory $securityDirectory
+        $performanceBytes = [byte[]]::new(8MB)
+        $performanceStream = [System.IO.MemoryStream]::new($performanceBytes, $false)
+        try {
+            $performanceStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+            $performanceResult = Invoke-BoundedStreamScan -Policy $performancePolicy -Stream $performanceStream `
+                -RulePath 'artifacts/binary-test/performance.dll' -DisplayPath 'artifacts/binary-test/performance.dll' `
+                -Kind 'content' -MaxBytes $performanceBytes.Length -ExpectedLength $performanceBytes.Length
+            $performanceStopwatch.Stop()
+        }
+        finally {
+            $performanceStream.Dispose()
+        }
+        Assert-SelfTest -Condition ($performanceResult.Findings.Count -eq 0) -Message 'large binary scanner fixture unexpectedly produced a finding'
+        Assert-SelfTest -Condition ($performanceStopwatch.ElapsedMilliseconds -lt 10000) `
+            -Message ("large binary scanner exceeded the 10 second bounded-scan budget: {0} ms" -f $performanceStopwatch.ElapsedMilliseconds)
 
         $zipPath = Join-Path $fixtureRoot 'artifacts\documentation.zip'
         $zip = [System.IO.Compression.ZipFile]::Open($zipPath, [System.IO.Compression.ZipArchiveMode]::Create)
