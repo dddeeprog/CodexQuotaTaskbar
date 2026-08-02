@@ -36,7 +36,7 @@ $script:ApprovedSingleFileHost = [pscustomobject]@{
     RelativePath = 'CodexQuotaTaskbar.CompatibilityProbe.exe'
     FileName = 'singlefilehost.exe'
     Size = 9982464
-    Sha256 = '7cfb0ef5aaffc67be101583d56733e3a7a80874d102502c37a4667e9d7d29c0f'
+    Sha256 = 'a7eb510e9a85d1dc26970bcca9d8bc4435b06b42e5ee631e567132b645cfe034'
 }
 $script:TrustedFrameworkPublicKeyTokens = [System.Collections.Generic.HashSet[string]]::new(
     [string[]]@(
