@@ -18,11 +18,19 @@ public sealed class QuotaCapsuleWindowTests
     [Fact]
     public void Translates_physical_bounds_without_resizing_the_island()
     {
-        var original = new ScreenRect(100, 200, 318, 242);
+        var original = new ScreenRect(100, 200, 406, 280);
 
         var moved = QuotaCapsuleWindow.TranslateBounds(original, 25, -30);
 
-        Assert.Equal(new ScreenRect(125, 170, 343, 212), moved);
+        Assert.Equal(new ScreenRect(125, 170, 431, 250), moved);
+    }
+
+    [Fact]
+    public void Badge_shadow_has_more_safety_space_than_its_blur_and_depth()
+    {
+        Assert.Equal(306, QuotaCapsuleWindow.WindowWidth);
+        Assert.Equal(80, QuotaCapsuleWindow.WindowHeight);
+        Assert.True(QuotaCapsuleWindow.BadgeShadowSafeInset >= 8 + 2);
     }
 
     [Fact]
@@ -30,10 +38,21 @@ public sealed class QuotaCapsuleWindowTests
     {
         var primary = new TaskbarAnchor("primary", new ScreenRect(0, 0, 1920, 1080), new ScreenRect(0, 1040, 1920, 1080), TaskbarEdge.Bottom, 96, true, true);
         var secondary = new TaskbarAnchor("secondary", new ScreenRect(1920, 0, 3840, 1080), new ScreenRect(1920, 1040, 3840, 1080), TaskbarEdge.Bottom, 144, false, true);
-        var movedIsland = new ScreenRect(2200, 300, 2418, 342);
+        var movedIsland = new ScreenRect(2200, 300, 2506, 380);
 
         var selected = OverlayCoordinator.SelectAnchor([primary, secondary], primary.MonitorId, movedIsland);
 
         Assert.Same(secondary, selected);
+    }
+
+    [Fact]
+    public void Detail_avoidance_uses_the_full_island_and_session_stack_bounds()
+    {
+        var island = new ScreenRect(788, 288, 1094, 368);
+        var sessions = new ScreenRect(745, 352, 1137, 608);
+
+        var result = OverlayCoordinator.Union(island, sessions);
+
+        Assert.Equal(new ScreenRect(745, 288, 1137, 608), result);
     }
 }

@@ -1,3 +1,4 @@
+using CodexQuotaTaskbar.Core.Overlay;
 using CodexQuotaTaskbar.Core.Quota;
 using CodexQuotaTaskbar.Host.UI;
 
@@ -27,5 +28,21 @@ public sealed class QuotaPopoverWindowTests
     {
         Assert.True(QuotaPopoverWindow.SourceRank("codex") < QuotaPopoverWindow.SourceRank("codex_bengalfox"));
         Assert.True(QuotaPopoverWindow.SourceRank("codex_bengalfox") < QuotaPopoverWindow.SourceRank("other_limit"));
+    }
+
+    [Theory]
+    [InlineData(800, 100, 1128, 460, 0, 10)]
+    [InlineData(800, 620, 1128, 980, 0, -10)]
+    [InlineData(400, 300, 728, 660, 10, 0)]
+    [InlineData(1192, 300, 1520, 660, -10, 0)]
+    public void Details_enter_from_the_direction_of_the_island_and_session_group(
+        int left, int top, int right, int bottom, double expectedX, double expectedY)
+    {
+        var anchor = new ScreenRect(800, 480, 1120, 600);
+        var offset = QuotaPopoverWindow.CalculateEntranceOffset(anchor, new ScreenRect(left, top, right, bottom));
+
+        Assert.Equal((expectedX, expectedY), offset);
+        Assert.InRange(QuotaPopoverWindow.EntranceAnimationMilliseconds, 150, 300);
+        Assert.InRange(QuotaPopoverWindow.ExitAnimationMilliseconds, 100, 180);
     }
 }

@@ -42,7 +42,13 @@
       </ControlTemplate></Setter.Value></Setter>
     </Style>
   </Window.Resources>
-  <Grid x:Name="PopoverShell">
+  <Grid x:Name="PopoverShell" RenderTransformOrigin="0.5,0.5">
+    <Grid.RenderTransform>
+      <TransformGroup>
+        <ScaleTransform x:Name="PopoverScale" ScaleX="1" ScaleY="1"/>
+        <TranslateTransform x:Name="PopoverTranslate"/>
+      </TransformGroup>
+    </Grid.RenderTransform>
     <Border x:Name="BackdropLayer" CornerRadius="28">
       <Border.Background>
         <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
@@ -70,7 +76,12 @@
           <TextBlock x:Name="PlanText" Text="订阅 · 未知" Foreground="#E8FFFFFF" FontFamily="Segoe UI Variable Text" FontSize="10.5" FontWeight="SemiBold" />
         </Border>
       </Grid>
-      <StackPanel x:Name="RowsPanel" Grid.Row="2" />
+      <ScrollViewer Grid.Row="2" MaxHeight="340" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel>
+          <TextBlock x:Name="QuotaHeading" Text="额度" Tag="secondary" Foreground="#9EAFAFB3" FontFamily="Segoe UI Variable Text" FontSize="10" FontWeight="SemiBold" Margin="1,0,0,7" />
+          <StackPanel x:Name="RowsPanel" />
+        </StackPanel>
+      </ScrollViewer>
       <Grid Grid.Row="3" Margin="0,16,0,0">
         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="9"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
         <Button x:Name="RefreshButton" Content="刷新额度" Style="{StaticResource GlassButton}" />

@@ -2,6 +2,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using CodexQuotaTaskbar.Core.Overlay;
 using CodexQuotaTaskbar.Core.Quota;
 using FrostedBlur = BlurredBackground.WPF.BlurredBackground;
 
@@ -9,22 +11,29 @@ namespace CodexQuotaTaskbar.Host.UI;
 
 public partial class QuotaPopoverWindow : Window
 {
+    internal const int EntranceAnimationMilliseconds = 220;
+    internal const int ExitAnimationMilliseconds = 130;
     private bool activationEstablished;
     private bool blurReady;
+    private bool closingAnimated;
+    private double anchorOffsetX;
+    private double anchorOffsetY;
     private readonly System.Windows.Media.Brush normalGlassBackground;
     private readonly System.Windows.Media.Brush normalBackdropBackground;
+    private QuotaSnapshot quotaSnapshot = QuotaSnapshot.Unavailable("正在连接 Codex…");
 
     internal QuotaPopoverWindow()
     {
         InitializeComponent();
         normalGlassBackground = GlassBorder.Background;
         normalBackdropBackground = BackdropLayer.Background;
+        Opacity = SystemParameters.ClientAreaAnimation ? 0 : 1;
         Loaded += (_, _) =>
         {
             blurReady = true;
             ApplySystemAppearance();
         };
-        CloseButton.Click += (_, _) => Close();
+        CloseButton.Click += (_, _) => RequestClose();
         RefreshButton.Click += (_, _) => RefreshRequested?.Invoke(this, EventArgs.Empty);
         OpenCodexButton.Click += (_, _) => OpenCodexRequested?.Invoke(this, EventArgs.Empty);
         Activated += (_, _) => activationEstablished = true;
@@ -32,14 +41,14 @@ public partial class QuotaPopoverWindow : Window
         {
             if (activationEstablished)
             {
-                Dispatcher.BeginInvoke(Close);
+                Dispatcher.BeginInvoke(RequestClose);
             }
         };
         KeyDown += (_, eventArgs) =>
         {
             if (eventArgs.Key == Key.Escape)
             {
-                Close();
+                RequestClose();
             }
         };
         SystemParameters.StaticPropertyChanged += OnSystemParametersChanged;
@@ -50,8 +59,73 @@ public partial class QuotaPopoverWindow : Window
     internal event EventHandler? RefreshRequested;
     internal event EventHandler? OpenCodexRequested;
 
+    internal void PlayEntrance((double X, double Y) offset)
+    {
+        anchorOffsetX = offset.X;
+        anchorOffsetY = offset.Y;
+        Opacity = 1;
+        PopoverScale.ScaleX = PopoverScale.ScaleY = 1;
+        PopoverTranslate.X = PopoverTranslate.Y = 0;
+        if (!SystemParameters.ClientAreaAnimation)
+        {
+            return;
+        }
+
+        var duration = TimeSpan.FromMilliseconds(EntranceAnimationMilliseconds);
+        var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
+        BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, duration) { EasingFunction = easing });
+        PopoverScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.97, 1, duration) { EasingFunction = easing });
+        PopoverScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.97, 1, duration) { EasingFunction = easing });
+        PopoverTranslate.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(offset.X, 0, duration) { EasingFunction = easing });
+        PopoverTranslate.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(offset.Y, 0, duration) { EasingFunction = easing });
+    }
+
+    internal void RequestClose()
+    {
+        if (closingAnimated)
+        {
+            return;
+        }
+        if (!SystemParameters.ClientAreaAnimation)
+        {
+            Close();
+            return;
+        }
+
+        closingAnimated = true;
+        var duration = TimeSpan.FromMilliseconds(ExitAnimationMilliseconds);
+        var easing = new CubicEase { EasingMode = EasingMode.EaseIn };
+        var opacity = new DoubleAnimation(Opacity, 0, duration) { EasingFunction = easing };
+        opacity.Completed += (_, _) => Close();
+        BeginAnimation(OpacityProperty, opacity);
+        PopoverScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(PopoverScale.ScaleX, 0.98, duration) { EasingFunction = easing });
+        PopoverScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(PopoverScale.ScaleY, 0.98, duration) { EasingFunction = easing });
+        PopoverTranslate.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(PopoverTranslate.X, anchorOffsetX * 0.7, duration) { EasingFunction = easing });
+        PopoverTranslate.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(PopoverTranslate.Y, anchorOffsetY * 0.7, duration) { EasingFunction = easing });
+    }
+
+    internal static (double X, double Y) CalculateEntranceOffset(ScreenRect anchor, ScreenRect popover)
+    {
+        if (popover.Bottom <= anchor.Top)
+        {
+            return (0, 10);
+        }
+        if (popover.Top >= anchor.Bottom)
+        {
+            return (0, -10);
+        }
+        return popover.Right <= anchor.Left ? (10, 0) : (-10, 0);
+    }
+
     internal void Apply(QuotaSnapshot snapshot)
     {
+        quotaSnapshot = snapshot;
+        Render();
+    }
+
+    private void Render()
+    {
+        var snapshot = quotaSnapshot;
         StatusText.Text = snapshot.StatusText + (snapshot.CapturedAt is { } captured ? $" · {captured.ToLocalTime():HH:mm:ss}" : string.Empty);
         PlanText.Text = $"订阅 · {snapshot.SubscriptionPlan ?? "未知"}";
         RowsPanel.Children.Clear();
@@ -168,14 +242,13 @@ public partial class QuotaPopoverWindow : Window
         PlanText.Foreground = opaque ? System.Windows.SystemColors.ControlTextBrush : new SolidColorBrush(System.Windows.Media.Color.FromRgb(242, 242, 247));
         PlanBadge.Background = opaque ? System.Windows.SystemColors.ControlBrush : new SolidColorBrush(System.Windows.Media.Color.FromArgb(24, 255, 255, 255));
         PlanBadge.BorderBrush = opaque ? System.Windows.SystemColors.ActiveBorderBrush : new SolidColorBrush(System.Windows.Media.Color.FromArgb(40, 255, 255, 255));
-        var rowText = RowsPanel.Children.OfType<TextBlock>()
-            .Concat(RowsPanel.Children.OfType<Border>().SelectMany(border =>
-                border.Child is Grid grid ? grid.Children.OfType<TextBlock>() : []));
+        var rowText = FindTextBlocks(RowsPanel).Append(QuotaHeading);
         foreach (var text in rowText)
         {
             text.Foreground = opaque
                 ? System.Windows.SystemColors.WindowTextBrush
-                : Equals(text.Tag, "secondary") ? new SolidColorBrush(System.Windows.Media.Color.FromRgb(174, 174, 178)) : System.Windows.Media.Brushes.White;
+                : Equals(text.Tag, "secondary") ? new SolidColorBrush(System.Windows.Media.Color.FromRgb(174, 174, 178))
+                : System.Windows.Media.Brushes.White;
         }
         CloseButton.Foreground = RefreshButton.Foreground = opaque ? System.Windows.SystemColors.ControlTextBrush : System.Windows.Media.Brushes.White;
         CloseButton.Background = RefreshButton.Background = opaque ? System.Windows.SystemColors.ControlBrush : new SolidColorBrush(System.Windows.Media.Color.FromArgb(44, 255, 255, 255));
@@ -210,6 +283,22 @@ public partial class QuotaPopoverWindow : Window
             FontSize = 12,
         },
     };
+
+    private static IEnumerable<TextBlock> FindTextBlocks(DependencyObject parent)
+    {
+        for (var index = 0; index < VisualTreeHelper.GetChildrenCount(parent); index++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, index);
+            if (child is TextBlock text)
+            {
+                yield return text;
+            }
+            foreach (var descendant in FindTextBlocks(child))
+            {
+                yield return descendant;
+            }
+        }
+    }
 
     private static System.Windows.Media.Brush QuotaBrush(double remaining) => new SolidColorBrush(remaining switch
     {

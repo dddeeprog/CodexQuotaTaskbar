@@ -56,6 +56,7 @@ public partial class App : System.Windows.Application
 
             coordinator.RefreshRequested += OnRefreshRequested;
             coordinator.OpenCodexRequested += OnOpenCodexRequested;
+            coordinator.OpenSessionRequested += OnOpenSessionRequested;
             coordinator.ContextRequested += (_, _) => tray.ShowContextMenu(avoidIsland: true);
             tray.RefreshRequested += OnRefreshRequested;
             tray.OpenCodexRequested += OnOpenCodexRequested;
@@ -63,8 +64,10 @@ public partial class App : System.Windows.Application
             tray.SettingsChanged += OnSettingsChanged;
             tray.ExitRequested += async (_, _) => await RequestShutdownAsync();
             provider.SnapshotChanged += OnSnapshotChanged;
+            provider.SessionsChanged += OnSessionsChanged;
 
             coordinator.Apply(provider.Current);
+            coordinator.ApplySessions(provider.CurrentSessions);
             coordinator.Start();
             if (options.ExitAfter is { } exitAfter)
             {
@@ -205,6 +208,22 @@ public partial class App : System.Windows.Application
         });
     }
 
+    private void OnSessionsChanged(object? sender, CodexQuotaTaskbar.Core.Sessions.CodexSessionsSnapshot snapshot)
+    {
+        if (shuttingDown)
+        {
+            return;
+        }
+
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (!shuttingDown)
+            {
+                coordinator?.ApplySessions(snapshot);
+            }
+        });
+    }
+
     private async void OnRefreshRequested(object? sender, EventArgs eventArgs)
     {
         try
@@ -228,6 +247,18 @@ public partial class App : System.Windows.Application
         catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception)
         {
             System.Windows.MessageBox.Show("未找到可打开的 Codex 应用。", "Codex 额度", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+    }
+
+    private void OnOpenSessionRequested(string threadId)
+    {
+        try
+        {
+            CodexLauncher.OpenThread(threadId);
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            System.Windows.MessageBox.Show("无法打开这个 Codex 会话。", "Codex 会话", MessageBoxButton.OK, MessageBoxImage.Information);
         }
     }
 

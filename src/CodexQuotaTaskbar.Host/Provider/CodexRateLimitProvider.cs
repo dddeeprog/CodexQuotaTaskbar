@@ -2,6 +2,7 @@ using System.IO;
 using System.Text.Json;
 using CodexQuotaTaskbar.Core.Provider;
 using CodexQuotaTaskbar.Core.Quota;
+using CodexQuotaTaskbar.Core.Sessions;
 
 namespace CodexQuotaTaskbar.Host.Provider;
 
@@ -9,12 +10,17 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
 {
     private readonly CodexAppServerClient client = new();
     private readonly SemaphoreSlim refreshLock = new(1, 1);
+    private readonly SemaphoreSlim sessionsRefreshLock = new(1, 1);
     private readonly CancellationTokenSource lifetime = new();
+    private readonly RolloutSessionMonitor sessionMonitor = new(DateTimeOffset.UtcNow);
     private Task? periodicRefreshTask;
+    private Task? periodicSessionsRefreshTask;
     private long accountGeneration;
     private bool started;
+    private bool sessionsStarted;
 
     internal static TimeSpan AutomaticRefreshInterval { get; } = TimeSpan.FromMinutes(3);
+    internal static TimeSpan SessionsRefreshInterval { get; } = TimeSpan.FromSeconds(2);
 
     internal CodexRateLimitProvider()
     {
@@ -22,7 +28,9 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
     }
 
     public event EventHandler<QuotaSnapshot>? SnapshotChanged;
+    public event EventHandler<CodexSessionsSnapshot>? SessionsChanged;
     public QuotaSnapshot Current { get; private set; } = QuotaSnapshot.Unavailable("正在连接 Codex…");
+    public CodexSessionsSnapshot CurrentSessions { get; private set; } = CodexSessionsSnapshot.Empty;
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -37,6 +45,10 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
         {
             Set(QuotaSnapshot.Unavailable("未找到可用的 Codex App Server"));
         }
+
+        sessionsStarted = true;
+        await RefreshSessionsAsync(cancellationToken);
+        periodicSessionsRefreshTask = RefreshSessionsPeriodicallyAsync(lifetime.Token);
     }
 
     public async Task RefreshAsync(CancellationToken cancellationToken)
@@ -127,6 +139,13 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
         }
     }
 
+    public void DismissSession(string threadId)
+    {
+        sessionMonitor.Dismiss(threadId);
+        var remaining = CurrentSessions.Sessions.Where(session => session.Id != threadId);
+        SetSessions(CodexSessionsSnapshot.Create(remaining, DateTimeOffset.Now));
+    }
+
     private async Task RefreshPeriodicallyAsync(CancellationToken cancellationToken)
     {
         try
@@ -142,10 +161,52 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
         }
     }
 
+    private async Task RefreshSessionsAsync(CancellationToken cancellationToken)
+    {
+        if (!sessionsStarted || !await sessionsRefreshLock.WaitAsync(0, cancellationToken))
+        {
+            return;
+        }
+
+        try
+        {
+            var snapshot = await sessionMonitor.RefreshFromDiskAsync(DateTimeOffset.Now, cancellationToken);
+            SetSessions(snapshot);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or IOException or TimeoutException or JsonException)
+        {
+        }
+        finally
+        {
+            sessionsRefreshLock.Release();
+        }
+    }
+
+    private async Task RefreshSessionsPeriodicallyAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var timer = new PeriodicTimer(SessionsRefreshInterval);
+            while (await timer.WaitForNextTickAsync(cancellationToken))
+            {
+                await RefreshSessionsAsync(cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
     private void Set(QuotaSnapshot snapshot)
     {
         Current = snapshot;
         SnapshotChanged?.Invoke(this, snapshot);
+    }
+
+    private void SetSessions(CodexSessionsSnapshot snapshot)
+    {
+        CurrentSessions = snapshot;
+        SessionsChanged?.Invoke(this, snapshot);
     }
 
     public async ValueTask DisposeAsync()
@@ -155,9 +216,14 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
         {
             await periodicRefreshTask.ConfigureAwait(false);
         }
+        if (periodicSessionsRefreshTask is not null)
+        {
+            await periodicSessionsRefreshTask.ConfigureAwait(false);
+        }
         client.Notification -= OnNotification;
         await client.DisposeAsync().ConfigureAwait(false);
         refreshLock.Dispose();
+        sessionsRefreshLock.Dispose();
         lifetime.Dispose();
     }
 }

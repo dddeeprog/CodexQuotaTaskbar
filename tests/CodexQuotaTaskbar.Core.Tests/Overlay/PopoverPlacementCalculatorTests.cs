@@ -39,10 +39,10 @@ public sealed class PopoverPlacementCalculatorTests
     }
 
     [Theory]
-    [InlineData(0, 42)]
-    [InlineData(1702, 42)]
-    [InlineData(0, 998)]
-    [InlineData(1702, 998)]
+    [InlineData(0, 80)]
+    [InlineData(1614, 80)]
+    [InlineData(0, 960)]
+    [InlineData(1614, 960)]
     public void Freely_moved_island_keeps_details_inside_the_work_area(int left, int top)
     {
         var anchor = new TaskbarAnchor(
@@ -53,7 +53,7 @@ public sealed class PopoverPlacementCalculatorTests
             96,
             true,
             true);
-        var capsule = new ScreenRect(left, top, left + 218, top + 42);
+        var capsule = new ScreenRect(left, top, left + 306, top + 80);
 
         var result = PopoverPlacementCalculator.Calculate(anchor, capsule, 328, 360, 8);
 
@@ -74,10 +74,29 @@ public sealed class PopoverPlacementCalculatorTests
             96,
             true,
             true);
-        var capsule = new ScreenRect(800, 4, 1018, 46);
+        var capsule = new ScreenRect(800, 0, 1106, 80);
 
         var result = PopoverPlacementCalculator.Calculate(anchor, capsule, 328, 360, 8);
 
         Assert.Equal(capsule.Bottom + 8, result.Top);
+    }
+
+    [Fact]
+    public void Details_are_centered_to_the_island_and_session_group()
+    {
+        var anchor = new TaskbarAnchor(
+            "primary",
+            new ScreenRect(0, 0, 1920, 1080),
+            new ScreenRect(0, 1040, 1920, 1080),
+            TaskbarEdge.Bottom,
+            96,
+            true,
+            true);
+        var group = new ScreenRect(745, 352, 1137, 608);
+
+        var result = PopoverPlacementCalculator.Calculate(anchor, group, 328, 360, 8);
+
+        Assert.Equal(941, group.Left + group.Width / 2);
+        Assert.Equal(941, result.Left + result.Width / 2);
     }
 }

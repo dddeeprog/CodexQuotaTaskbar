@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Text.Json;
 
 namespace CodexQuotaTaskbar.Host.Provider;
@@ -9,6 +10,7 @@ internal sealed class CodexAppServerClient : IAsyncDisposable
 {
     private const int MaximumMessageCharacters = 262_144;
     private readonly ConcurrentDictionary<long, TaskCompletionSource<JsonElement>> pending = new();
+    private readonly SemaphoreSlim requestLock = new(1, 1);
     private readonly SemaphoreSlim writeLock = new(1, 1);
     private readonly CancellationTokenSource lifetime = new();
     private Process? process;
@@ -69,14 +71,21 @@ internal sealed class CodexAppServerClient : IAsyncDisposable
 
     private async Task<JsonElement> CompleteRequestAsync(long id, string method, object? parameters, TaskCompletionSource<JsonElement> completion, CancellationToken cancellationToken)
     {
+        var acquired = false;
         try
         {
+            await requestLock.WaitAsync(cancellationToken);
+            acquired = true;
             await SendAsync(new { method, id, @params = parameters ?? new { } }, cancellationToken);
             return await completion.Task.WaitAsync(TimeSpan.FromSeconds(15), cancellationToken);
         }
         finally
         {
             pending.TryRemove(id, out _);
+            if (acquired)
+            {
+                requestLock.Release();
+            }
         }
     }
 
@@ -118,27 +127,9 @@ internal sealed class CodexAppServerClient : IAsyncDisposable
                     throw new InvalidDataException("App Server 响应超过安全上限。");
                 }
 
-                using var document = JsonDocument.Parse(line, new JsonDocumentOptions { MaxDepth = 64 });
-                var root = document.RootElement;
-                if (root.TryGetProperty("id", out var idNode) && idNode.TryGetInt64(out var id) && pending.TryGetValue(id, out var completion))
+                foreach (var message in ParseMessages(line))
                 {
-                    if (root.TryGetProperty("error", out var error))
-                    {
-                        var message = error.TryGetProperty("message", out var messageNode) ? messageNode.GetString() : "App Server 请求失败。";
-                        completion.TrySetException(new InvalidOperationException(message));
-                    }
-                    else if (root.TryGetProperty("result", out var result))
-                    {
-                        completion.TrySetResult(result.Clone());
-                    }
-                    else
-                    {
-                        completion.TrySetException(new InvalidDataException("App Server 响应缺少 result。"));
-                    }
-                }
-                else if (root.TryGetProperty("method", out var method) && method.ValueKind == JsonValueKind.String)
-                {
-                    Notification?.Invoke(this, method.GetString() ?? string.Empty);
+                    Dispatch(message);
                 }
             }
         }
@@ -151,6 +142,53 @@ internal sealed class CodexAppServerClient : IAsyncDisposable
             {
                 request.TrySetException(new InvalidOperationException("Codex App Server 连接已中断。", exception));
             }
+        }
+    }
+
+    internal static IReadOnlyList<JsonElement> ParseMessages(string line)
+    {
+        var messages = new List<JsonElement>();
+        var reader = new Utf8JsonReader(Encoding.UTF8.GetBytes(line), new JsonReaderOptions
+        {
+            AllowMultipleValues = true,
+            MaxDepth = 64,
+        });
+        try
+        {
+            while (reader.Read())
+            {
+                using var document = JsonDocument.ParseValue(ref reader);
+                messages.Add(document.RootElement.Clone());
+            }
+        }
+        catch (JsonException)
+        {
+            // A malformed diagnostic line must not tear down the long-lived App Server connection.
+        }
+        return messages;
+    }
+
+    private void Dispatch(JsonElement root)
+    {
+        if (root.TryGetProperty("id", out var idNode) && idNode.TryGetInt64(out var id) && pending.TryGetValue(id, out var completion))
+        {
+            if (root.TryGetProperty("error", out var error))
+            {
+                var message = error.TryGetProperty("message", out var messageNode) ? messageNode.GetString() : "App Server 请求失败。";
+                completion.TrySetException(new InvalidOperationException(message));
+            }
+            else if (root.TryGetProperty("result", out var result))
+            {
+                completion.TrySetResult(result.Clone());
+            }
+            else
+            {
+                completion.TrySetException(new InvalidDataException("App Server 响应缺少 result。"));
+            }
+        }
+        else if (root.TryGetProperty("method", out var method) && method.ValueKind == JsonValueKind.String)
+        {
+            Notification?.Invoke(this, method.GetString() ?? string.Empty);
         }
     }
 
@@ -203,6 +241,7 @@ internal sealed class CodexAppServerClient : IAsyncDisposable
         }
 
         writeLock.Dispose();
+        requestLock.Dispose();
         lifetime.Dispose();
     }
 }

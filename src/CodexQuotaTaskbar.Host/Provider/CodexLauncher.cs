@@ -22,6 +22,25 @@ internal static class CodexLauncher
         Process.Start(info)?.Dispose();
     }
 
+    internal static void OpenThread(string threadId)
+    {
+        var uri = BuildThreadUri(threadId);
+        Process.Start(new ProcessStartInfo
+        {
+            FileName = uri.AbsoluteUri,
+            UseShellExecute = true,
+        })?.Dispose();
+    }
+
+    internal static Uri BuildThreadUri(string threadId)
+    {
+        if (!Guid.TryParse(threadId, out _))
+        {
+            throw new ArgumentException("会话编号无效。", nameof(threadId));
+        }
+        return new Uri($"codex://threads/{Uri.EscapeDataString(threadId)}");
+    }
+
     internal static string FindExecutable() => FindExecutable(
         (Environment.GetEnvironmentVariable("PATH") ?? string.Empty).Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries));
 

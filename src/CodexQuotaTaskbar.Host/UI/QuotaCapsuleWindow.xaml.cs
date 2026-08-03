@@ -4,6 +4,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using CodexQuotaTaskbar.Core.Overlay;
 using CodexQuotaTaskbar.Core.Quota;
+using CodexQuotaTaskbar.Core.Sessions;
 using CodexQuotaTaskbar.Host.Platform;
 using FrostedBlur = BlurredBackground.WPF.BlurredBackground;
 
@@ -11,10 +12,14 @@ namespace CodexQuotaTaskbar.Host.UI;
 
 public partial class QuotaCapsuleWindow : Window
 {
+    internal const double WindowWidth = 306;
+    internal const double WindowHeight = 80;
+    internal const double BadgeShadowSafeInset = 12;
     private static readonly System.Windows.Media.Brush Cool = Freeze("#F2F2F7");
     private static readonly System.Windows.Media.Brush Amber = Freeze("#FFB84D");
     private static readonly System.Windows.Media.Brush Critical = Freeze("#FF5C6C");
     private static readonly System.Windows.Media.Brush Neutral = Freeze("#737378");
+    private static readonly System.Windows.Media.Brush BadgeForeground = Freeze("#111113");
     private readonly System.Windows.Media.Brush normalLabelForeground;
     private readonly System.Windows.Media.Brush normalValueForeground;
     private readonly System.Windows.Media.Brush normalGlassBackground;
@@ -26,6 +31,8 @@ public partial class QuotaCapsuleWindow : Window
     private int dragOriginY;
     private bool pointerDown;
     private bool userDragging;
+    private QuotaSnapshot quotaSnapshot = QuotaSnapshot.Unavailable("正在连接 Codex…");
+    private CodexSessionsSnapshot sessionsSnapshot = CodexSessionsSnapshot.Empty;
 
     internal QuotaCapsuleWindow(string monitorId)
     {
@@ -60,6 +67,19 @@ public partial class QuotaCapsuleWindow : Window
 
     internal void Apply(QuotaSnapshot snapshot)
     {
+        quotaSnapshot = snapshot;
+        Render();
+    }
+
+    internal void ApplySessions(CodexSessionsSnapshot snapshot)
+    {
+        sessionsSnapshot = snapshot;
+        Render();
+    }
+
+    private void Render()
+    {
+        var snapshot = quotaSnapshot;
         var projection = QuotaCapsuleProjection.Create(snapshot);
         ApplyRow(projection.Rows[0], FirstLabel, FirstBar, FirstValue);
         var hasSecondRow = projection.Rows.Count > 1;
@@ -72,8 +92,11 @@ public partial class QuotaCapsuleWindow : Window
 
         Opacity = snapshot.Availability == QuotaAvailability.Stale ? 0.78 : 1;
         ToolTip = null;
+        var activeSessions = sessionsSnapshot.ActiveCount;
+        SessionBadge.Visibility = activeSessions > 0 ? Visibility.Visible : Visibility.Collapsed;
+        SessionBadgeText.Text = activeSessions.ToString(System.Globalization.CultureInfo.InvariantCulture);
         var rowSummary = string.Join("，", projection.Rows.Select(row => $"{row.Label} {row.Text}"));
-        AutomationProperties.SetName(this, $"Codex 额度，{rowSummary}，{projection.StatusText}");
+        AutomationProperties.SetName(this, $"Codex 额度，{rowSummary}，进行中会话 {activeSessions}，{projection.StatusText}");
         ApplySystemAppearance();
     }
 
@@ -181,6 +204,8 @@ public partial class QuotaCapsuleWindow : Window
             BackdropLayer.Background = System.Windows.SystemColors.WindowBrush;
             FirstLabel.Foreground = SecondLabel.Foreground = System.Windows.SystemColors.WindowTextBrush;
             FirstValue.Foreground = SecondValue.Foreground = System.Windows.SystemColors.WindowTextBrush;
+            SessionBadge.Background = System.Windows.SystemColors.HighlightBrush;
+            SessionBadgeText.Foreground = System.Windows.SystemColors.HighlightTextBrush;
             return;
         }
 
@@ -190,6 +215,8 @@ public partial class QuotaCapsuleWindow : Window
         SetBlurEnabled(true);
         FirstLabel.Foreground = SecondLabel.Foreground = normalLabelForeground;
         FirstValue.Foreground = SecondValue.Foreground = normalValueForeground;
+        SessionBadge.Background = Cool;
+        SessionBadgeText.Foreground = BadgeForeground;
     }
 
     private void SetBlurEnabled(bool enabled)

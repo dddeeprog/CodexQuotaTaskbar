@@ -21,7 +21,7 @@ public static class PopoverPlacementCalculator
         {
             PlacementDirection.Left => capsule.Left - gap - width,
             PlacementDirection.Right => capsule.Right + gap,
-            _ => capsule.Right - width,
+            _ => capsule.Left + (capsule.Width - width) / 2,
         };
         var top = direction switch
         {

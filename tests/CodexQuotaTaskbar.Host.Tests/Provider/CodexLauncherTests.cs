@@ -49,6 +49,15 @@ public sealed class CodexLauncherTests : IDisposable
         Assert.Equal(pathBinary, CodexLauncher.FindExecutable([pathRoot], [packageRoot], Path.Combine(root, "cache")));
     }
 
+    [Fact]
+    public void Builds_the_registered_codex_thread_uri()
+    {
+        var id = "019fb91e-5990-7c53-a448-c5287b8678af";
+
+        Assert.Equal($"codex://threads/{id}", CodexLauncher.BuildThreadUri(id).AbsoluteUri);
+        Assert.Throws<ArgumentException>(() => CodexLauncher.BuildThreadUri("not-a-thread"));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(root))
