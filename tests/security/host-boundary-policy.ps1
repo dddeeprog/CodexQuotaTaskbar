@@ -16,22 +16,17 @@ try {
     $archive = [System.IO.Compression.ZipArchive]::new($stream, [System.IO.Compression.ZipArchiveMode]::Read, $false)
     try {
         $allowed = @(
-            'CodexQuotaTaskbar.exe',
-            'CodexQuotaTaskbar.dll',
-            'CodexQuotaTaskbar.deps.json',
-            'CodexQuotaTaskbar.runtimeconfig.json',
-            'CodexQuotaTaskbar.Core.dll',
-            'BlurredBackground.WPF.dll'
+            'CodexQuotaTaskbar.exe'
         )
         $names = @($archive.Entries | ForEach-Object { $_.FullName })
         if ($names.Count -ne $allowed.Count -or @($names | Where-Object { $_ -notin $allowed }).Count -gt 0) {
             throw 'Production package contains files outside the exact Host allowlist.'
         }
 
-        # The shared Core assembly retains compatibility model type names for the separate
-        # diagnostic tool. Exact package filenames above prove those tools are not shipped;
-        # binary content scanning focuses on executable injection capabilities.
-        $forbidden = @('VirtualAllocEx', 'WriteProcessMemory', 'CreateRemoteThread', 'InitializeXamlDiagnosticsEx')
+        # The self-contained .NET single-file host legitimately contains VirtualAllocEx in
+        # the signed runtime. Keep scanning the bundle for APIs that indicate remote-process
+        # mutation; the repository-wide source policy independently checks product sources.
+        $forbidden = @('WriteProcessMemory', 'CreateRemoteThread', 'InitializeXamlDiagnosticsEx')
         foreach ($entry in $archive.Entries) {
             $entryStream = $entry.Open()
             try {

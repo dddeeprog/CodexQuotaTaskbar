@@ -24,17 +24,13 @@ New-Item -ItemType Directory -Path $publishDirectory -Force | Out-Null
 New-Item -ItemType Directory -Path $releaseDirectory -Force | Out-Null
 
 & dotnet publish (Join-Path $repositoryRoot 'src\CodexQuotaTaskbar.Host\CodexQuotaTaskbar.Host.csproj') `
-    -c $Configuration -r win-x64 --self-contained false -o $publishDirectory `
-    -p:DebugType=None -p:DebugSymbols=false
+    -c $Configuration -r win-x64 --self-contained true -o $publishDirectory `
+    -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
+    -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $allowedFiles = @(
-    'CodexQuotaTaskbar.exe',
-    'CodexQuotaTaskbar.dll',
-    'CodexQuotaTaskbar.deps.json',
-    'CodexQuotaTaskbar.runtimeconfig.json',
-    'CodexQuotaTaskbar.Core.dll',
-    'BlurredBackground.WPF.dll'
+    'CodexQuotaTaskbar.exe'
 )
 $actualFiles = @(Get-ChildItem -LiteralPath $publishDirectory -File | Select-Object -ExpandProperty Name | Sort-Object)
 $unexpected = @($actualFiles | Where-Object { $_ -notin $allowedFiles })

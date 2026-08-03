@@ -14,7 +14,7 @@
 
 ## 数据说明
 
-应用通过本机已登录的 Codex App Server 只读获取额度：
+应用通过本机已登录的 Codex App Server 只读获取额度。仅安装 Codex 桌面版时，应用会将桌面包内的官方 Codex 可执行文件复制到自己的本地运行缓存后启动，从而避开 Windows 商店目录禁止外部启动的限制，并继续使用现有 ChatGPT 登录：
 
 - 小岛上方固定显示“5 小时”，下方固定显示“7 天”。
 - 如果账号当前没有单独的 5 小时窗口，上方会暂时复制 7 天额度，避免显示空白；详情页仍展示服务端返回的真实窗口。
@@ -25,13 +25,13 @@
 
 ## 直接使用
 
-系统要求：Windows 10/11 x64、[.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0)，以及已经登录的 Codex 桌面应用或 Codex CLI。
+系统要求：Windows 10/11 x64，以及已经使用 ChatGPT 登录的 Codex 桌面应用或 Codex CLI。便携包已内置 .NET 10 Desktop Runtime，新电脑无需另行安装 .NET。
 
 1. 解压 `CodexQuotaTaskbar-win-x64.zip`。
 2. 双击 `CodexQuotaTaskbar.exe`。
 3. 左键点击小岛查看详情；按住并拖动可调整位置；右键打开托盘菜单。
 
-便携包不会自动写入开机启动。需要时可在托盘菜单中手动开启。
+便携包是包含运行时的单文件自包含版本，不会自动写入开机启动。需要时可在托盘菜单中手动开启。
 
 ## 构建
 

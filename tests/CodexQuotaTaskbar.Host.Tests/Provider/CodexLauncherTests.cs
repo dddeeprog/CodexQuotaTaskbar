@@ -16,7 +16,37 @@ public sealed class CodexLauncherTests : IDisposable
         File.WriteAllText(native, "binary");
         File.WriteAllText(Path.Combine(root, "codex.exe"), "store-alias");
 
-        Assert.Equal(native, CodexLauncher.FindExecutable([root]));
+        Assert.Equal(native, CodexLauncher.FindExecutable([root], [], Path.Combine(root, "cache")));
+    }
+
+    [Fact]
+    public void Falls_back_to_packaged_desktop_binary()
+    {
+        var packageRoot = Path.Combine(root, "OpenAI.Codex_1.0.0.0_x64__test");
+        var native = Path.Combine(packageRoot, "app", "resources", "codex.exe");
+        Directory.CreateDirectory(Path.GetDirectoryName(native)!);
+        File.WriteAllText(native, "binary");
+        var cacheRoot = Path.Combine(root, "cache");
+        var expected = Path.Combine(cacheRoot, Path.GetFileName(packageRoot), "codex.exe");
+
+        Assert.Equal(expected, CodexLauncher.FindExecutable([], [packageRoot], cacheRoot));
+        Assert.Equal("binary", File.ReadAllText(expected));
+    }
+
+    [Fact]
+    public void Prefers_path_binary_over_packaged_desktop_binary()
+    {
+        var pathRoot = Path.Combine(root, "path");
+        var pathBinary = Path.Combine(pathRoot, "codex.exe");
+        Directory.CreateDirectory(pathRoot);
+        File.WriteAllText(pathBinary, "path binary");
+
+        var packageRoot = Path.Combine(root, "package");
+        var packageBinary = Path.Combine(packageRoot, "app", "resources", "codex.exe");
+        Directory.CreateDirectory(Path.GetDirectoryName(packageBinary)!);
+        File.WriteAllText(packageBinary, "package binary");
+
+        Assert.Equal(pathBinary, CodexLauncher.FindExecutable([pathRoot], [packageRoot], Path.Combine(root, "cache")));
     }
 
     public void Dispose()
