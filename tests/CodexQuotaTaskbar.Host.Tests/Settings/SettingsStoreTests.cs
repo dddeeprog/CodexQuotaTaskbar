@@ -14,11 +14,26 @@ public sealed class SettingsStoreTests : IDisposable
         var defaults = await store.LoadAsync(CancellationToken.None);
         Assert.True(defaults.ShowAllTaskbars);
         Assert.True(defaults.LowQuotaNotifications);
+        Assert.True(defaults.AutomaticUpdatesEnabled);
 
         var changed = defaults with { ShowAllTaskbars = false, StartWithWindows = true };
         await store.SaveAsync(changed, CancellationToken.None);
 
         Assert.Equal(changed, await store.LoadAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Legacy_settings_enable_automatic_updates_by_default()
+    {
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "settings.json");
+        await File.WriteAllTextAsync(path, """
+            { "ShowAllTaskbars": true, "StartWithWindows": false, "LowQuotaNotifications": true, "LowQuotaThreshold": 10 }
+            """);
+
+        var value = await new SettingsStore(path).LoadAsync(CancellationToken.None);
+
+        Assert.True(value.AutomaticUpdatesEnabled);
     }
 
     [Fact]

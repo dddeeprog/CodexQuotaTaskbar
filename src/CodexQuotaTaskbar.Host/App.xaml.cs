@@ -1,4 +1,5 @@
 using System.IO;
+using System.Net.Http;
 using System.Threading;
 using System.Windows;
 using CodexQuotaTaskbar.Host.Lifetime;
@@ -7,18 +8,21 @@ using CodexQuotaTaskbar.Host.Overlay;
 using CodexQuotaTaskbar.Host.Provider;
 using CodexQuotaTaskbar.Host.Settings;
 using CodexQuotaTaskbar.Host.Tray;
+using CodexQuotaTaskbar.Host.Update;
 
 namespace CodexQuotaTaskbar.Host;
 
 public partial class App : System.Windows.Application
 {
     private readonly CancellationTokenSource lifetime = new();
+    private readonly SemaphoreSlim updateGate = new(1, 1);
     private Mutex? singleInstance;
     private OverlayCoordinator? coordinator;
     private TrayController? tray;
     private IQuotaProvider? provider;
     private SettingsStore? settingsStore;
     private LowQuotaGate? lowQuotaGate;
+    private GitHubUpdateService? updateService;
     private bool shuttingDown;
     private bool cleanupCompleted;
 
@@ -27,6 +31,13 @@ public partial class App : System.Windows.Application
         base.OnStartup(eventArgs);
         try
         {
+            if (UpdateApplyOptions.TryParse(eventArgs.Args, out var updateOptions))
+            {
+                await UpdateApplier.ApplyAsync(updateOptions!, CancellationToken.None);
+                Shutdown();
+                return;
+            }
+
             var options = HostOptions.Parse(eventArgs.Args);
             singleInstance = new Mutex(true, "Local\\CodexQuotaTaskbar.Host", out var created);
             if (!created)
@@ -41,12 +52,14 @@ public partial class App : System.Windows.Application
             coordinator = new OverlayCoordinator(settings.ShowAllTaskbars);
             tray = new TrayController(settings);
             provider = options.Demo ? new DemoQuotaProvider() : new CodexRateLimitProvider();
+            updateService = options.Demo ? null : new GitHubUpdateService();
 
             coordinator.RefreshRequested += OnRefreshRequested;
             coordinator.OpenCodexRequested += OnOpenCodexRequested;
-            coordinator.ContextRequested += (_, _) => tray.ShowContextMenu();
+            coordinator.ContextRequested += (_, _) => tray.ShowContextMenu(avoidIsland: true);
             tray.RefreshRequested += OnRefreshRequested;
             tray.OpenCodexRequested += OnOpenCodexRequested;
+            tray.CheckUpdatesRequested += OnCheckUpdatesRequested;
             tray.SettingsChanged += OnSettingsChanged;
             tray.ExitRequested += async (_, _) => await RequestShutdownAsync();
             provider.SnapshotChanged += OnSnapshotChanged;
@@ -58,11 +71,116 @@ public partial class App : System.Windows.Application
                 _ = ExitAfterAsync(exitAfter, lifetime.Token);
             }
             await provider.StartAsync(lifetime.Token);
+            if (updateService is not null)
+            {
+                _ = CleanupUpdatesAsync(lifetime.Token);
+                _ = AutomaticUpdateLoopAsync(lifetime.Token);
+            }
         }
-        catch (Exception exception) when (exception is ArgumentException or IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is ArgumentException or IOException or UnauthorizedAccessException or InvalidOperationException or TimeoutException or System.ComponentModel.Win32Exception)
         {
             System.Windows.MessageBox.Show(exception.Message, "Codex 额度", MessageBoxButton.OK, MessageBoxImage.Error);
             await RequestShutdownAsync();
+        }
+    }
+
+    private async void OnCheckUpdatesRequested(object? sender, EventArgs eventArgs)
+    {
+        await CheckForUpdatesAsync(manual: true, lifetime.Token);
+    }
+
+    private async Task AutomaticUpdateLoopAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(15), cancellationToken);
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                if (tray?.Settings.AutomaticUpdatesEnabled == true)
+                {
+                    await CheckForUpdatesAsync(manual: false, cancellationToken);
+                }
+                await Task.Delay(TimeSpan.FromHours(6), cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async Task CleanupUpdatesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await updateGate.WaitAsync(cancellationToken);
+            try
+            {
+                if (updateService is not null)
+                {
+                    await updateService.CleanupAsync(cancellationToken);
+                }
+            }
+            finally
+            {
+                updateGate.Release();
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async Task CheckForUpdatesAsync(bool manual, CancellationToken cancellationToken)
+    {
+        if (updateService is null || !await updateGate.WaitAsync(0, cancellationToken))
+        {
+            if (manual)
+            {
+                tray?.ShowUpdateNotification("正在检查更新", "已有更新检查正在进行。");
+            }
+            return;
+        }
+
+        try
+        {
+            if (manual)
+            {
+                tray?.ShowUpdateNotification("检查更新", "正在连接 GitHub 正式发行版…");
+            }
+
+            var release = await updateService.CheckAsync(cancellationToken);
+            if (release is null)
+            {
+                if (manual)
+                {
+                    tray?.ShowUpdateNotification("已是最新版本", $"当前版本为 v{ProductVersion.Text}。");
+                }
+                return;
+            }
+
+            tray?.ShowUpdateNotification("发现新版本", $"正在下载 {release.Tag}…");
+            var staged = await updateService.DownloadAndStageAsync(release, cancellationToken);
+            if (!updateService.LaunchInstaller(staged))
+            {
+                throw new InvalidOperationException("无法启动更新程序。");
+            }
+
+            tray?.ShowUpdateNotification("正在安装更新", $"即将重启到 {release.Tag}。");
+            await RequestShutdownAsync();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception) when (exception is HttpRequestException or IOException or UnauthorizedAccessException or InvalidOperationException or System.Text.Json.JsonException)
+        {
+            tray?.ShowUpdateNotification(
+                "更新失败",
+                manual ? "无法从 GitHub 获取或安装更新。" : "自动更新暂时失败，稍后会重试。",
+                System.Windows.Forms.ToolTipIcon.Warning);
+        }
+        finally
+        {
+            updateGate.Release();
         }
     }
 
@@ -156,6 +274,7 @@ public partial class App : System.Windows.Application
         {
             await provider.DisposeAsync().ConfigureAwait(true);
         }
+        updateService?.Dispose();
         singleInstance?.ReleaseMutex();
         singleInstance?.Dispose();
         cleanupCompleted = true;
@@ -173,6 +292,7 @@ public partial class App : System.Windows.Application
             {
                 _ = Task.Run(async () => await provider.DisposeAsync()).Wait(TimeSpan.FromSeconds(5));
             }
+            updateService?.Dispose();
             singleInstance?.Dispose();
         }
         lifetime.Dispose();

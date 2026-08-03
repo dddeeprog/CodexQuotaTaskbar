@@ -113,14 +113,7 @@ internal sealed class OverlayCoordinator : IDisposable
         return window;
     }
 
-    internal static ScreenRect CalculateFollowerBounds(ScreenRect follower, ScreenRect previousOwner, ScreenRect currentOwner) =>
-        new(
-            follower.Left + currentOwner.Left - previousOwner.Left,
-            follower.Top + currentOwner.Top - previousOwner.Top,
-            follower.Right + currentOwner.Left - previousOwner.Left,
-            follower.Bottom + currentOwner.Top - previousOwner.Top);
-
-    private void OnWindowMoved(QuotaCapsuleWindow window, ScreenRect previous, ScreenRect current)
+    private void OnWindowMoved(QuotaCapsuleWindow window, ScreenRect _previous, ScreenRect current)
     {
         userPositions[window.MonitorId] = current;
         if (popover is null || !ReferenceEquals(popoverOwner, window))
@@ -128,18 +121,9 @@ internal sealed class OverlayCoordinator : IDisposable
             return;
         }
 
-        var handle = new System.Windows.Interop.WindowInteropHelper(popover).Handle;
-        if (!NativeMethods.GetWindowRect(handle, out var nativeBounds))
-        {
-            return;
-        }
-
-        var follower = CalculateFollowerBounds(
-            new ScreenRect(nativeBounds.Left, nativeBounds.Top, nativeBounds.Right, nativeBounds.Bottom),
-            previous,
-            current);
-        _ = NativeMethods.SetWindowPos(handle, NativeMethods.HwndTopmost,
-            follower.Left, follower.Top, follower.Width, follower.Height,
+        var bounds = CalculatePopoverBounds(window, popover);
+        _ = NativeMethods.SetWindowPos(new System.Windows.Interop.WindowInteropHelper(popover).Handle, NativeMethods.HwndTopmost,
+            bounds.Left, bounds.Top, bounds.Width, bounds.Height,
             NativeMethods.SwpNoActivate | NativeMethods.SwpShowWindow);
     }
 
@@ -164,17 +148,34 @@ internal sealed class OverlayCoordinator : IDisposable
             popoverOwner = null;
         };
         details.Show();
-        var anchor = topology.Capture().FirstOrDefault(value => value.MonitorId == owner.MonitorId);
+        var bounds = CalculatePopoverBounds(owner, details);
+        _ = NativeMethods.SetWindowPos(new System.Windows.Interop.WindowInteropHelper(details).Handle, NativeMethods.HwndTopmost,
+            bounds.Left, bounds.Top, bounds.Width, bounds.Height, NativeMethods.SwpShowWindow);
+        details.Activate();
+    }
+
+    private ScreenRect CalculatePopoverBounds(QuotaCapsuleWindow owner, QuotaPopoverWindow details)
+    {
+        var anchor = SelectAnchor(topology.Capture(), owner.MonitorId, owner.PhysicalBounds);
         var dpi = anchor?.Dpi ?? 96;
         var scale = dpi / 96d;
         var width = checked((int)Math.Round(PopoverWidth * scale));
-        var height = checked((int)Math.Round(Math.Max(220, details.ActualHeight) * scale));
-        var bounds = anchor is null
+        var heightDip = Math.Max(240, details.ActualHeight);
+        var height = checked((int)Math.Round(heightDip * scale));
+        return anchor is null
             ? new ScreenRect(owner.PhysicalBounds.Right - width, owner.PhysicalBounds.Top - height, owner.PhysicalBounds.Right, owner.PhysicalBounds.Top)
-            : PopoverPlacementCalculator.Calculate(anchor, owner.PhysicalBounds, PopoverWidth, Math.Max(240, details.ActualHeight), 8);
-        _ = NativeMethods.SetWindowPos(new System.Windows.Interop.WindowInteropHelper(details).Handle, NativeMethods.HwndTopmost,
-            bounds.Left, bounds.Top, width, height, NativeMethods.SwpShowWindow);
-        details.Activate();
+            : PopoverPlacementCalculator.Calculate(anchor, owner.PhysicalBounds, PopoverWidth, heightDip, 8);
+    }
+
+    internal static TaskbarAnchor? SelectAnchor(IEnumerable<TaskbarAnchor> anchors, string ownerMonitorId, ScreenRect ownerBounds)
+    {
+        var values = anchors.ToArray();
+        var centerX = ownerBounds.Left + ownerBounds.Width / 2;
+        var centerY = ownerBounds.Top + ownerBounds.Height / 2;
+        return values.FirstOrDefault(anchor =>
+                   centerX >= anchor.MonitorBounds.Left && centerX < anchor.MonitorBounds.Right
+                   && centerY >= anchor.MonitorBounds.Top && centerY < anchor.MonitorBounds.Bottom)
+               ?? values.FirstOrDefault(anchor => string.Equals(anchor.MonitorId, ownerMonitorId, StringComparison.Ordinal));
     }
 
     private void OnEnvironmentChanged(object? sender, EventArgs eventArgs) => Reconcile();

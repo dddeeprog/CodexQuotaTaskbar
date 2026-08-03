@@ -4,12 +4,12 @@ internal static class SubscriptionPlanFormatter
 {
     internal static string Format(string? rawPlan) => rawPlan?.Trim().ToLowerInvariant() switch
     {
-        "free" => "Free",
-        "go" => "Go",
-        "plus" => "Plus",
-        "pro" => "Pro",
-        "prolite" => "Pro Lite",
-        "team" => "Team",
+        "free" => "FREE",
+        "go" => "GO",
+        "plus" => "PLUS",
+        "pro" => "PRO 20X",
+        "prolite" => "PRO 5X",
+        "team" => "TEAM",
         "self_serve_business_prolite" => "Self Serve Business ProLite",
         "self_serve_business_usage_based" => "Self Serve Business Usage Based",
         "business" => "Business",

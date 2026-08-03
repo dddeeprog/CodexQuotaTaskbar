@@ -26,16 +26,14 @@ public sealed class QuotaCapsuleWindowTests
     }
 
     [Fact]
-    public void Open_details_follow_the_island_by_the_same_physical_delta()
+    public void Details_use_the_monitor_containing_a_freely_moved_island()
     {
-        var details = new ScreenRect(900, 500, 1228, 780);
-        var previousIsland = new ScreenRect(1100, 800, 1318, 842);
-        var movedIsland = new ScreenRect(1020, 760, 1238, 802);
+        var primary = new TaskbarAnchor("primary", new ScreenRect(0, 0, 1920, 1080), new ScreenRect(0, 1040, 1920, 1080), TaskbarEdge.Bottom, 96, true, true);
+        var secondary = new TaskbarAnchor("secondary", new ScreenRect(1920, 0, 3840, 1080), new ScreenRect(1920, 1040, 3840, 1080), TaskbarEdge.Bottom, 144, false, true);
+        var movedIsland = new ScreenRect(2200, 300, 2418, 342);
 
-        var movedDetails = OverlayCoordinator.CalculateFollowerBounds(details, previousIsland, movedIsland);
+        var selected = OverlayCoordinator.SelectAnchor([primary, secondary], primary.MonitorId, movedIsland);
 
-        Assert.Equal(new ScreenRect(820, 460, 1148, 740), movedDetails);
-        Assert.Equal(details.Width, movedDetails.Width);
-        Assert.Equal(details.Height, movedDetails.Height);
+        Assert.Same(secondary, selected);
     }
 }

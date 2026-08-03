@@ -37,4 +37,47 @@ public sealed class PopoverPlacementCalculatorTests
         Assert.Equal((int)Math.Round(300 * dpi / 96d), result.Width);
         Assert.Equal((int)Math.Round(240 * dpi / 96d), result.Height);
     }
+
+    [Theory]
+    [InlineData(0, 42)]
+    [InlineData(1702, 42)]
+    [InlineData(0, 998)]
+    [InlineData(1702, 998)]
+    public void Freely_moved_island_keeps_details_inside_the_work_area(int left, int top)
+    {
+        var anchor = new TaskbarAnchor(
+            "primary",
+            new ScreenRect(0, 0, 1920, 1080),
+            new ScreenRect(0, 1040, 1920, 1080),
+            TaskbarEdge.Bottom,
+            96,
+            true,
+            true);
+        var capsule = new ScreenRect(left, top, left + 218, top + 42);
+
+        var result = PopoverPlacementCalculator.Calculate(anchor, capsule, 328, 360, 8);
+
+        Assert.InRange(result.Left, 0, 1920 - 328);
+        Assert.InRange(result.Top, 0, 1040 - 360);
+        Assert.InRange(result.Right, 328, 1920);
+        Assert.InRange(result.Bottom, 360, 1040);
+    }
+
+    [Fact]
+    public void Island_near_the_top_opens_details_below_it()
+    {
+        var anchor = new TaskbarAnchor(
+            "primary",
+            new ScreenRect(0, 0, 1920, 1080),
+            new ScreenRect(0, 1040, 1920, 1080),
+            TaskbarEdge.Bottom,
+            96,
+            true,
+            true);
+        var capsule = new ScreenRect(800, 4, 1018, 46);
+
+        var result = PopoverPlacementCalculator.Calculate(anchor, capsule, 328, 360, 8);
+
+        Assert.Equal(capsule.Bottom + 8, result.Top);
+    }
 }

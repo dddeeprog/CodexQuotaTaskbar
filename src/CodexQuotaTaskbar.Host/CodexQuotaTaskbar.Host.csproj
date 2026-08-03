@@ -5,6 +5,7 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\QuotaIslandIcon.ico</ApplicationIcon>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <AssemblyName>CodexQuotaTaskbar</AssemblyName>
     <RootNamespace>CodexQuotaTaskbar.Host</RootNamespace>
@@ -15,5 +16,6 @@
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Assets\OpenAILogo.png" />
+    <Resource Include="Assets\QuotaIslandIcon.png" />
   </ItemGroup>
 </Project>

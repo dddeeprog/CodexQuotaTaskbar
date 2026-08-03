@@ -6,6 +6,15 @@ namespace CodexQuotaTaskbar.Host.Tests;
 public sealed class ProjectBoundaryTests
 {
     [Fact]
+    public void Product_version_matches_release_version_file()
+    {
+        var version = File.ReadAllText(Path.Combine(RepositoryPaths.Root, "VERSION")).Trim();
+
+        Assert.Equal(ProductVersion.Text, version);
+        Assert.Equal(ProductVersion.Value, Version.Parse(version));
+    }
+
+    [Fact]
     public void Host_has_no_bridge_or_probe_project_reference()
     {
         var project = XDocument.Load(RepositoryPaths.HostProject);

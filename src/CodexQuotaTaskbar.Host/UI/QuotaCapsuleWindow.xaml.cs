@@ -71,7 +71,7 @@ public partial class QuotaCapsuleWindow : Window
         }
 
         Opacity = snapshot.Availability == QuotaAvailability.Stale ? 0.78 : 1;
-        ToolTip = BuildToolTip(snapshot, projection);
+        ToolTip = null;
         var rowSummary = string.Join("，", projection.Rows.Select(row => $"{row.Label} {row.Text}"));
         AutomationProperties.SetName(this, $"Codex 额度，{rowSummary}，{projection.StatusText}");
         ApplySystemAppearance();
@@ -167,14 +167,6 @@ public partial class QuotaCapsuleWindow : Window
             "Cool" => Cool,
             _ => Neutral,
         };
-    }
-
-    private static string BuildToolTip(QuotaSnapshot snapshot, QuotaCapsuleProjection projection)
-    {
-        var lines = projection.Rows.Select(row => row.ResetsAt is { } reset
-            ? $"{row.Label}：剩余 {row.Text}，{reset.ToLocalTime():M月d日 HH:mm} 重置"
-            : $"{row.Label}：{row.Text}");
-        return string.Join(Environment.NewLine, lines.Append(snapshot.StatusText));
     }
 
     private void OnSystemParametersChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e) => ApplySystemAppearance();

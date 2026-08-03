@@ -11,11 +11,11 @@ public sealed class SubscriptionPlanFormatterTests
     }
 
     [Theory]
-    [InlineData("free", "Free")]
-    [InlineData("plus", "Plus")]
-    [InlineData("pro", "Pro")]
-    [InlineData("prolite", "Pro Lite")]
-    [InlineData("TEAM", "Team")]
+    [InlineData("free", "FREE")]
+    [InlineData("plus", "PLUS")]
+    [InlineData("pro", "PRO 20X")]
+    [InlineData("prolite", "PRO 5X")]
+    [InlineData("TEAM", "TEAM")]
     [InlineData("hc", "Enterprise")]
     [InlineData("education", "Edu")]
     [InlineData("future_plan", "其他")]
