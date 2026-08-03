@@ -18,6 +18,9 @@ public sealed class CodexSessionsSnapshotTests
         Assert.Equal(["waiting", "failed", "review", "running"], snapshot.Sessions.Select(session => session.Id));
         Assert.Equal("waiting", snapshot.Attention?.Id);
         Assert.Equal(2, snapshot.ActiveCount);
+        Assert.Equal(1, snapshot.WaitingCount);
+        Assert.Equal(1, snapshot.RunningCount);
+        Assert.Equal(1, snapshot.CompletedCount);
     }
 
     [Fact]

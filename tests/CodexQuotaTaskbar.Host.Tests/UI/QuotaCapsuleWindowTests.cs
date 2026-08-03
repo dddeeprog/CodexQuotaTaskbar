@@ -1,6 +1,7 @@
 using CodexQuotaTaskbar.Core.Overlay;
 using CodexQuotaTaskbar.Host.Overlay;
 using CodexQuotaTaskbar.Host.UI;
+using System.Windows.Media.Animation;
 
 namespace CodexQuotaTaskbar.Host.Tests.UI;
 
@@ -29,8 +30,27 @@ public sealed class QuotaCapsuleWindowTests
     public void Badge_shadow_has_more_safety_space_than_its_blur_and_depth()
     {
         Assert.Equal(306, QuotaCapsuleWindow.WindowWidth);
-        Assert.Equal(80, QuotaCapsuleWindow.WindowHeight);
+        Assert.Equal(92, QuotaCapsuleWindow.WindowHeight);
         Assert.True(QuotaCapsuleWindow.BadgeShadowSafeInset >= 8 + 2);
+    }
+
+    [Fact]
+    public void Island_blurs_the_capture_layer_behind_its_tint()
+    {
+        Assert.Equal("BackdropLayer", QuotaCapsuleWindow.GlassCaptureTargetName);
+        Assert.Equal(18, QuotaCapsuleWindow.GlassBlurRadius);
+        Assert.InRange(QuotaCapsuleWindow.GlassMerging, 0.9, 0.95);
+    }
+
+    [Theory]
+    [InlineData(1, 2, 3)]
+    [InlineData(2, 1, -3)]
+    [InlineData(2, 2, 0)]
+    public void Badge_numbers_slide_in_the_direction_of_the_count_change(int previous, int current, double expected)
+    {
+        Assert.Equal(expected, QuotaCapsuleWindow.NumberTransitionOffset(previous, current));
+        Assert.Equal(180, QuotaCapsuleWindow.BadgeAnimationMilliseconds);
+        Assert.Equal(EasingMode.EaseOut, QuotaCapsuleWindow.ExitEasingMode);
     }
 
     [Fact]
@@ -54,5 +74,20 @@ public sealed class QuotaCapsuleWindowTests
         var result = OverlayCoordinator.Union(island, sessions);
 
         Assert.Equal(new ScreenRect(745, 288, 1137, 608), result);
+    }
+
+    [Fact]
+    public void Session_placement_reserves_expanded_height_so_the_first_card_stays_anchored()
+    {
+        Assert.Equal(256, OverlayCoordinator.ReservedSessionHeight(8));
+
+        var reserved = new ScreenRect(745, 352, 1137, 608);
+        var collapsed = OverlayCoordinator.ResizeStackHeight(reserved, 130, 96);
+        var expanded = OverlayCoordinator.ResizeStackHeight(reserved, 256, 96);
+
+        Assert.Equal(reserved.Top, collapsed.Top);
+        Assert.Equal(reserved.Top, expanded.Top);
+        Assert.Equal(482, collapsed.Bottom);
+        Assert.Equal(608, expanded.Bottom);
     }
 }

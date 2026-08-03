@@ -31,7 +31,9 @@ internal sealed class DemoQuotaProvider : IQuotaProvider
 
     public void DismissSession(string threadId)
     {
-        CurrentSessions = CodexSessionsSnapshot.Empty;
+        CurrentSessions = CodexSessionsSnapshot.Create(
+            CurrentSessions.Sessions.Where(session => !string.Equals(session.Id, threadId, StringComparison.Ordinal)),
+            DateTimeOffset.Now);
         SessionsChanged?.Invoke(this, CurrentSessions);
     }
 

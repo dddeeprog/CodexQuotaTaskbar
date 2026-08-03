@@ -189,17 +189,18 @@ internal sealed class OverlayCoordinator : IDisposable
             return;
         }
         var desiredOwner = owner.IsUserDragging ? owner.PhysicalBounds : DesiredOwnerBounds(owner, anchor);
+        var reservedSessionHeight = ReservedSessionHeight(sessions.Sessions.Count);
         var placement = SessionStackPlacementCalculator.CalculateBelow(
             anchor,
             desiredOwner,
             SessionStackWindow.StackWidth,
-            sessionWindow.DesiredHeight,
+            reservedSessionHeight,
             SessionStackGap);
         if (!owner.IsUserDragging)
         {
             owner.Place(placement.Capsule);
         }
-        sessionWindow.Place(placement.Stack);
+        sessionWindow.Place(ResizeStackHeight(placement.Stack, sessionWindow.DesiredHeight, anchor.Dpi));
         if (ReferenceEquals(popoverOwner, owner))
         {
             RepositionPopover(owner);
@@ -278,6 +279,15 @@ internal sealed class OverlayCoordinator : IDisposable
         Math.Min(first.Top, second.Top),
         Math.Max(first.Right, second.Right),
         Math.Max(first.Bottom, second.Bottom));
+
+    internal static double ReservedSessionHeight(int totalCount) =>
+        SessionStackWindow.CalculateHeight(totalCount, true);
+
+    internal static ScreenRect ResizeStackHeight(ScreenRect reservedStack, double currentHeightDip, double dpi)
+    {
+        var height = checked((int)Math.Round(currentHeightDip * dpi / 96d));
+        return reservedStack with { Bottom = reservedStack.Top + Math.Max(1, height) };
+    }
 
     internal static TaskbarAnchor? SelectAnchor(IEnumerable<TaskbarAnchor> anchors, string ownerMonitorId, ScreenRect ownerBounds)
     {

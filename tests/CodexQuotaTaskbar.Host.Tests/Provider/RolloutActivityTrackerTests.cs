@@ -37,6 +37,21 @@ public sealed class RolloutActivityTrackerTests
         Assert.Equal(CodexSessionState.Failed, tracker.VisibleState(StartedAt, StartedAt.AddMinutes(3)));
     }
 
+    [Theory]
+    [InlineData("exec_approval_request", "exec_command_begin")]
+    [InlineData("apply_patch_approval_request", "patch_apply_begin")]
+    public void Tracks_persisted_approval_requests_until_execution_resumes(string requestType, string resumeType)
+    {
+        var tracker = new RolloutActivityTracker();
+        tracker.ApplyLine(Event("2026-08-03T05:01:00Z", "task_started", "turn-1"));
+        tracker.ApplyLine(Event("2026-08-03T05:02:00Z", requestType, "turn-1", "call-1"));
+
+        Assert.Equal(CodexSessionState.Waiting, tracker.VisibleState(StartedAt, StartedAt.AddMinutes(2)));
+
+        tracker.ApplyLine(Event("2026-08-03T05:03:00Z", resumeType, "turn-1", "call-1"));
+        Assert.Equal(CodexSessionState.Running, tracker.VisibleState(StartedAt, StartedAt.AddMinutes(3)));
+    }
+
     [Fact]
     public void Does_not_surface_completions_that_predate_monitor_start()
     {
@@ -44,6 +59,17 @@ public sealed class RolloutActivityTrackerTests
         tracker.ApplyLine(Event("2026-08-03T04:59:00Z", "task_complete", "turn-1"));
 
         Assert.Equal(CodexSessionState.Idle, tracker.VisibleState(StartedAt, StartedAt));
+    }
+
+    [Fact]
+    public void Hides_completed_tasks_after_the_short_review_window()
+    {
+        var tracker = new RolloutActivityTracker();
+        tracker.ApplyLine(Event("2026-08-03T05:01:00Z", "task_complete", "turn-1"));
+
+        Assert.Equal(CodexSessionState.Review, tracker.VisibleState(StartedAt, StartedAt.AddMinutes(1).AddSeconds(30)));
+        Assert.Equal(CodexSessionState.Idle, tracker.VisibleState(StartedAt, StartedAt.AddMinutes(1).AddSeconds(31)));
+        Assert.Equal(TimeSpan.FromSeconds(30), RolloutActivityTracker.CompletedVisibilityDuration);
     }
 
     [Fact]
@@ -64,8 +90,8 @@ public sealed class RolloutActivityTrackerTests
         Assert.Equal("岛上保持额度，多会话展开最多显示三个任务", tracker.TitleHint);
     }
 
-    private static string Event(string timestamp, string type, string turnId) =>
-        JsonSerializer.Serialize(new { timestamp, type = "event_msg", payload = new { type, turn_id = turnId } });
+    private static string Event(string timestamp, string type, string turnId, string? callId = null) =>
+        JsonSerializer.Serialize(new { timestamp, type = "event_msg", payload = new { type, turn_id = turnId, call_id = callId } });
 
     private static string Response(string timestamp, string type, string callId, string? name = null) => JsonSerializer.Serialize(new
     {

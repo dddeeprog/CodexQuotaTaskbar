@@ -13,6 +13,10 @@ public partial class QuotaPopoverWindow : Window
 {
     internal const int EntranceAnimationMilliseconds = 220;
     internal const int ExitAnimationMilliseconds = 130;
+    internal const string GlassCaptureTargetName = "BackdropLayer";
+    internal const double GlassBlurRadius = 24;
+    internal const double GlassMerging = 0.94;
+    internal static EasingMode ExitEasingMode => EasingMode.EaseOut;
     private bool activationEstablished;
     private bool blurReady;
     private bool closingAnimated;
@@ -94,7 +98,7 @@ public partial class QuotaPopoverWindow : Window
 
         closingAnimated = true;
         var duration = TimeSpan.FromMilliseconds(ExitAnimationMilliseconds);
-        var easing = new CubicEase { EasingMode = EasingMode.EaseIn };
+        var easing = new CubicEase { EasingMode = ExitEasingMode };
         var opacity = new DoubleAnimation(Opacity, 0, duration) { EasingFunction = easing };
         opacity.Completed += (_, _) => Close();
         BeginAnimation(OpacityProperty, opacity);
@@ -149,7 +153,7 @@ public partial class QuotaPopoverWindow : Window
             {
                 Text = title,
                 Foreground = System.Windows.Media.Brushes.White,
-                FontFamily = new System.Windows.Media.FontFamily("Segoe UI Variable Text"),
+                FontFamily = OverlayTypography.Text,
                 FontSize = 12.5,
                 FontWeight = FontWeights.SemiBold,
                 VerticalAlignment = VerticalAlignment.Center,
@@ -158,7 +162,7 @@ public partial class QuotaPopoverWindow : Window
             {
                 Text = $"{window.RemainingPercent:0}%",
                 Foreground = System.Windows.Media.Brushes.White,
-                FontFamily = new System.Windows.Media.FontFamily("Segoe UI Variable Display"),
+                FontFamily = OverlayTypography.Number,
                 FontSize = 22,
                 FontWeight = FontWeights.SemiBold,
                 VerticalAlignment = VerticalAlignment.Center,
@@ -171,7 +175,7 @@ public partial class QuotaPopoverWindow : Window
                 Text = $"{window.ResetsAt.ToLocalTime():M月d日 HH:mm} 重置",
                 Tag = "secondary",
                 Foreground = new SolidColorBrush(System.Windows.Media.Color.FromArgb(150, 215, 226, 236)),
-                FontFamily = new System.Windows.Media.FontFamily("Segoe UI Variable Text"),
+                FontFamily = OverlayTypography.Text,
                 FontSize = 10.5,
                 Margin = new Thickness(0, 3, 0, 0),
             };
@@ -258,12 +262,12 @@ public partial class QuotaPopoverWindow : Window
 
     private void SetBlurEnabled(bool enabled)
     {
-        if (blurReady && FrostedBlur.GetEnableBlur(GlassBorder) != enabled)
+        if (blurReady && FrostedBlur.GetEnableBlur(BackdropLayer) != enabled)
         {
-            FrostedBlur.SetBlurRadius(GlassBorder, 24);
-            FrostedBlur.SetMerging(GlassBorder, 0.94);
-            FrostedBlur.SetDpi(GlassBorder, 48);
-            FrostedBlur.SetEnableBlur(GlassBorder, enabled);
+            FrostedBlur.SetBlurRadius(BackdropLayer, GlassBlurRadius);
+            FrostedBlur.SetMerging(BackdropLayer, GlassMerging);
+            FrostedBlur.SetDpi(BackdropLayer, 48);
+            FrostedBlur.SetEnableBlur(BackdropLayer, enabled);
         }
     }
 
@@ -279,7 +283,7 @@ public partial class QuotaPopoverWindow : Window
             Text = "暂无可显示的额度窗口",
             Tag = "secondary",
             Foreground = System.Windows.Media.Brushes.White,
-            FontFamily = new System.Windows.Media.FontFamily("Segoe UI Variable Text"),
+            FontFamily = OverlayTypography.Text,
             FontSize = 12,
         },
     };

@@ -21,6 +21,9 @@ public sealed record CodexSessionsSnapshot(IReadOnlyList<CodexSessionSnapshot> S
 
     public CodexSessionSnapshot? Attention => Sessions.FirstOrDefault();
     public int ActiveCount => Sessions.Count(session => session.State is CodexSessionState.Running or CodexSessionState.Waiting);
+    public int RunningCount => Sessions.Count(session => session.State == CodexSessionState.Running);
+    public int WaitingCount => Sessions.Count(session => session.State == CodexSessionState.Waiting);
+    public int CompletedCount => Sessions.Count(session => session.State == CodexSessionState.Review);
 
     public static CodexSessionsSnapshot Create(IEnumerable<CodexSessionSnapshot> sessions, DateTimeOffset capturedAt) =>
         new(sessions

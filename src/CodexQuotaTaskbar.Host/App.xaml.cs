@@ -254,13 +254,22 @@ public partial class App : System.Windows.Application
     {
         try
         {
+            var openedSession = provider?.CurrentSessions.Sessions.FirstOrDefault(
+                session => string.Equals(session.Id, threadId, StringComparison.Ordinal));
             CodexLauncher.OpenThread(threadId);
+            if (ShouldDismissViewedSession(openedSession))
+            {
+                provider?.DismissSession(threadId);
+            }
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception)
         {
             System.Windows.MessageBox.Show("无法打开这个 Codex 会话。", "Codex 会话", MessageBoxButton.OK, MessageBoxImage.Information);
         }
     }
+
+    internal static bool ShouldDismissViewedSession(CodexQuotaTaskbar.Core.Sessions.CodexSessionSnapshot? session) =>
+        session?.State == CodexQuotaTaskbar.Core.Sessions.CodexSessionState.Review;
 
     private async void OnSettingsChanged(object? sender, AppSettings settings)
     {

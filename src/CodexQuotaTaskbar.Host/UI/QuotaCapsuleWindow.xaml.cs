@@ -1,7 +1,10 @@
+using System.Globalization;
 using System.Windows;
 using System.Windows.Automation;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using CodexQuotaTaskbar.Core.Overlay;
 using CodexQuotaTaskbar.Core.Quota;
 using CodexQuotaTaskbar.Core.Sessions;
@@ -13,17 +16,23 @@ namespace CodexQuotaTaskbar.Host.UI;
 public partial class QuotaCapsuleWindow : Window
 {
     internal const double WindowWidth = 306;
-    internal const double WindowHeight = 80;
+    internal const double WindowHeight = 92;
     internal const double BadgeShadowSafeInset = 12;
+    internal const int BadgeAnimationMilliseconds = 180;
+    internal const string GlassCaptureTargetName = "BackdropLayer";
+    internal const double GlassBlurRadius = 18;
+    internal const double GlassMerging = 0.92;
+    internal static EasingMode ExitEasingMode => EasingMode.EaseOut;
     private static readonly System.Windows.Media.Brush Cool = Freeze("#F2F2F7");
     private static readonly System.Windows.Media.Brush Amber = Freeze("#FFB84D");
     private static readonly System.Windows.Media.Brush Critical = Freeze("#FF5C6C");
     private static readonly System.Windows.Media.Brush Neutral = Freeze("#737378");
-    private static readonly System.Windows.Media.Brush BadgeForeground = Freeze("#111113");
     private readonly System.Windows.Media.Brush normalLabelForeground;
     private readonly System.Windows.Media.Brush normalValueForeground;
     private readonly System.Windows.Media.Brush normalGlassBackground;
     private readonly System.Windows.Media.Brush normalBackdropBackground;
+    private readonly System.Windows.Media.Brush normalBadgeBackground;
+    private readonly System.Windows.Media.Brush normalBadgeBorderBrush;
     private ScreenRect physicalBounds;
     private bool blurReady;
     private ScreenRect dragOriginBounds;
@@ -33,6 +42,10 @@ public partial class QuotaCapsuleWindow : Window
     private bool userDragging;
     private QuotaSnapshot quotaSnapshot = QuotaSnapshot.Unavailable("正在连接 Codex…");
     private CodexSessionsSnapshot sessionsSnapshot = CodexSessionsSnapshot.Empty;
+    private int waitingCount;
+    private int runningCount;
+    private int completedCount;
+    private int badgeAnimationGeneration;
 
     internal QuotaCapsuleWindow(string monitorId)
     {
@@ -42,6 +55,8 @@ public partial class QuotaCapsuleWindow : Window
         normalValueForeground = FirstValue.Foreground;
         normalGlassBackground = GlassBorder.Background;
         normalBackdropBackground = BackdropLayer.Background;
+        normalBadgeBackground = SessionBadge.Background;
+        normalBadgeBorderBrush = SessionBadge.BorderBrush;
         SourceInitialized += (_, _) => WindowInteropPolicy.AttachNoActivate(this);
         Loaded += (_, _) =>
         {
@@ -92,12 +107,160 @@ public partial class QuotaCapsuleWindow : Window
 
         Opacity = snapshot.Availability == QuotaAvailability.Stale ? 0.78 : 1;
         ToolTip = null;
+        UpdateSessionBadge();
         var activeSessions = sessionsSnapshot.ActiveCount;
-        SessionBadge.Visibility = activeSessions > 0 ? Visibility.Visible : Visibility.Collapsed;
-        SessionBadgeText.Text = activeSessions.ToString(System.Globalization.CultureInfo.InvariantCulture);
         var rowSummary = string.Join("，", projection.Rows.Select(row => $"{row.Label} {row.Text}"));
-        AutomationProperties.SetName(this, $"Codex 额度，{rowSummary}，进行中会话 {activeSessions}，{projection.StatusText}");
+        AutomationProperties.SetName(this,
+            $"Codex 额度，{rowSummary}，待授权 {sessionsSnapshot.WaitingCount}，进行中 {sessionsSnapshot.RunningCount}，已完成 {sessionsSnapshot.CompletedCount}，{projection.StatusText}");
         ApplySystemAppearance();
+    }
+
+    internal static double NumberTransitionOffset(int previous, int current) =>
+        current > previous ? 3 : current < previous ? -3 : 0;
+
+    private void UpdateSessionBadge()
+    {
+        var nextWaiting = sessionsSnapshot.WaitingCount;
+        var nextRunning = sessionsSnapshot.RunningCount;
+        var nextCompleted = sessionsSnapshot.CompletedCount;
+        var previousTotal = waitingCount + runningCount + completedCount;
+        var nextTotal = nextWaiting + nextRunning + nextCompleted;
+        if (nextWaiting == waitingCount && nextRunning == runningCount && nextCompleted == completedCount)
+        {
+            return;
+        }
+        var generation = ++badgeAnimationGeneration;
+
+        UpdateStatusLight(WaitingLight, WaitingLightScale, WaitingLightText, WaitingTextScale, WaitingTextTranslate,
+            waitingCount, nextWaiting, "待授权", generation, () => sessionsSnapshot.WaitingCount);
+        UpdateStatusLight(RunningLight, RunningLightScale, RunningLightText, RunningTextScale, RunningTextTranslate,
+            runningCount, nextRunning, "进行中", generation, () => sessionsSnapshot.RunningCount);
+        UpdateStatusLight(CompletedLight, CompletedLightScale, CompletedLightText, CompletedTextScale, CompletedTextTranslate,
+            completedCount, nextCompleted, "已完成", generation, () => sessionsSnapshot.CompletedCount);
+
+        waitingCount = nextWaiting;
+        runningCount = nextRunning;
+        completedCount = nextCompleted;
+        ToolTip = null;
+        AutomationProperties.SetName(SessionBadge, $"任务状态，待授权 {nextWaiting}，进行中 {nextRunning}，已完成 {nextCompleted}");
+
+        SessionBadge.BeginAnimation(OpacityProperty, null);
+        SessionBadgeScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        SessionBadgeScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        SessionBadge.Opacity = 1;
+        SessionBadgeScale.ScaleX = 1;
+        SessionBadgeScale.ScaleY = 1;
+        if (nextTotal > 0)
+        {
+            SessionBadge.Visibility = Visibility.Visible;
+            if (previousTotal == 0 && SystemParameters.ClientAreaAnimation)
+            {
+                var duration = TimeSpan.FromMilliseconds(BadgeAnimationMilliseconds);
+                var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
+                SessionBadge.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, duration) { EasingFunction = easing });
+                SessionBadgeScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.94, 1, duration) { EasingFunction = easing });
+                SessionBadgeScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.94, 1, duration) { EasingFunction = easing });
+            }
+            return;
+        }
+
+        if (previousTotal == 0 || !SystemParameters.ClientAreaAnimation)
+        {
+            SessionBadge.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var exitDuration = TimeSpan.FromMilliseconds(160);
+        var exitEasing = new CubicEase { EasingMode = ExitEasingMode };
+        var fade = new DoubleAnimation(1, 0, exitDuration) { EasingFunction = exitEasing };
+        fade.Completed += (_, _) =>
+        {
+            if (generation == badgeAnimationGeneration
+                && sessionsSnapshot.WaitingCount + sessionsSnapshot.RunningCount + sessionsSnapshot.CompletedCount == 0)
+            {
+                SessionBadge.Visibility = Visibility.Collapsed;
+                SessionBadge.Opacity = 1;
+            }
+        };
+        SessionBadge.BeginAnimation(OpacityProperty, fade);
+        SessionBadgeScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, 0.94, exitDuration) { EasingFunction = exitEasing });
+        SessionBadgeScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1, 0.94, exitDuration) { EasingFunction = exitEasing });
+    }
+
+    private void UpdateStatusLight(
+        Grid light,
+        ScaleTransform lightScale,
+        TextBlock text,
+        ScaleTransform textScale,
+        TranslateTransform textTranslate,
+        int previous,
+        int current,
+        string label,
+        int generation,
+        Func<int> currentCount)
+    {
+        light.BeginAnimation(OpacityProperty, null);
+        lightScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        lightScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        text.BeginAnimation(OpacityProperty, null);
+        textScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        textScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        textTranslate.BeginAnimation(TranslateTransform.YProperty, null);
+        light.Opacity = 1;
+        lightScale.ScaleX = 1;
+        lightScale.ScaleY = 1;
+        text.Opacity = 1;
+        textScale.ScaleX = 1;
+        textScale.ScaleY = 1;
+        textTranslate.Y = 0;
+
+        if (current <= 0)
+        {
+            if (previous <= 0 || !SystemParameters.ClientAreaAnimation)
+            {
+                light.Visibility = Visibility.Collapsed;
+                text.Text = string.Empty;
+                return;
+            }
+
+            var exitDuration = TimeSpan.FromMilliseconds(160);
+            var exitEasing = new CubicEase { EasingMode = ExitEasingMode };
+            var fade = new DoubleAnimation(1, 0, exitDuration) { EasingFunction = exitEasing };
+            fade.Completed += (_, _) =>
+            {
+                if (generation == badgeAnimationGeneration && currentCount() == 0)
+                {
+                    light.Visibility = Visibility.Collapsed;
+                    text.Text = string.Empty;
+                }
+            };
+            light.BeginAnimation(OpacityProperty, fade);
+            lightScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, 0.88, exitDuration) { EasingFunction = exitEasing });
+            lightScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1, 0.88, exitDuration) { EasingFunction = exitEasing });
+            return;
+        }
+
+        light.Visibility = Visibility.Visible;
+        text.Text = current.ToString(CultureInfo.InvariantCulture);
+        AutomationProperties.SetName(light, $"{label} {current}");
+        if (previous == current || !SystemParameters.ClientAreaAnimation)
+        {
+            return;
+        }
+
+        var duration = TimeSpan.FromMilliseconds(BadgeAnimationMilliseconds);
+        var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var numberOffset = NumberTransitionOffset(previous, current);
+        text.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, duration) { EasingFunction = easing });
+        textScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.9, 1, duration) { EasingFunction = easing });
+        textScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.9, 1, duration) { EasingFunction = easing });
+        textTranslate.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(numberOffset, 0, duration) { EasingFunction = easing });
+        if (previous <= 0)
+        {
+            light.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, duration) { EasingFunction = easing });
+            lightScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.9, 1, duration) { EasingFunction = easing });
+            lightScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.9, 1, duration) { EasingFunction = easing });
+        }
     }
 
     internal void Place(ScreenRect bounds)
@@ -204,8 +367,8 @@ public partial class QuotaCapsuleWindow : Window
             BackdropLayer.Background = System.Windows.SystemColors.WindowBrush;
             FirstLabel.Foreground = SecondLabel.Foreground = System.Windows.SystemColors.WindowTextBrush;
             FirstValue.Foreground = SecondValue.Foreground = System.Windows.SystemColors.WindowTextBrush;
-            SessionBadge.Background = System.Windows.SystemColors.HighlightBrush;
-            SessionBadgeText.Foreground = System.Windows.SystemColors.HighlightTextBrush;
+            SessionBadge.Background = System.Windows.SystemColors.ControlBrush;
+            SessionBadge.BorderBrush = System.Windows.SystemColors.ActiveBorderBrush;
             return;
         }
 
@@ -215,18 +378,18 @@ public partial class QuotaCapsuleWindow : Window
         SetBlurEnabled(true);
         FirstLabel.Foreground = SecondLabel.Foreground = normalLabelForeground;
         FirstValue.Foreground = SecondValue.Foreground = normalValueForeground;
-        SessionBadge.Background = Cool;
-        SessionBadgeText.Foreground = BadgeForeground;
+        SessionBadge.Background = normalBadgeBackground;
+        SessionBadge.BorderBrush = normalBadgeBorderBrush;
     }
 
     private void SetBlurEnabled(bool enabled)
     {
-        if (blurReady && FrostedBlur.GetEnableBlur(GlassBorder) != enabled)
+        if (blurReady && FrostedBlur.GetEnableBlur(BackdropLayer) != enabled)
         {
-            FrostedBlur.SetBlurRadius(GlassBorder, 18);
-            FrostedBlur.SetMerging(GlassBorder, 0.92);
-            FrostedBlur.SetDpi(GlassBorder, 48);
-            FrostedBlur.SetEnableBlur(GlassBorder, enabled);
+            FrostedBlur.SetBlurRadius(BackdropLayer, GlassBlurRadius);
+            FrostedBlur.SetMerging(BackdropLayer, GlassMerging);
+            FrostedBlur.SetDpi(BackdropLayer, 48);
+            FrostedBlur.SetEnableBlur(BackdropLayer, enabled);
         }
     }
 

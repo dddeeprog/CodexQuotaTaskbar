@@ -5,6 +5,7 @@ namespace CodexQuotaTaskbar.Host.Provider;
 
 internal sealed class RolloutActivityTracker
 {
+    internal static TimeSpan CompletedVisibilityDuration { get; } = TimeSpan.FromSeconds(30);
     private string? failedTurnId;
     private string? pendingInputCallId;
 
@@ -54,7 +55,7 @@ internal sealed class RolloutActivityTracker
         CodexSessionState.Running => State,
         CodexSessionState.Waiting when UpdatedAt >= now.AddHours(-24) => State,
         CodexSessionState.Failed when UpdatedAt >= monitorStartedAt && UpdatedAt >= now.AddHours(-1) => State,
-        CodexSessionState.Review when UpdatedAt >= monitorStartedAt && UpdatedAt >= now.AddDays(-7) => State,
+        CodexSessionState.Review when UpdatedAt >= monitorStartedAt && UpdatedAt >= now - CompletedVisibilityDuration => State,
         _ => CodexSessionState.Idle,
     };
 
@@ -71,6 +72,16 @@ internal sealed class RolloutActivityTracker
                 break;
             case "task_started":
                 failedTurnId = null;
+                pendingInputCallId = null;
+                Set(CodexSessionState.Running, timestamp);
+                break;
+            case "exec_approval_request":
+            case "apply_patch_approval_request":
+                pendingInputCallId = ReadString(payload, "call_id") ?? ReadString(payload, "id");
+                Set(CodexSessionState.Waiting, timestamp);
+                break;
+            case "exec_command_begin":
+            case "patch_apply_begin":
                 pendingInputCallId = null;
                 Set(CodexSessionState.Running, timestamp);
                 break;
@@ -119,6 +130,9 @@ internal sealed class RolloutActivityTracker
         || line.Contains("\"task_started\"", StringComparison.Ordinal)
         || line.Contains("\"task_complete\"", StringComparison.Ordinal)
         || line.Contains("\"turn_aborted\"", StringComparison.Ordinal)
+        || line.Contains("approval_request", StringComparison.Ordinal)
+        || line.Contains("exec_command_begin", StringComparison.Ordinal)
+        || line.Contains("patch_apply_begin", StringComparison.Ordinal)
         || line.Contains("request_user_input", StringComparison.OrdinalIgnoreCase)
         || line.Contains("tool_call_output", StringComparison.Ordinal);
 

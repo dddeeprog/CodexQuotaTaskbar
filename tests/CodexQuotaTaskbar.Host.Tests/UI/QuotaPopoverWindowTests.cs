@@ -1,11 +1,20 @@
 using CodexQuotaTaskbar.Core.Overlay;
 using CodexQuotaTaskbar.Core.Quota;
 using CodexQuotaTaskbar.Host.UI;
+using System.Windows.Media.Animation;
 
 namespace CodexQuotaTaskbar.Host.Tests.UI;
 
 public sealed class QuotaPopoverWindowTests
 {
+    [Fact]
+    public void Details_blur_the_capture_layer_behind_the_content_surface()
+    {
+        Assert.Equal("BackdropLayer", QuotaPopoverWindow.GlassCaptureTargetName);
+        Assert.Equal(24, QuotaPopoverWindow.GlassBlurRadius);
+        Assert.InRange(QuotaPopoverWindow.GlassMerging, 0.92, 0.96);
+    }
+
     [Theory]
     [InlineData("codex", "Codex · 7 天额度")]
     [InlineData("CODEX", "Codex · 7 天额度")]
@@ -44,5 +53,6 @@ public sealed class QuotaPopoverWindowTests
         Assert.Equal((expectedX, expectedY), offset);
         Assert.InRange(QuotaPopoverWindow.EntranceAnimationMilliseconds, 150, 300);
         Assert.InRange(QuotaPopoverWindow.ExitAnimationMilliseconds, 100, 180);
+        Assert.Equal(EasingMode.EaseOut, QuotaPopoverWindow.ExitEasingMode);
     }
 }
