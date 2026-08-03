@@ -14,8 +14,8 @@ public partial class QuotaPopoverWindow : Window
     internal const int EntranceAnimationMilliseconds = 220;
     internal const int ExitAnimationMilliseconds = 130;
     internal const string GlassCaptureTargetName = "BackdropLayer";
-    internal const double GlassBlurRadius = 24;
-    internal const double GlassMerging = 0.94;
+    internal const double GlassBlurRadius = OverlayGlassMaterial.BlurRadius;
+    internal const double GlassMerging = OverlayGlassMaterial.Merging;
     internal static EasingMode ExitEasingMode => EasingMode.EaseOut;
     private bool activationEstablished;
     private bool blurReady;
@@ -238,7 +238,7 @@ public partial class QuotaPopoverWindow : Window
     {
         var opaque = CapsuleThemePolicy.Resolve(SystemParameters.HighContrast, SystemParameters.IsGlassEnabled) == CapsuleSurfaceMode.OpaqueSystem;
         GlassBorder.Background = opaque ? System.Windows.SystemColors.WindowBrush : normalGlassBackground;
-        GlassBorder.BorderBrush = opaque ? System.Windows.SystemColors.ActiveBorderBrush : new SolidColorBrush(System.Windows.Media.Color.FromArgb(80, 255, 255, 255));
+        GlassBorder.BorderBrush = opaque ? System.Windows.SystemColors.ActiveBorderBrush : OverlayGlassMaterial.Border;
         BackdropLayer.Background = opaque ? System.Windows.SystemColors.WindowBrush : normalBackdropBackground;
         SetBlurEnabled(!opaque);
         TitleText.Foreground = opaque ? System.Windows.SystemColors.WindowTextBrush : System.Windows.Media.Brushes.White;

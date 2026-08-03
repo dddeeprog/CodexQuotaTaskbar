@@ -46,13 +46,9 @@
   </Window.Resources>
   <Grid x:Name="Shell">
     <Border x:Name="BackdropLayer" Margin="12,28,22,16" CornerRadius="24" Background="#011D1D1F"/>
-    <Border x:Name="GlassBorder" Margin="12,28,22,16" CornerRadius="24" BorderBrush="#46FFFFFF" BorderThickness="1">
-    <Border.Background>
-      <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#743A3A3C" Offset="0"/>
-        <GradientStop Color="#60303032" Offset="1"/>
-      </LinearGradientBrush>
-    </Border.Background>
+    <Border x:Name="GlassBorder" Margin="12,28,22,16" CornerRadius="24"
+            Background="{x:Static ui:OverlayGlassMaterial.Surface}"
+            BorderBrush="{x:Static ui:OverlayGlassMaterial.Border}" BorderThickness="1">
     <Grid Margin="8,5,14,5">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="38" />

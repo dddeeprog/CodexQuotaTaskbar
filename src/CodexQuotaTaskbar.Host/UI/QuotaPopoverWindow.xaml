@@ -51,13 +51,9 @@
       </TransformGroup>
     </Grid.RenderTransform>
     <Border x:Name="BackdropLayer" CornerRadius="28" Background="#011D1D1F"/>
-    <Border x:Name="GlassBorder" CornerRadius="28" BorderBrush="#4CFFFFFF" BorderThickness="1">
-    <Border.Background>
-      <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#903A3A3C" Offset="0"/>
-        <GradientStop Color="#7A303032" Offset="1"/>
-      </LinearGradientBrush>
-    </Border.Background>
+    <Border x:Name="GlassBorder" CornerRadius="28"
+            Background="{x:Static ui:OverlayGlassMaterial.Surface}"
+            BorderBrush="{x:Static ui:OverlayGlassMaterial.Border}" BorderThickness="1">
     <Grid Margin="20,18,20,18">
       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
       <Grid>

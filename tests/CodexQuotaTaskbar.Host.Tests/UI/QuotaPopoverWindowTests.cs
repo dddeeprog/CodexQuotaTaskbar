@@ -11,8 +11,8 @@ public sealed class QuotaPopoverWindowTests
     public void Details_blur_the_capture_layer_behind_the_content_surface()
     {
         Assert.Equal("BackdropLayer", QuotaPopoverWindow.GlassCaptureTargetName);
-        Assert.Equal(24, QuotaPopoverWindow.GlassBlurRadius);
-        Assert.InRange(QuotaPopoverWindow.GlassMerging, 0.92, 0.96);
+        Assert.Equal(SessionStackWindow.SessionGlassBlurRadius, QuotaPopoverWindow.GlassBlurRadius);
+        Assert.Equal(SessionStackWindow.SessionGlassMerging, QuotaPopoverWindow.GlassMerging);
     }
 
     [Theory]

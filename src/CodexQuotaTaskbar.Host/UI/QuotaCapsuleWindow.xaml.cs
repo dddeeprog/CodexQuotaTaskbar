@@ -20,8 +20,8 @@ public partial class QuotaCapsuleWindow : Window
     internal const double BadgeShadowSafeInset = 12;
     internal const int BadgeAnimationMilliseconds = 180;
     internal const string GlassCaptureTargetName = "BackdropLayer";
-    internal const double GlassBlurRadius = 18;
-    internal const double GlassMerging = 0.92;
+    internal const double GlassBlurRadius = OverlayGlassMaterial.BlurRadius;
+    internal const double GlassMerging = OverlayGlassMaterial.Merging;
     internal static EasingMode ExitEasingMode => EasingMode.EaseOut;
     private static readonly System.Windows.Media.Brush Cool = Freeze("#F2F2F7");
     private static readonly System.Windows.Media.Brush Amber = Freeze("#FFB84D");
@@ -373,7 +373,7 @@ public partial class QuotaCapsuleWindow : Window
         }
 
         GlassBorder.Background = normalGlassBackground;
-        GlassBorder.BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromArgb(80, 255, 255, 255));
+        GlassBorder.BorderBrush = OverlayGlassMaterial.Border;
         BackdropLayer.Background = normalBackdropBackground;
         SetBlurEnabled(true);
         FirstLabel.Foreground = SecondLabel.Foreground = normalLabelForeground;

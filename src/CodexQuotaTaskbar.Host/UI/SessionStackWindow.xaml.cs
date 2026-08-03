@@ -28,8 +28,8 @@ public partial class SessionStackWindow : Window
     internal const int SessionRemovalAnimationMilliseconds = 160;
     internal const int SessionGlassCaptureTargetCount = 1;
     internal const bool ExpansionChangesOpacity = true;
-    internal const double SessionGlassBlurRadius = 20;
-    internal const double SessionGlassMerging = 0.92;
+    internal const double SessionGlassBlurRadius = OverlayGlassMaterial.BlurRadius;
+    internal const double SessionGlassMerging = OverlayGlassMaterial.Merging;
     internal const double SessionRemovalOffset = -6;
     internal const double CollapsedLayerRemovalOffset = -4;
     internal const double CollapsedOcclusionTop = ShadowTopInset + CardHeight;
@@ -178,9 +178,7 @@ public partial class SessionStackWindow : Window
     internal static double GlassMaskToggleTop(int totalCount, bool isExpanded) =>
         CalculateHeight(totalCount, isExpanded) - ToggleHeight;
 
-    internal static LinearGradientBrush CreateSessionSurfaceBrush() => CreateNeutralGradient(
-        MediaColor.FromArgb(136, 58, 58, 60),
-        MediaColor.FromArgb(116, 48, 48, 50));
+    internal static LinearGradientBrush CreateSessionSurfaceBrush() => OverlayGlassMaterial.CreateSurfaceBrush();
 
     internal static LinearGradientBrush CreateCollapsedLayerSurfaceBrush(int layer) => layer <= 1
         ? CreateNeutralGradient(
@@ -848,7 +846,7 @@ public partial class SessionStackWindow : Window
     private void ApplySessionButtonAppearance(Button button, bool opaque)
     {
         button.Background = opaque ? WpfSystemColors.WindowBrush : CreateSessionSurfaceBrush();
-        button.BorderBrush = opaque ? WpfSystemColors.ActiveBorderBrush : new SolidColorBrush(MediaColor.FromArgb(70, 255, 255, 255));
+        button.BorderBrush = opaque ? WpfSystemColors.ActiveBorderBrush : OverlayGlassMaterial.Border;
         foreach (var text in FindTextBlocks(button))
         {
             text.Foreground = opaque

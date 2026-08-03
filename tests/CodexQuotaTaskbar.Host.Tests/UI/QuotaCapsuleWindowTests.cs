@@ -38,8 +38,8 @@ public sealed class QuotaCapsuleWindowTests
     public void Island_blurs_the_capture_layer_behind_its_tint()
     {
         Assert.Equal("BackdropLayer", QuotaCapsuleWindow.GlassCaptureTargetName);
-        Assert.Equal(18, QuotaCapsuleWindow.GlassBlurRadius);
-        Assert.InRange(QuotaCapsuleWindow.GlassMerging, 0.9, 0.95);
+        Assert.Equal(SessionStackWindow.SessionGlassBlurRadius, QuotaCapsuleWindow.GlassBlurRadius);
+        Assert.Equal(SessionStackWindow.SessionGlassMerging, QuotaCapsuleWindow.GlassMerging);
     }
 
     [Theory]
