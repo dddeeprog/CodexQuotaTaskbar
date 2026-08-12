@@ -14,7 +14,7 @@ public sealed class GitHubUpdateServiceTests : IDisposable
     {
         var archive = CreateArchive();
         var digest = Convert.ToHexString(SHA256.HashData(archive));
-        using var http = new HttpClient(new FakeHandler(GitHubReleaseParserTests.CreateJson("v0.1.7", digest: digest), archive));
+        using var http = new HttpClient(new FakeHandler(GitHubReleaseParserTests.CreateJson("v0.1.8", digest: digest), archive));
         using var service = new GitHubUpdateService(http, root);
 
         var release = await service.CheckAsync(CancellationToken.None);
@@ -28,7 +28,7 @@ public sealed class GitHubUpdateServiceTests : IDisposable
     [Fact]
     public async Task Current_release_is_not_offered_as_an_update()
     {
-        using var http = new HttpClient(new FakeHandler(GitHubReleaseParserTests.CreateJson("v0.1.6"), []));
+        using var http = new HttpClient(new FakeHandler(GitHubReleaseParserTests.CreateJson("v0.1.7"), []));
         using var service = new GitHubUpdateService(http, root);
 
         Assert.Null(await service.CheckAsync(CancellationToken.None));

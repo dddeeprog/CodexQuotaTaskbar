@@ -7,10 +7,6 @@
         ResizeMode="NoResize" ShowInTaskbar="False" ShowActivated="False"
         SnapsToDevicePixels="True">
   <Window.Resources>
-    <LinearGradientBrush x:Key="SessionGlassSurfaceHover" StartPoint="0,0" EndPoint="0,1">
-      <GradientStop Color="#9A424244" Offset="0"/>
-      <GradientStop Color="#88363638" Offset="1"/>
-    </LinearGradientBrush>
     <LinearGradientBrush x:Key="CollapsedMiddleGlassSurface" StartPoint="0,0" EndPoint="0,1">
       <GradientStop Color="#B83A3A3C" Offset="0"/>
       <GradientStop Color="#A82C2C2E" Offset="1"/>
@@ -46,7 +42,7 @@
             </Grid>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="Chrome" Property="Background" Value="{StaticResource SessionGlassSurfaceHover}"/>
+                <Setter TargetName="Chrome" Property="Background" Value="{x:Static ui:OverlayGlassMaterial.HoverSurface}"/>
                 <Setter TargetName="Chrome" Property="BorderBrush" Value="#58FFFFFF"/>
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
@@ -73,7 +69,7 @@
               <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Border>
             <ControlTemplate.Triggers>
-              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{StaticResource SessionGlassSurfaceHover}"/></Trigger>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{x:Static ui:OverlayGlassMaterial.HoverSurface}"/></Trigger>
               <Trigger Property="IsPressed" Value="True"><Setter TargetName="Chrome" Property="Opacity" Value="0.7"/></Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>

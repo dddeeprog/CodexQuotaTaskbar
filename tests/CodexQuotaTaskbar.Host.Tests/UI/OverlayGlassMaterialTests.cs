@@ -12,6 +12,7 @@ public sealed class OverlayGlassMaterialTests
         Assert.Equal(20, OverlayGlassMaterial.BlurRadius);
         Assert.Equal(0.92, OverlayGlassMaterial.Merging);
         Assert.Equal(70, OverlayGlassMaterial.BorderAlpha);
+        Assert.Same(OverlayGlassMaterial.Surface, OverlayGlassMaterial.HoverSurface);
         Assert.Equal(2, brush.GradientStops.Count);
         Assert.Equal((136, 58, 58, 60), Components(brush.GradientStops[0].Color));
         Assert.Equal((116, 48, 48, 50), Components(brush.GradientStops[1].Color));

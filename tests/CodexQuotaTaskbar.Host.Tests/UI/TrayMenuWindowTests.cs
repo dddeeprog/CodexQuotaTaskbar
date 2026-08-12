@@ -40,4 +40,50 @@ public sealed class TrayMenuWindowTests
         Assert.Contains("ToolTip = null", source, StringComparison.Ordinal);
         Assert.DoesNotContain("BuildToolTip", source, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Menu_uses_explicit_pixel_aligned_typography_for_its_transparent_surface()
+    {
+        var xaml = XDocument.Load(Path.Combine(RepositoryPaths.Root, "src", "CodexQuotaTaskbar.Host", "UI", "TrayMenuWindow.xaml"));
+        var window = xaml.Root!;
+        Assert.Equal("True", (string?)window.Attribute("UseLayoutRounding"));
+        Assert.Equal("Display", (string?)window.Attribute("TextOptions.TextFormattingMode"));
+        Assert.Equal("Grayscale", (string?)window.Attribute("TextOptions.TextRenderingMode"));
+        Assert.Contains("OverlayTypography.Text", (string?)window.Attribute("FontFamily"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Selected_menu_font_is_packaged_with_the_host()
+    {
+        var project = XDocument.Load(RepositoryPaths.HostProject);
+        var resources = project.Descendants("Resource").Select(node => (string?)node.Attribute("Include")).ToArray();
+
+        Assert.Contains("Assets\\Fonts\\NotoSansSC-Regular.otf", resources);
+        Assert.Contains("Assets\\Fonts\\NotoSansSC-Medium.otf", resources);
+        Assert.True(File.Exists(Path.Combine(RepositoryPaths.Root, "src", "CodexQuotaTaskbar.Host", "Assets", "Fonts", "NotoSansSC-Regular.otf")));
+        Assert.True(File.Exists(Path.Combine(RepositoryPaths.Root, "src", "CodexQuotaTaskbar.Host", "Assets", "Fonts", "NotoSansSC-Medium.otf")));
+    }
+
+    [Fact]
+    public void Host_embeds_project_and_font_licenses_without_changing_the_single_file_update_contract()
+    {
+        var project = XDocument.Load(RepositoryPaths.HostProject);
+        var resources = project.Descendants("Resource")
+            .Select(node => new
+            {
+                Include = (string?)node.Attribute("Include"),
+                Link = node.Element("Link")?.Value,
+            })
+            .ToArray();
+
+        Assert.Contains(resources, resource =>
+            resource.Include == "Assets\\Fonts\\OFL.txt" &&
+            resource.Link == "Assets\\Licenses\\Noto-Sans-SC-OFL.txt");
+        Assert.Contains(resources, resource =>
+            resource.Include == "..\\..\\LICENSE" &&
+            resource.Link == "Assets\\Licenses\\GPL-3.0.txt");
+        Assert.Contains(resources, resource =>
+            resource.Include == "..\\..\\THIRD_PARTY_NOTICES.md" &&
+            resource.Link == "Assets\\Licenses\\THIRD_PARTY_NOTICES.md");
+    }
 }

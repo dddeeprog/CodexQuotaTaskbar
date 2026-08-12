@@ -33,12 +33,14 @@ public partial class SessionStackWindow : Window
     internal const double SessionRemovalOffset = -6;
     internal const double CollapsedLayerRemovalOffset = -4;
     internal const double CollapsedOcclusionTop = ShadowTopInset + CardHeight;
+    internal const byte ShadowUnderlayAlpha = 0;
     private const int MaximumVisibleSessions = 3;
     private const double CardHeight = 58;
     private const double CardGap = 5;
     private const double ToggleHeight = 24;
     private const double ToggleGap = 8;
-    private static readonly SolidColorBrush ShadowFill = new(MediaColor.FromArgb(168, 0, 0, 0));
+    private static readonly SolidColorBrush ShadowFill = new(MediaColor.FromArgb(ShadowUnderlayAlpha, 0, 0, 0));
+    private static readonly SolidColorBrush ShadowOutline = new(MediaColor.FromArgb(168, 0, 0, 0));
     private static readonly DependencyProperty AnimatedScrollOffsetProperty = DependencyProperty.Register(
         nameof(AnimatedScrollOffset),
         typeof(double),
@@ -687,6 +689,8 @@ public partial class SessionStackWindow : Window
             Height = CardHeight,
             CornerRadius = new CornerRadius(29),
             Background = ShadowFill,
+            BorderBrush = ShadowOutline,
+            BorderThickness = new Thickness(1),
             Margin = isLast ? new Thickness(0) : new Thickness(0, 0, 0, CardGap),
             Effect = CreateShadowEffect(),
         };

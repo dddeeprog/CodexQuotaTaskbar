@@ -88,4 +88,4 @@
 
 ## 第三方组件
 
-本项目采用 [GNU General Public License v3.0](LICENSE) 开源。界面模糊效果使用 [BlurredBackground.WPF](https://github.com/NullTale/BlurredBackground.WPF)，完整第三方声明见 `THIRD_PARTY_NOTICES.md`。
+本项目采用 [GNU General Public License v3.0](LICENSE) 开源。界面模糊效果使用 [BlurredBackground.WPF](https://github.com/V4SS3UR/BlurredBackground.WPF)，完整第三方声明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。项目许可证、第三方声明和字体 OFL 许可证均作为资源嵌入自包含的单文件程序。

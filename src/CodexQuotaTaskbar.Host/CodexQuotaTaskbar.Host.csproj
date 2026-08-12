@@ -17,5 +17,16 @@
   <ItemGroup>
     <Resource Include="Assets\OpenAILogo.png" />
     <Resource Include="Assets\QuotaIslandIcon.png" />
+    <Resource Include="Assets\Fonts\NotoSansSC-Regular.otf" />
+    <Resource Include="Assets\Fonts\NotoSansSC-Medium.otf" />
+    <Resource Include="Assets\Fonts\OFL.txt">
+      <Link>Assets\Licenses\Noto-Sans-SC-OFL.txt</Link>
+    </Resource>
+    <Resource Include="..\..\LICENSE">
+      <Link>Assets\Licenses\GPL-3.0.txt</Link>
+    </Resource>
+    <Resource Include="..\..\THIRD_PARTY_NOTICES.md">
+      <Link>Assets\Licenses\THIRD_PARTY_NOTICES.md</Link>
+    </Resource>
   </ItemGroup>
 </Project>

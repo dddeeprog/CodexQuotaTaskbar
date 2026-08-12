@@ -49,3 +49,49 @@ Both references are licensed under the MIT License. Their copyright and permissi
 
 - Repository: https://github.com/openai/codex
 - Pinned commit: `3a76f3ac68c8949d1cac6ea769b6ec7b8953a415` (`rust-v0.142.0`)
+
+## BlurredBackground.WPF
+
+- Repository: https://github.com/V4SS3UR/BlurredBackground.WPF
+- Package version: `1.1.0`
+- Use: WPF background-blur behavior for the island, session cards, details, and tray menu.
+
+```text
+BSD 3-Clause License
+
+Copyright (c) 2024, Anthony Vasseur
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+## Noto Sans SC
+
+- Font files: Noto Sans SC Regular and Medium
+- Upstream: https://github.com/notofonts/noto-cjk
+- Use: consistent Simplified Chinese typography across Windows installations.
+- Copyright: © 2014–2020 Adobe (http://www.adobe.com/).
+- Trademark: Noto is a trademark of Google Inc. Font metadata identifies Adobe as the manufacturer.
+- License: SIL Open Font License, Version 1.1. The full license is embedded in the application as `Assets/Licenses/Noto-Sans-SC-OFL.txt` and retained in this repository at `src/CodexQuotaTaskbar.Host/Assets/Fonts/OFL.txt`.

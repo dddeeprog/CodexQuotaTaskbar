@@ -105,7 +105,9 @@ public partial class QuotaCapsuleWindow : Window
             ApplyRow(projection.Rows[1], SecondLabel, SecondBar, SecondValue);
         }
 
-        Opacity = snapshot.Availability == QuotaAvailability.Stale ? 0.78 : 1;
+        // Keep the material itself stable. Staleness is communicated by the status text,
+        // not by making only this window more transparent than the related surfaces.
+        Opacity = ResolveSurfaceOpacity(snapshot.Availability);
         ToolTip = null;
         UpdateSessionBadge();
         var activeSessions = sessionsSnapshot.ActiveCount;
@@ -117,6 +119,8 @@ public partial class QuotaCapsuleWindow : Window
 
     internal static double NumberTransitionOffset(int previous, int current) =>
         current > previous ? 3 : current < previous ? -3 : 0;
+
+    internal static double ResolveSurfaceOpacity(QuotaAvailability _) => 1;
 
     private void UpdateSessionBadge()
     {

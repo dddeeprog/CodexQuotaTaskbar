@@ -15,7 +15,7 @@ if ([string]::IsNullOrWhiteSpace($powerShell)) {
 & $powerShell -NoProfile -NonInteractive -File (Join-Path $PSScriptRoot 'verify-sensitive-boundary.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-$policyPowerShell = (Get-Command pwsh.exe -CommandType Application -ErrorAction Stop).Source
+$policyPowerShell = @(Get-Command pwsh.exe -CommandType Application -ErrorAction Stop)[0].Source
 & $policyPowerShell -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File `
     (Join-Path $repositoryRoot 'tests\security\managed-assembly-policy.selftest.ps1')
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

@@ -42,6 +42,13 @@ public sealed class QuotaCapsuleWindowTests
         Assert.Equal(SessionStackWindow.SessionGlassMerging, QuotaCapsuleWindow.GlassMerging);
     }
 
+    [Fact]
+    public void Stale_quota_does_not_change_the_whole_island_material_opacity()
+    {
+        Assert.Equal(1, QuotaCapsuleWindow.ResolveSurfaceOpacity(CodexQuotaTaskbar.Core.Quota.QuotaAvailability.Available));
+        Assert.Equal(1, QuotaCapsuleWindow.ResolveSurfaceOpacity(CodexQuotaTaskbar.Core.Quota.QuotaAvailability.Stale));
+    }
+
     [Theory]
     [InlineData(1, 2, 3)]
     [InlineData(2, 1, -3)]

@@ -12,6 +12,7 @@ public static class OverlayGlassMaterial
     public const byte BorderAlpha = 70;
 
     public static WpfBrush Surface { get; } = CreateSurfaceBrush();
+    public static WpfBrush HoverSurface => Surface;
     public static WpfBrush Border { get; } = CreateBorderBrush();
 
     internal static LinearGradientBrush CreateSurfaceBrush()

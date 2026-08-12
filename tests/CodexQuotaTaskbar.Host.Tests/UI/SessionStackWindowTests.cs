@@ -181,6 +181,12 @@ public sealed class SessionStackWindowTests
     }
 
     [Fact]
+    public void Session_shadow_slot_does_not_add_an_opaque_black_underlay()
+    {
+        Assert.Equal(0, SessionStackWindow.ShadowUnderlayAlpha);
+    }
+
+    [Fact]
     public void Collapsed_glass_layers_are_neutral_and_step_darker_with_depth()
     {
         var middle = SessionStackWindow.CreateCollapsedLayerSurfaceBrush(1);

@@ -1,10 +1,14 @@
 <Window x:Class="CodexQuotaTaskbar.Host.UI.TrayMenuWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="clr-namespace:CodexQuotaTaskbar.Host.UI"
         Title="Codex 额度菜单" Width="276" SizeToContent="Height"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True"
-        SnapsToDevicePixels="True">
+        SnapsToDevicePixels="True" UseLayoutRounding="True"
+        FontFamily="{x:Static ui:OverlayTypography.Text}"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="Grayscale">
   <Window.Resources>
     <Style x:Key="MenuAction" TargetType="Button">
       <Setter Property="Height" Value="42"/>
@@ -12,8 +16,8 @@
       <Setter Property="Foreground" Value="#F4FFFFFF"/>
       <Setter Property="Background" Value="Transparent"/>
       <Setter Property="BorderThickness" Value="0"/>
-      <Setter Property="FontFamily" Value="Segoe UI Variable Text"/>
-      <Setter Property="FontSize" Value="12.5"/>
+      <Setter Property="FontFamily" Value="{x:Static ui:OverlayTypography.Text}"/>
+      <Setter Property="FontSize" Value="12"/>
       <Setter Property="FontWeight" Value="Medium"/>
       <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
       <Setter Property="Cursor" Value="Hand"/>
@@ -75,11 +79,11 @@
           <Grid.ColumnDefinitions><ColumnDefinition Width="38"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
           <Image Source="/CodexQuotaTaskbar;component/Assets/QuotaIslandIcon.png" Width="32" Height="32" RenderOptions.BitmapScalingMode="HighQuality" VerticalAlignment="Center"/>
           <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center">
-            <TextBlock x:Name="TitleText" Text="Codex 额度" Foreground="#FAFFFFFF" FontFamily="Segoe UI Variable Display" FontSize="14" FontWeight="SemiBold"/>
-            <TextBlock x:Name="RunningText" Text="额度岛正在运行" Foreground="#A8FFFFFF" FontFamily="Segoe UI Variable Text" FontSize="10.5" Margin="0,2,0,0"/>
+            <TextBlock x:Name="TitleText" Text="Codex 额度" Foreground="#FAFFFFFF" FontFamily="{x:Static ui:OverlayTypography.Display}" FontSize="14" FontWeight="Medium"/>
+            <TextBlock x:Name="RunningText" Text="额度岛正在运行" Foreground="#A8FFFFFF" FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="11" Margin="0,2,0,0"/>
           </StackPanel>
           <Border x:Name="VersionBadge" Grid.Column="2" Padding="7,3" CornerRadius="8" Background="#14FFFFFF" VerticalAlignment="Center">
-            <TextBlock x:Name="VersionText" Foreground="#AFFFFFFF" FontFamily="Segoe UI Variable Text" FontSize="9.5"/>
+            <TextBlock x:Name="VersionText" Foreground="#AFFFFFFF" FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="10"/>
           </Border>
         </Grid>
 
