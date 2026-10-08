@@ -5,6 +5,7 @@ namespace CodexQuotaTaskbar.Host.Provider;
 
 internal sealed class DemoQuotaProvider : IQuotaProvider
 {
+    private bool subscriptionDetailsEnabled = true;
     public event EventHandler<QuotaSnapshot>? SnapshotChanged;
     public event EventHandler<CodexSessionsSnapshot>? SessionsChanged;
     public QuotaSnapshot Current { get; private set; } = QuotaSnapshot.Unavailable("演示数据准备中");
@@ -18,7 +19,13 @@ internal sealed class DemoQuotaProvider : IQuotaProvider
         var now = DateTimeOffset.Now;
         Current = QuotaSnapshot.Available([
             new(QuotaWindowKind.Primary, 72, 300, now.AddHours(3)),
-            new(QuotaWindowKind.Secondary, 41, 10080, now.AddDays(4))], now, "Pro Lite");
+            new(QuotaWindowKind.Secondary, 41, 10080, now.AddDays(4))],
+            now,
+            "PRO 5X",
+            subscriptionDetailsEnabled
+                ? SubscriptionExpirationSnapshot.Available(now.AddDays(24), now, SubscriptionExpirationSource.CodexLogin)
+                : SubscriptionExpirationSnapshot.Disabled(),
+            new QuotaCreditsSnapshot(true, false, 128.5m));
         CurrentSessions = CodexSessionsSnapshot.Create([
             new("demo-1", "合并项目", CodexSessionState.Waiting, now),
             new("demo-2", "完善采样间扩建施工清单", CodexSessionState.Running, now.AddSeconds(-10)),
@@ -35,6 +42,13 @@ internal sealed class DemoQuotaProvider : IQuotaProvider
             CurrentSessions.Sessions.Where(session => !string.Equals(session.Id, threadId, StringComparison.Ordinal)),
             DateTimeOffset.Now);
         SessionsChanged?.Invoke(this, CurrentSessions);
+    }
+
+    public bool SetSubscriptionDetailsEnabled(bool enabled)
+    {
+        var changed = subscriptionDetailsEnabled != enabled;
+        subscriptionDetailsEnabled = enabled;
+        return changed;
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;

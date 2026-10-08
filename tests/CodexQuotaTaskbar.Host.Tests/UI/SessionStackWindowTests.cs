@@ -121,6 +121,22 @@ public sealed class SessionStackWindowTests
         Assert.Equal(expected, SessionStackWindow.SessionReflowOffset(previousIndex, currentIndex, expanded));
     }
 
+    [Fact]
+    public void Session_animation_indices_tolerate_duplicate_ids_and_keep_the_first_visual_position()
+    {
+        var now = DateTimeOffset.UtcNow;
+        CodexQuotaTaskbar.Core.Sessions.CodexSessionSnapshot[] sessions = [
+            new("same", "第一段", CodexQuotaTaskbar.Core.Sessions.CodexSessionState.Running, now),
+            new("same", "续接段", CodexQuotaTaskbar.Core.Sessions.CodexSessionState.Running, now),
+            new("other", "其他任务", CodexQuotaTaskbar.Core.Sessions.CodexSessionState.Waiting, now)];
+
+        var indices = SessionStackWindow.BuildFirstSessionIndices(sessions);
+
+        Assert.Equal(2, indices.Count);
+        Assert.Equal(0, indices["same"]);
+        Assert.Equal(2, indices["other"]);
+    }
+
     [Theory]
     [InlineData(0, 0, 184, true)]
     [InlineData(2, 0, 184, true)]

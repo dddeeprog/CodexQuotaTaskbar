@@ -102,6 +102,12 @@
               <TextBlock Grid.Column="1" Text="检查更新" VerticalAlignment="Center"/>
             </Grid>
           </Button>
+          <Button x:Name="SubscriptionLoginButton" Style="{StaticResource MenuAction}" AutomationProperties.Name="网页登录订阅">
+            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+              <Path Style="{StaticResource MenuIcon}" Data="M4,5 L17,5 L17,17 L4,17 Z M4,9 L17,9 M7,7 L8,7"/>
+              <TextBlock Grid.Column="1" Text="网页登录订阅" VerticalAlignment="Center"/>
+            </Grid>
+          </Button>
           <Button x:Name="OpenCodexButton" Style="{StaticResource MenuAction}" AutomationProperties.Name="打开 Codex">
             <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="28"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
               <Path Style="{StaticResource MenuIcon}" Data="M11,4 L17,4 L17,10 M17,4 L9,12 M14.5,11.5 L14.5,16.5 L4,16.5 L4,6 L9,6"/>
@@ -131,6 +137,13 @@
             <Grid><TextBlock Text="自动更新" VerticalAlignment="Center"/>
               <Border x:Name="AutomaticUpdatesTrack" Width="34" Height="20" CornerRadius="10" HorizontalAlignment="Right" VerticalAlignment="Center" Padding="3">
                 <Ellipse x:Name="AutomaticUpdatesKnob" Width="14" Height="14" Fill="#FFF7F7F8" HorizontalAlignment="Left"/>
+              </Border>
+            </Grid>
+          </Button>
+          <Button x:Name="SubscriptionDetailsButton" Style="{StaticResource MenuAction}" AutomationProperties.Name="读取订阅有效期">
+            <Grid><TextBlock Text="订阅有效期" VerticalAlignment="Center"/>
+              <Border x:Name="SubscriptionDetailsTrack" Width="34" Height="20" CornerRadius="10" HorizontalAlignment="Right" VerticalAlignment="Center" Padding="3">
+                <Ellipse x:Name="SubscriptionDetailsKnob" Width="14" Height="14" Fill="#FFF7F7F8" HorizontalAlignment="Left"/>
               </Border>
             </Grid>
           </Button>

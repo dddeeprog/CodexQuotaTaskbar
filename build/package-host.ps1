@@ -32,7 +32,7 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 $allowedFiles = @(
     'CodexQuotaTaskbar.exe'
 )
-$actualFiles = @(Get-ChildItem -LiteralPath $publishDirectory -File | Select-Object -ExpandProperty Name | Sort-Object)
+$actualFiles = @(Get-ChildItem -LiteralPath $publishDirectory -File -Recurse | ForEach-Object { [System.IO.Path]::GetRelativePath($publishDirectory, $_.FullName) } | Sort-Object)
 $unexpected = @($actualFiles | Where-Object { $_ -notin $allowedFiles })
 $missing = @($allowedFiles | Where-Object { $_ -notin $actualFiles })
 if ($unexpected.Count -gt 0 -or $missing.Count -gt 0) {

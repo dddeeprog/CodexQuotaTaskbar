@@ -10,11 +10,21 @@ $script:ExpectedForbiddenPatterns = @(
     'Data[\\/]Accounts'
     'Data[\\/]IdeProfiles'
     'active-codex-account.txt'
-    'chatgpt.com/backend-api/wham'
+    'chatgpt[.]com/backend-api'
     'TaskbarStats'
 )
 $script:ExpectedDocumentationAllowance = 'docs/privacy.md|auth.json'
 $script:ExpectedHarnessAllowance = 'tools/CodexQuotaTaskbar.FileAccessAudit'
+$script:ExpectedSensitiveAccessAllowances = @(
+    'src/CodexQuotaTaskbar.Host/Provider/CodexAuthCredentialReader.cs|auth.json'
+    'src/CodexQuotaTaskbar.Host/Provider/CodexSubscriptionMetadataService.cs|chatgpt[.]com/backend-api'
+    'artifacts/host-publish/Debug/CodexQuotaTaskbar.exe|auth.json'
+    'artifacts/host-publish/Debug/CodexQuotaTaskbar.exe|chatgpt[.]com/backend-api'
+    'artifacts/host-publish/Release/CodexQuotaTaskbar.exe|auth.json'
+    'artifacts/host-publish/Release/CodexQuotaTaskbar.exe|chatgpt[.]com/backend-api'
+    'artifacts/releases/CodexQuotaTaskbar-win-x64.zip!/CodexQuotaTaskbar.exe|auth.json'
+    'artifacts/releases/CodexQuotaTaskbar-win-x64.zip!/CodexQuotaTaskbar.exe|chatgpt[.]com/backend-api'
+)
 $script:HarnessDirectoryName = 'CodexQuotaTaskbar.FileAccessAudit'
 $script:HarnessArtifactFileNames = @(
     'CodexQuotaTaskbar.FileAccessAudit.dll'
@@ -190,7 +200,8 @@ function Read-BoundaryPolicy {
     $patternsPath = Join-Path $securityFullPath 'forbidden-production-patterns.txt'
     $documentationPath = Join-Path $securityFullPath 'allowed-documentation-paths.txt'
     $harnessPath = Join-Path $securityFullPath 'allowed-test-harness-paths.txt'
-    foreach ($policyPath in @($patternsPath, $documentationPath, $harnessPath)) {
+    $sensitiveAccessPath = Join-Path $securityFullPath 'allowed-production-sensitive-access.txt'
+    foreach ($policyPath in @($patternsPath, $documentationPath, $harnessPath, $sensitiveAccessPath)) {
         Assert-NoReparseAncestors -RepositoryRoot $repositoryFullPath -Path $policyPath
     }
 
@@ -219,6 +230,16 @@ function Read-BoundaryPolicy {
         throw 'Test-harness policy cannot contain wildcards, rooted paths, or parent traversal.'
     }
 
+    $sensitiveAccessAllowances = @(Get-StrictPolicyLines -Path $sensitiveAccessPath)
+    if ($sensitiveAccessAllowances.Count -ne $script:ExpectedSensitiveAccessAllowances.Count) {
+        throw 'Sensitive-access policy must contain exactly the reviewed entries.'
+    }
+    for ($index = 0; $index -lt $script:ExpectedSensitiveAccessAllowances.Count; $index++) {
+        if ($sensitiveAccessAllowances[$index] -cne $script:ExpectedSensitiveAccessAllowances[$index]) {
+            throw 'Sensitive-access policy differs from the reviewed fail-closed contract.'
+        }
+    }
+
     $compiledPatterns = foreach ($pattern in $patterns) {
         try {
             [pscustomobject]@{
@@ -238,12 +259,17 @@ function Read-BoundaryPolicy {
 
     $compiledPatterns = @($compiledPatterns)
     [System.Text.RegularExpressions.Regex[]]$binaryScanRegexes = @($compiledPatterns | ForEach-Object { $_.Regex })
+    $sensitiveAccessSet = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($allowance in $sensitiveAccessAllowances) {
+        $null = $sensitiveAccessSet.Add($allowance)
+    }
     return [pscustomobject]@{
         Patterns = $compiledPatterns
         BinaryScanRegexes = $binaryScanRegexes
         DocumentationPath = 'docs/privacy.md'
         DocumentationPattern = 'auth.json'
         HarnessPath = $harnessAllowances[0]
+        SensitiveAccessAllowances = $sensitiveAccessSet
     }
 }
 
@@ -260,6 +286,16 @@ function Test-IsDocumentationMatchAllowed {
         $MatchedText -ceq $Policy.DocumentationPattern
 }
 
+function Test-IsSensitiveAccessMatchAllowed {
+    param(
+        [Parameter(Mandatory = $true)]$Policy,
+        [Parameter(Mandatory = $true)][string]$EntryPath,
+        [Parameter(Mandatory = $true)][string]$Pattern
+    )
+
+    return $Policy.SensitiveAccessAllowances.Contains("$EntryPath|$Pattern")
+}
+
 function Find-PatternsInText {
     param(
         [Parameter(Mandatory = $true)]$Policy,
@@ -270,7 +306,8 @@ function Find-PatternsInText {
 
     foreach ($pattern in $Policy.Patterns) {
         foreach ($match in $pattern.Regex.Matches($Text)) {
-            if (-not (Test-IsDocumentationMatchAllowed -Policy $Policy -EntryPath $EntryPath -Pattern $pattern.Text -MatchedText $match.Value)) {
+            if (-not (Test-IsDocumentationMatchAllowed -Policy $Policy -EntryPath $EntryPath -Pattern $pattern.Text -MatchedText $match.Value) -and
+                -not (Test-IsSensitiveAccessMatchAllowed -Policy $Policy -EntryPath $EntryPath -Pattern $pattern.Text)) {
                 New-Finding -Kind $Kind -Path $EntryPath -Pattern $pattern.Text
                 break
             }
@@ -387,7 +424,8 @@ function Find-PatternsInBytes {
         [Parameter(Mandatory = $true)]$Policy,
         [Parameter(Mandatory = $true)][AllowEmptyCollection()][byte[]]$Bytes,
         [Parameter(Mandatory = $true)][string]$EntryPath,
-        [Parameter(Mandatory = $true)][string]$Kind
+        [Parameter(Mandatory = $true)][string]$Kind,
+        [string]$SensitiveAccessPath
     )
 
     if ($EntryPath -ceq $Policy.DocumentationPath) {
@@ -396,10 +434,14 @@ function Find-PatternsInBytes {
     }
 
     Initialize-BoundaryBytePatternMatcher
+    if ([string]::IsNullOrEmpty($SensitiveAccessPath)) {
+        $SensitiveAccessPath = $EntryPath
+    }
     [System.Text.RegularExpressions.Regex[]]$regexes = $Policy.BinaryScanRegexes
     $matches = [CodexQuotaTaskbarBoundaryBytePatternMatcher]::FindMatches($regexes, $Bytes)
     for ($index = 0; $index -lt $Policy.Patterns.Count; $index++) {
-        if ($matches[$index]) {
+        if ($matches[$index] -and
+            -not (Test-IsSensitiveAccessMatchAllowed -Policy $Policy -EntryPath $SensitiveAccessPath -Pattern $Policy.Patterns[$index].Text)) {
             New-Finding -Kind $Kind -Path $EntryPath -Pattern $Policy.Patterns[$index].Text
         }
     }
@@ -489,7 +531,7 @@ function Invoke-BoundedStreamScan {
                 [Array]::Copy($overlap, 0, $window, 0, $overlapCount)
             }
             [Array]::Copy($buffer, 0, $window, $overlapCount, $read)
-            foreach ($finding in @(Find-PatternsInBytes -Policy $Policy -Bytes $window -EntryPath $RulePath -Kind $Kind)) {
+            foreach ($finding in @(Find-PatternsInBytes -Policy $Policy -Bytes $window -EntryPath $RulePath -Kind $Kind -SensitiveAccessPath $DisplayPath)) {
                 if ($seenPatterns.Add($finding.Pattern)) {
                     $finding.Path = $DisplayPath
                     $findings.Add($finding)

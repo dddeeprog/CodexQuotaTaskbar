@@ -9,6 +9,7 @@ using CodexQuotaTaskbar.Host.Provider;
 using CodexQuotaTaskbar.Host.Settings;
 using CodexQuotaTaskbar.Host.Tray;
 using CodexQuotaTaskbar.Host.Update;
+using CodexQuotaTaskbar.Host.UI;
 
 namespace CodexQuotaTaskbar.Host;
 
@@ -23,6 +24,9 @@ public partial class App : System.Windows.Application
     private SettingsStore? settingsStore;
     private LowQuotaGate? lowQuotaGate;
     private GitHubUpdateService? updateService;
+    private BrowserSubscriptionStore? browserStore;
+    private CodexSubscriptionMetadataService? subscriptionService;
+    private SubscriptionBrowserWindow? subscriptionBrowser;
     private bool shuttingDown;
     private bool cleanupCompleted;
 
@@ -42,6 +46,8 @@ public partial class App : System.Windows.Application
             singleInstance = new Mutex(true, "Local\\CodexQuotaTaskbar.Host", out var created);
             if (!created)
             {
+                singleInstance.Dispose();
+                singleInstance = null;
                 await RequestShutdownAsync();
                 return;
             }
@@ -51,15 +57,20 @@ public partial class App : System.Windows.Application
             lowQuotaGate = new LowQuotaGate(settings.LowQuotaThreshold);
             coordinator = new OverlayCoordinator(settings.ShowAllTaskbars);
             tray = new TrayController(settings);
-            provider = options.Demo ? new DemoQuotaProvider() : new CodexRateLimitProvider();
+            browserStore = new BrowserSubscriptionStore();
+            subscriptionService = new CodexSubscriptionMetadataService(browserStore: browserStore);
+            provider = options.Demo ? new DemoQuotaProvider() : new CodexRateLimitProvider(settings.SubscriptionDetailsEnabled, subscriptionService);
+            provider.SetSubscriptionDetailsEnabled(settings.SubscriptionDetailsEnabled);
             updateService = options.Demo ? null : new GitHubUpdateService();
 
             coordinator.RefreshRequested += OnRefreshRequested;
             coordinator.OpenCodexRequested += OnOpenCodexRequested;
+            coordinator.OpenSubscriptionLoginRequested += OnOpenSubscriptionLoginRequested;
             coordinator.OpenSessionRequested += OnOpenSessionRequested;
             coordinator.ContextRequested += (_, _) => tray.ShowContextMenu(avoidIsland: true);
             tray.RefreshRequested += OnRefreshRequested;
             tray.OpenCodexRequested += OnOpenCodexRequested;
+            tray.OpenSubscriptionLoginRequested += OnOpenSubscriptionLoginRequested;
             tray.CheckUpdatesRequested += OnCheckUpdatesRequested;
             tray.SettingsChanged += OnSettingsChanged;
             tray.ExitRequested += async (_, _) => await RequestShutdownAsync();
@@ -69,6 +80,10 @@ public partial class App : System.Windows.Application
             coordinator.Apply(provider.Current);
             coordinator.ApplySessions(provider.CurrentSessions);
             coordinator.Start();
+            if (options.SubscriptionLogin && !options.Demo)
+            {
+                OnOpenSubscriptionLoginRequested(this, EventArgs.Empty);
+            }
             if (options.ExitAfter is { } exitAfter)
             {
                 _ = ExitAfterAsync(exitAfter, lifetime.Token);
@@ -85,6 +100,37 @@ public partial class App : System.Windows.Application
             System.Windows.MessageBox.Show(exception.Message, "Codex 额度", MessageBoxButton.OK, MessageBoxImage.Error);
             await RequestShutdownAsync();
         }
+    }
+
+    private void OnOpenSubscriptionLoginRequested(object? sender, EventArgs eventArgs)
+    {
+        if (shuttingDown || browserStore is null || subscriptionService is null || provider is not CodexRateLimitProvider) return;
+        tray?.EnableSubscriptionDetails();
+        if (subscriptionBrowser is not null)
+        {
+            subscriptionBrowser.WindowState = WindowState.Normal;
+            subscriptionBrowser.Activate();
+            return;
+        }
+        subscriptionBrowser = new SubscriptionBrowserWindow(browserStore, subscriptionService);
+        subscriptionBrowser.SubscriptionUpdated += OnRefreshRequested;
+        subscriptionBrowser.LoginCleared += OnBrowserLoginCleared;
+        subscriptionBrowser.Closed += (_, _) => subscriptionBrowser = null;
+        subscriptionBrowser.Show();
+        subscriptionBrowser.Activate();
+    }
+
+    private async void OnBrowserLoginCleared(object? sender, EventArgs eventArgs)
+    {
+        try
+        {
+            if (provider is CodexRateLimitProvider liveProvider)
+            {
+                await liveProvider.ClearBrowserSubscriptionMetadataAsync(lifetime.Token);
+                await liveProvider.RefreshAsync(lifetime.Token);
+            }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
     }
 
     private async void OnCheckUpdatesRequested(object? sender, EventArgs eventArgs)
@@ -273,7 +319,9 @@ public partial class App : System.Windows.Application
 
     private async void OnSettingsChanged(object? sender, AppSettings settings)
     {
+        if (!settings.SubscriptionDetailsEnabled) subscriptionBrowser?.Close();
         coordinator?.SetShowAllTaskbars(settings.ShowAllTaskbars);
+        var refreshSubscriptionDetails = provider?.SetSubscriptionDetailsEnabled(settings.SubscriptionDetailsEnabled) == true;
         if (settingsStore is not null)
         {
             try
@@ -283,6 +331,16 @@ public partial class App : System.Windows.Application
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
                 System.Windows.MessageBox.Show("设置暂时无法保存。", "Codex 额度", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+        if (refreshSubscriptionDetails && provider is not null)
+        {
+            try
+            {
+                await provider.RefreshAsync(lifetime.Token);
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
             }
         }
     }
@@ -308,6 +366,7 @@ public partial class App : System.Windows.Application
 
         shuttingDown = true;
         lifetime.Cancel();
+        subscriptionBrowser?.Close();
         coordinator?.Dispose();
         tray?.Dispose();
         if (provider is not null)
@@ -326,6 +385,7 @@ public partial class App : System.Windows.Application
         if (!cleanupCompleted)
         {
             lifetime.Cancel();
+            subscriptionBrowser?.Close();
             coordinator?.Dispose();
             tray?.Dispose();
             if (provider is not null)

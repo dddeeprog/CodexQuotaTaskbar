@@ -170,6 +170,19 @@ public partial class SessionStackWindow : Window
     internal static double SessionReflowOffset(int previousIndex, int currentIndex, bool isExpanded) =>
         previousIndex == currentIndex ? 0 : isExpanded ? (previousIndex - currentIndex) * (CardHeight + CardGap) : 6;
 
+    internal static IReadOnlyDictionary<string, int> BuildFirstSessionIndices(
+        IEnumerable<CodexSessionSnapshot> sessions)
+    {
+        var indices = new Dictionary<string, int>(StringComparer.Ordinal);
+        var index = 0;
+        foreach (var session in sessions)
+        {
+            indices.TryAdd(session.Id, index);
+            index++;
+        }
+        return indices;
+    }
+
     internal static double ExpansionTransitionOffset(bool isExpanded) => isExpanded ? -10 : 10;
 
     internal static double GlassMaskCardTop(int index, bool isExpanded) =>
@@ -368,9 +381,7 @@ public partial class SessionStackWindow : Window
                 ? item.Index == 0
                 : IsShadowSlotVisible(item.Index, previousScrollOffset, previousViewportHeight))
             .ToArray();
-        var previousIndices = previousSessions
-            .Select((session, index) => (session.Id, Index: index))
-            .ToDictionary(item => item.Id, item => item.Index, StringComparer.Ordinal);
+        var previousIndices = BuildFirstSessionIndices(previousSessions);
         var visibleMovedSessionCount = snapshot.Sessions
             .Select((session, index) => (Session: session, Index: index))
             .Count(item => previousIndices.TryGetValue(item.Session.Id, out var previousIndex)
@@ -420,9 +431,7 @@ public partial class SessionStackWindow : Window
         CodexSessionsSnapshot previousSnapshot,
         IReadOnlySet<string>? addedSessionIds)
     {
-        var previousIndices = previousSnapshot.Sessions
-            .Select((session, index) => (session.Id, Index: index))
-            .ToDictionary(item => item.Id, item => item.Index, StringComparer.Ordinal);
+        var previousIndices = BuildFirstSessionIndices(previousSnapshot.Sessions);
         for (var currentIndex = 0; currentIndex < SessionsPanel.Children.Count; currentIndex++)
         {
             if (SessionsPanel.Children[currentIndex] is not Button pill || pill.Tag is not string sessionId

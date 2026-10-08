@@ -8,6 +8,7 @@ function Write-TestPolicy {
     [System.IO.File]::WriteAllLines((Join-Path $SecurityDirectory 'forbidden-production-patterns.txt'), $script:ExpectedForbiddenPatterns)
     [System.IO.File]::WriteAllLines((Join-Path $SecurityDirectory 'allowed-documentation-paths.txt'), @($script:ExpectedDocumentationAllowance))
     [System.IO.File]::WriteAllLines((Join-Path $SecurityDirectory 'allowed-test-harness-paths.txt'), $HarnessLines)
+    [System.IO.File]::WriteAllLines((Join-Path $SecurityDirectory 'allowed-production-sensitive-access.txt'), $script:ExpectedSensitiveAccessAllowances)
 }
 
 function Assert-SelfTest {
@@ -295,6 +296,75 @@ function Invoke-SelfTest {
             Assert-SelfTest -Condition ($expected -in $requiredFindings.Pattern) -Message "production fixture did not reject $expected"
             Write-Host "Self-test expected rejection: src/production.txt [$expected]"
         }
+
+        $allowedReaderPath = Join-Path $fixtureRoot 'src\CodexQuotaTaskbar.Host\Provider\CodexAuthCredentialReader.cs'
+        $allowedServicePath = Join-Path $fixtureRoot 'src\CodexQuotaTaskbar.Host\Provider\CodexSubscriptionMetadataService.cs'
+        $null = New-Item -ItemType Directory -Path ([System.IO.Path]::GetDirectoryName($allowedReaderPath)) -Force
+        [System.IO.File]::WriteAllText($allowedReaderPath, 'auth.json')
+        [System.IO.File]::WriteAllText($allowedServicePath, 'https://chatgpt.com/backend-api/subscriptions')
+        $reviewedSourceFindings = @(Invoke-RepositoryScan -RepositoryRoot $fixtureRoot -SecurityDirectory $securityDirectory -ProductionRoots @('src'))
+        Assert-SelfTest -Condition (@($reviewedSourceFindings | Where-Object {
+            $_.Path -in @(
+                'src/CodexQuotaTaskbar.Host/Provider/CodexAuthCredentialReader.cs',
+                'src/CodexQuotaTaskbar.Host/Provider/CodexSubscriptionMetadataService.cs')
+        }).Count -eq 0) -Message 'an exact reviewed sensitive-access source was rejected'
+
+        $secondReaderPath = Join-Path $fixtureRoot 'src\CodexQuotaTaskbar.Host\Provider\SecondReader.cs'
+        [System.IO.File]::WriteAllText($secondReaderPath, 'auth.json')
+        $secondReaderFindings = @(Invoke-RepositoryScan -RepositoryRoot $fixtureRoot -SecurityDirectory $securityDirectory -ProductionRoots @('src'))
+        Assert-SelfTest -Condition (@($secondReaderFindings | Where-Object {
+            $_.Path -ceq 'src/CodexQuotaTaskbar.Host/Provider/SecondReader.cs' -and $_.Pattern -ceq 'auth.json'
+        }).Count -eq 1) -Message 'a second credential reader received the reviewed source allowance'
+        Remove-Item -LiteralPath $secondReaderPath -Force
+
+        $allowedArtifactDirectory = Join-Path $fixtureRoot 'artifacts\host-publish\Release'
+        $null = New-Item -ItemType Directory -Path $allowedArtifactDirectory -Force
+        [System.IO.File]::WriteAllText(
+            (Join-Path $allowedArtifactDirectory 'CodexQuotaTaskbar.exe'),
+            'auth.json https://chatgpt.com/backend-api/subscriptions')
+        [System.IO.File]::WriteAllText(
+            (Join-Path $allowedArtifactDirectory 'Renamed.exe'),
+            'auth.json')
+        $reviewedArtifactFindings = @(Invoke-RepositoryScan -RepositoryRoot $fixtureRoot -SecurityDirectory $securityDirectory -ProductionRoots @('artifacts'))
+        Assert-SelfTest -Condition (@($reviewedArtifactFindings | Where-Object {
+            $_.Path -ceq 'artifacts/host-publish/Release/CodexQuotaTaskbar.exe' -and $_.Pattern -in @('auth.json', 'chatgpt[.]com/backend-api')
+        }).Count -eq 0) -Message 'the exact reviewed executable was rejected'
+        Assert-SelfTest -Condition (@($reviewedArtifactFindings | Where-Object {
+            $_.Path -ceq 'artifacts/host-publish/Release/Renamed.exe' -and $_.Pattern -ceq 'auth.json'
+        }).Count -eq 1) -Message 'a renamed executable received the reviewed artifact allowance'
+
+        $releaseFixtureDirectory = Join-Path $fixtureRoot 'artifacts\releases'
+        $null = New-Item -ItemType Directory -Path $releaseFixtureDirectory -Force
+        foreach ($zipName in @('CodexQuotaTaskbar-win-x64.zip', 'renamed-host.zip')) {
+            $zip = [System.IO.Compression.ZipFile]::Open(
+                (Join-Path $releaseFixtureDirectory $zipName),
+                [System.IO.Compression.ZipArchiveMode]::Create)
+            try {
+                Add-ZipTextEntry -Archive $zip -Path 'CodexQuotaTaskbar.exe' -Content 'auth.json'
+                Add-ZipTextEntry -Archive $zip -Path 'src/CodexQuotaTaskbar.Host/Provider/CodexAuthCredentialReader.cs' -Content 'auth.json'
+            }
+            finally { $zip.Dispose() }
+        }
+        $zipAllowanceFindings = @(Invoke-RepositoryScan -RepositoryRoot $fixtureRoot -SecurityDirectory $securityDirectory -ProductionRoots @('artifacts'))
+        Assert-SelfTest -Condition (@($zipAllowanceFindings | Where-Object {
+            $_.Path -ceq 'artifacts/releases/CodexQuotaTaskbar-win-x64.zip!/CodexQuotaTaskbar.exe'
+        }).Count -eq 0) -Message 'the exact release archive executable was rejected'
+        Assert-SelfTest -Condition (@($zipAllowanceFindings | Where-Object {
+            $_.Path -ceq 'artifacts/releases/renamed-host.zip!/CodexQuotaTaskbar.exe' -and $_.Pattern -ceq 'auth.json'
+        }).Count -eq 1) -Message 'a renamed archive inherited the release allowance'
+        Assert-SelfTest -Condition (@($zipAllowanceFindings | Where-Object {
+            $_.Path -ceq 'artifacts/releases/CodexQuotaTaskbar-win-x64.zip!/src/CodexQuotaTaskbar.Host/Provider/CodexAuthCredentialReader.cs' -and $_.Pattern -ceq 'auth.json'
+        }).Count -eq 1) -Message 'an archived source path inherited the production source allowance'
+
+        $invalidSensitiveDirectory = Join-Path $fixtureRoot 'policy-extra-sensitive-source'
+        Write-TestPolicy -SecurityDirectory $invalidSensitiveDirectory
+        [System.IO.File]::AppendAllLines(
+            (Join-Path $invalidSensitiveDirectory 'allowed-production-sensitive-access.txt'),
+            [string[]]@('src/SecondReader.cs|auth.json'))
+        $extraSensitiveAllowanceRejected = $false
+        try { $null = Read-BoundaryPolicy -RepositoryRoot $fixtureRoot -SecurityDirectory $invalidSensitiveDirectory }
+        catch { $extraSensitiveAllowanceRejected = $true }
+        Assert-SelfTest -Condition $extraSensitiveAllowanceRejected -Message 'an unreviewed sensitive-source policy entry was accepted'
 
         $docsDirectory = Join-Path $fixtureRoot 'docs'
         $null = New-Item -ItemType Directory -Path $docsDirectory -Force

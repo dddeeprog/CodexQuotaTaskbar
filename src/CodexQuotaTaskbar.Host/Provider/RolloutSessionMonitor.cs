@@ -101,9 +101,10 @@ internal sealed class RolloutSessionMonitor
             return Directory.EnumerateFiles(sessionsRoot, "rollout-*.jsonl", options)
                 .Select(TryCreateMetadata)
                 .Where(value => value is not null)
-                .OrderByDescending(value => value!.LastWriteTimeUtc)
-                .Take(MaximumTrackedSessions)
                 .Select(value => value!)
+                .OrderByDescending(value => value.LastWriteTimeUtc)
+                .DistinctBy(value => value.Id, StringComparer.Ordinal)
+                .Take(MaximumTrackedSessions)
                 .ToArray();
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)

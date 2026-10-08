@@ -31,10 +31,12 @@ public partial class TrayMenuWindow : Window
         RefreshButton.Click += (_, _) => InvokeAndHide(RefreshRequested);
         CheckUpdatesButton.Click += (_, _) => InvokeAndHide(CheckUpdatesRequested);
         OpenCodexButton.Click += (_, _) => InvokeAndHide(OpenCodexRequested);
+        SubscriptionLoginButton.Click += (_, _) => InvokeAndHide(OpenSubscriptionLoginRequested);
         ExitButton.Click += (_, _) => InvokeAndHide(ExitRequested);
         AllTaskbarsButton.Click += (_, _) => RequestSettings(settings with { ShowAllTaskbars = !settings.ShowAllTaskbars });
         NotificationsButton.Click += (_, _) => RequestSettings(settings with { LowQuotaNotifications = !settings.LowQuotaNotifications });
         AutomaticUpdatesButton.Click += (_, _) => RequestSettings(settings with { AutomaticUpdates = !settings.AutomaticUpdatesEnabled });
+        SubscriptionDetailsButton.Click += (_, _) => RequestSettings(settings with { SubscriptionDetails = !settings.SubscriptionDetailsEnabled });
         AutostartButton.Click += (_, _) => RequestSettings(settings with { StartWithWindows = !settings.StartWithWindows });
         Loaded += (_, _) =>
         {
@@ -64,6 +66,7 @@ public partial class TrayMenuWindow : Window
     internal event EventHandler? RefreshRequested;
     internal event EventHandler? CheckUpdatesRequested;
     internal event EventHandler? OpenCodexRequested;
+    internal event EventHandler? OpenSubscriptionLoginRequested;
     internal event EventHandler<AppSettings>? SettingsChangeRequested;
     internal event EventHandler? ExitRequested;
 
@@ -73,6 +76,7 @@ public partial class TrayMenuWindow : Window
         ApplyToggle(AllTaskbarsTrack, AllTaskbarsKnob, value.ShowAllTaskbars);
         ApplyToggle(NotificationsTrack, NotificationsKnob, value.LowQuotaNotifications);
         ApplyToggle(AutomaticUpdatesTrack, AutomaticUpdatesKnob, value.AutomaticUpdatesEnabled);
+        ApplyToggle(SubscriptionDetailsTrack, SubscriptionDetailsKnob, value.SubscriptionDetailsEnabled);
         ApplyToggle(AutostartTrack, AutostartKnob, value.StartWithWindows);
     }
 

@@ -19,6 +19,7 @@ internal sealed class TrayController : IDisposable
         menu.RefreshRequested += (_, _) => RefreshRequested?.Invoke(this, EventArgs.Empty);
         menu.CheckUpdatesRequested += (_, _) => CheckUpdatesRequested?.Invoke(this, EventArgs.Empty);
         menu.OpenCodexRequested += (_, _) => OpenCodexRequested?.Invoke(this, EventArgs.Empty);
+        menu.OpenSubscriptionLoginRequested += (_, _) => OpenSubscriptionLoginRequested?.Invoke(this, EventArgs.Empty);
         menu.SettingsChangeRequested += (_, value) => ChangeRequested(value);
         menu.ExitRequested += (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty);
         trayIcon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!)
@@ -41,11 +42,17 @@ internal sealed class TrayController : IDisposable
 
     internal event EventHandler? RefreshRequested;
     internal event EventHandler? OpenCodexRequested;
+    internal event EventHandler? OpenSubscriptionLoginRequested;
     internal event EventHandler? CheckUpdatesRequested;
     internal event EventHandler<AppSettings>? SettingsChanged;
     internal event EventHandler? ExitRequested;
 
     internal AppSettings Settings => settings;
+
+    internal void EnableSubscriptionDetails()
+    {
+        if (!settings.SubscriptionDetailsEnabled) Change(settings with { SubscriptionDetails = true });
+    }
 
     internal void ShowContextMenu(bool avoidIsland = false) => menu.ShowAt(Cursor.Position, avoidIsland ? 30 : 8);
 

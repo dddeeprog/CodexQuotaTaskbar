@@ -27,6 +27,12 @@ public sealed record CodexSessionsSnapshot(IReadOnlyList<CodexSessionSnapshot> S
 
     public static CodexSessionsSnapshot Create(IEnumerable<CodexSessionSnapshot> sessions, DateTimeOffset capturedAt) =>
         new(sessions
+            .GroupBy(session => session.Id, StringComparer.Ordinal)
+            .Select(group => group
+                .OrderByDescending(session => session.UpdatedAt)
+                .ThenBy(session => Priority(session.State))
+                .ThenBy(session => session.Title, StringComparer.Ordinal)
+                .First())
             .Where(session => session.State != CodexSessionState.Idle)
             .OrderBy(session => Priority(session.State))
             .ThenByDescending(session => session.UpdatedAt)

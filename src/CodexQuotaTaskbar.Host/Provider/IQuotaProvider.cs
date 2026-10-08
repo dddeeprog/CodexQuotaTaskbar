@@ -11,5 +11,6 @@ internal interface IQuotaProvider : IAsyncDisposable
     CodexSessionsSnapshot CurrentSessions { get; }
     Task StartAsync(CancellationToken cancellationToken);
     Task RefreshAsync(CancellationToken cancellationToken);
+    bool SetSubscriptionDetailsEnabled(bool enabled);
     void DismissSession(string threadId);
 }

@@ -1,0 +1,48 @@
+<Window x:Class="CodexQuotaTaskbar.Host.UI.SubscriptionBrowserWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="clr-namespace:CodexQuotaTaskbar.Host.UI"
+        xmlns:wv="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="ChatGPT 订阅登录 — Codex 额度" Width="1040" Height="780" MinWidth="780" MinHeight="560"
+        WindowStartupLocation="CenterScreen" Background="#202022" Foreground="#F5F5F7"
+        FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="12">
+  <Window.Resources>
+    <Style TargetType="Button">
+      <Setter Property="Padding" Value="14,9"/><Setter Property="Margin" Value="0,0,8,0"/>
+      <Setter Property="Background" Value="#38383B"/><Setter Property="Foreground" Value="#F5F5F7"/>
+      <Setter Property="BorderThickness" Value="0"/><Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+        <Border x:Name="Chrome" Background="{TemplateBinding Background}" CornerRadius="9" Padding="{TemplateBinding Padding}">
+          <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        </Border>
+        <ControlTemplate.Triggers>
+          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Opacity" Value="0.8"/></Trigger>
+          <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Chrome" Property="Opacity" Value="0.45"/></Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate></Setter.Value></Setter>
+    </Style>
+  </Window.Resources>
+  <Grid>
+    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <StackPanel Margin="20,16,20,12">
+      <TextBlock Text="连接 ChatGPT 订阅" FontSize="19" FontWeight="SemiBold"/>
+      <TextBlock Text="请登录与 Codex 相同的账号，手动完成网页验证，再点击下方读取按钮。" Foreground="#C7C7CC" Margin="0,6,0,10"/>
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+          <Button x:Name="HomeButton" Content="登录页"/><Button x:Name="ReloadButton" Content="重新加载"/>
+        </StackPanel>
+        <TextBlock x:Name="AddressText" Text="正在启动浏览器…" VerticalAlignment="Center" Foreground="#C7C7CC" TextTrimming="CharacterEllipsis"/>
+      </DockPanel>
+    </StackPanel>
+    <wv:WebView2 x:Name="Browser" Grid.Row="1"/>
+    <StackPanel Grid.Row="2" Margin="20,12,20,16">
+      <TextBlock x:Name="StatusText" Text="网页登录保存在本机独立浏览器中，可随时清除；不会导入你的常用浏览器数据。" TextWrapping="Wrap" Foreground="#D1D1D6" Margin="0,0,0,10"/>
+      <StackPanel Orientation="Horizontal">
+        <Button x:Name="ReadButton" Content="已登录，读取订阅" IsEnabled="False" Background="#ECECEE" Foreground="#202022"/>
+        <Button x:Name="ClearButton" Content="清除网页登录" IsEnabled="False"/>
+        <Button x:Name="RuntimeButton" Content="下载 Microsoft WebView2" Visibility="Collapsed"/>
+      </StackPanel>
+      <TextBlock Text="Google 等第三方登录可能限制内嵌浏览器；验证通过也不保证服务提供订阅日期。" Foreground="#98989F" FontSize="10" Margin="0,9,0,0"/>
+    </StackPanel>
+  </Grid>
+</Window>

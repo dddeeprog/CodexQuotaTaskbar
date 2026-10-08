@@ -9,10 +9,13 @@
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <AssemblyName>CodexQuotaTaskbar</AssemblyName>
     <RootNamespace>CodexQuotaTaskbar.Host</RootNamespace>
+    <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\CodexQuotaTaskbar.Core\CodexQuotaTaskbar.Core.csproj" />
     <PackageReference Include="BlurredBackground.WPF" Version="1.1.0" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+    <EmbeddedResource Include="Provider\BrowserSubscriptionReader.js" />
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Assets\OpenAILogo.png" />

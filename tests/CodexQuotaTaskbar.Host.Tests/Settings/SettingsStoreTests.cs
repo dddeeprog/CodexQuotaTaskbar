@@ -15,6 +15,7 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.True(defaults.ShowAllTaskbars);
         Assert.True(defaults.LowQuotaNotifications);
         Assert.True(defaults.AutomaticUpdatesEnabled);
+        Assert.True(defaults.SubscriptionDetailsEnabled);
 
         var changed = defaults with { ShowAllTaskbars = false, StartWithWindows = true };
         await store.SaveAsync(changed, CancellationToken.None);
@@ -34,6 +35,7 @@ public sealed class SettingsStoreTests : IDisposable
         var value = await new SettingsStore(path).LoadAsync(CancellationToken.None);
 
         Assert.True(value.AutomaticUpdatesEnabled);
+        Assert.True(value.SubscriptionDetailsEnabled);
     }
 
     [Fact]

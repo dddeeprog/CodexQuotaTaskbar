@@ -39,6 +39,7 @@ internal sealed class OverlayCoordinator : IDisposable
 
     internal event EventHandler? RefreshRequested;
     internal event EventHandler? OpenCodexRequested;
+    internal event EventHandler? OpenSubscriptionLoginRequested;
     internal event EventHandler? ContextRequested;
     internal event Action<string>? OpenSessionRequested;
 
@@ -238,6 +239,7 @@ internal sealed class OverlayCoordinator : IDisposable
         details.Apply(snapshot);
         details.RefreshRequested += (_, _) => RefreshRequested?.Invoke(this, EventArgs.Empty);
         details.OpenCodexRequested += (_, _) => OpenCodexRequested?.Invoke(this, EventArgs.Empty);
+        details.OpenSubscriptionLoginRequested += (_, _) => OpenSubscriptionLoginRequested?.Invoke(this, EventArgs.Empty);
         details.Closed += (_, _) =>
         {
             popover = null;

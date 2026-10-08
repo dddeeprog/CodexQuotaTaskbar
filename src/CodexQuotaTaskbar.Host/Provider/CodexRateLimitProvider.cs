@@ -9,6 +9,7 @@ namespace CodexQuotaTaskbar.Host.Provider;
 internal sealed class CodexRateLimitProvider : IQuotaProvider
 {
     private readonly CodexAppServerClient client = new();
+    private readonly CodexSubscriptionMetadataService subscriptionMetadataService;
     private readonly SemaphoreSlim refreshLock = new(1, 1);
     private readonly SemaphoreSlim sessionsRefreshLock = new(1, 1);
     private readonly CancellationTokenSource lifetime = new();
@@ -16,14 +17,19 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
     private Task? periodicRefreshTask;
     private Task? periodicSessionsRefreshTask;
     private long accountGeneration;
+    private int subscriptionDetailsEnabled;
     private bool started;
     private bool sessionsStarted;
 
     internal static TimeSpan AutomaticRefreshInterval { get; } = TimeSpan.FromMinutes(3);
     internal static TimeSpan SessionsRefreshInterval { get; } = TimeSpan.FromSeconds(2);
 
-    internal CodexRateLimitProvider()
+    internal CodexRateLimitProvider(
+        bool subscriptionDetailsEnabled = true,
+        CodexSubscriptionMetadataService? subscriptionMetadataService = null)
     {
+        this.subscriptionDetailsEnabled = subscriptionDetailsEnabled ? 1 : 0;
+        this.subscriptionMetadataService = subscriptionMetadataService ?? new CodexSubscriptionMetadataService();
         client.Notification += OnNotification;
     }
 
@@ -75,12 +81,45 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
                 return;
             }
 
-            Set(AppServerRateLimitsParser.Parse(result.GetRawText(), DateTimeOffset.Now, subscriptionPlan));
+            var baseSnapshot = AppServerRateLimitsParser.Parse(result.GetRawText(), DateTimeOffset.Now, subscriptionPlan);
+            var previousExpiration = Current.SubscriptionExpiration;
+            if (Volatile.Read(ref subscriptionDetailsEnabled) == 0)
+            {
+                Set(baseSnapshot.WithSubscriptionExpiration(SubscriptionExpirationSnapshot.Disabled()));
+                return;
+            }
+
+            var pendingExpiration = previousExpiration.Availability == SubscriptionExpirationAvailability.Available
+                ? previousExpiration.AsStale()
+                : SubscriptionExpirationSnapshot.Unavailable(
+                    DateTimeOffset.Now,
+                    SubscriptionExpirationSource.CodexLogin,
+                    "正在读取…");
+            Set(baseSnapshot.WithSubscriptionExpiration(pendingExpiration));
+
+            var expiration = await subscriptionMetadataService.ReadAsync(cancellationToken);
+            if (generation != Interlocked.Read(ref accountGeneration))
+            {
+                return;
+            }
+            if (Volatile.Read(ref subscriptionDetailsEnabled) == 0)
+            {
+                Set(baseSnapshot.WithSubscriptionExpiration(SubscriptionExpirationSnapshot.Disabled()));
+                return;
+            }
+            expiration = ResolveSubscriptionRefresh(expiration, previousExpiration);
+            Set(baseSnapshot.WithSubscriptionExpiration(expiration));
         }
         catch (Exception exception) when (exception is InvalidOperationException or IOException or TimeoutException or AppServerProtocolException)
         {
             Set(Current.Windows.Count > 0 && Current.CapturedAt is { } captured
-                ? QuotaSnapshot.Stale(Current.Windows, captured, "连接中断，显示上次额度", Current.SubscriptionPlan)
+                ? QuotaSnapshot.Stale(
+                    Current.Windows,
+                    captured,
+                    "连接中断，显示上次额度",
+                    Current.SubscriptionPlan,
+                    Current.SubscriptionExpiration,
+                    Current.ExtraCredits)
                 : QuotaSnapshot.Unavailable("暂时无法读取 Codex 额度"));
         }
         finally
@@ -145,6 +184,45 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
         var remaining = CurrentSessions.Sessions.Where(session => session.Id != threadId);
         SetSessions(CodexSessionsSnapshot.Create(remaining, DateTimeOffset.Now));
     }
+
+    public bool SetSubscriptionDetailsEnabled(bool enabled)
+    {
+        var next = enabled ? 1 : 0;
+        return Interlocked.Exchange(ref subscriptionDetailsEnabled, next) != next;
+    }
+
+    internal async Task ClearBrowserSubscriptionMetadataAsync(CancellationToken cancellationToken)
+    {
+        await refreshLock.WaitAsync(cancellationToken);
+        try
+        {
+            var next = RemoveBrowserSubscriptionMetadata(Current, Volatile.Read(ref subscriptionDetailsEnabled) != 0);
+            if (!ReferenceEquals(next, Current))
+            {
+                Set(next);
+            }
+        }
+        finally
+        {
+            refreshLock.Release();
+        }
+    }
+
+    internal static QuotaSnapshot RemoveBrowserSubscriptionMetadata(QuotaSnapshot snapshot, bool enabled) =>
+        snapshot.SubscriptionExpiration.Source != SubscriptionExpirationSource.ChatGptWeb
+            ? snapshot
+            : snapshot.WithSubscriptionExpiration(enabled
+                ? SubscriptionExpirationSnapshot.Unavailable(DateTimeOffset.Now, SubscriptionExpirationSource.None, "网页登录数据已清除")
+                : SubscriptionExpirationSnapshot.Disabled());
+
+    internal static SubscriptionExpirationSnapshot ResolveSubscriptionRefresh(
+        SubscriptionExpirationSnapshot updated,
+        SubscriptionExpirationSnapshot previous) =>
+        updated.Availability == SubscriptionExpirationAvailability.Unavailable
+        && previous.Availability == SubscriptionExpirationAvailability.Available
+        && previous.Source != SubscriptionExpirationSource.ChatGptWeb
+            ? previous.AsStale()
+            : updated;
 
     private async Task RefreshPeriodicallyAsync(CancellationToken cancellationToken)
     {
@@ -222,6 +300,7 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
         }
         client.Notification -= OnNotification;
         await client.DisposeAsync().ConfigureAwait(false);
+        subscriptionMetadataService.Dispose();
         refreshLock.Dispose();
         sessionsRefreshLock.Dispose();
         lifetime.Dispose();

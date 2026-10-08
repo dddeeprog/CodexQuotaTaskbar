@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using CodexQuotaTaskbar.Core.Quota;
 
@@ -35,7 +36,11 @@ public static class AppServerRateLimitsParser
                 throw new AppServerProtocolException("额度响应不包含有效窗口。");
             }
 
-            return QuotaSnapshot.Available(windows, capturedAt, subscriptionPlan);
+            return QuotaSnapshot.Available(
+                windows,
+                capturedAt,
+                subscriptionPlan,
+                extraCredits: ParseCredits(root));
         }
         catch (AppServerProtocolException)
         {
@@ -76,5 +81,77 @@ public static class AppServerRateLimitsParser
         }
 
         destination.Add(new QuotaWindowSnapshot(kind, 100d - used, duration, DateTimeOffset.FromUnixTimeSeconds(reset), limitId));
+    }
+
+    private static QuotaCreditsSnapshot? ParseCredits(JsonElement root)
+    {
+        if (root.TryGetProperty("rateLimits", out var rateLimits)
+            && rateLimits.ValueKind == JsonValueKind.Object
+            && TryParseCredits(rateLimits, out var credits))
+        {
+            return credits;
+        }
+
+        if (!root.TryGetProperty("rateLimitsByLimitId", out var buckets) || buckets.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        foreach (var bucket in buckets.EnumerateObject())
+        {
+            var limitId = bucket.Value.TryGetProperty("limitId", out var idNode) && idNode.ValueKind == JsonValueKind.String
+                ? idNode.GetString()
+                : bucket.Name;
+            if (string.Equals(limitId, "codex", StringComparison.OrdinalIgnoreCase)
+                && TryParseCredits(bucket.Value, out credits))
+            {
+                return credits;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool TryParseCredits(JsonElement bucket, out QuotaCreditsSnapshot? snapshot)
+    {
+        snapshot = null;
+        if (!bucket.TryGetProperty("credits", out var credits) || credits.ValueKind != JsonValueKind.Object
+            || !TryGetBoolean(credits, "hasCredits", out var hasCredits)
+            || !TryGetBoolean(credits, "unlimited", out var unlimited))
+        {
+            return false;
+        }
+
+        decimal? balance = null;
+        if (credits.TryGetProperty("balance", out var balanceNode) && balanceNode.ValueKind != JsonValueKind.Null)
+        {
+            var rawBalance = balanceNode.ValueKind switch
+            {
+                JsonValueKind.String => balanceNode.GetString(),
+                JsonValueKind.Number => balanceNode.GetRawText(),
+                _ => null,
+            };
+            if (decimal.TryParse(rawBalance, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsedBalance)
+                && parsedBalance >= 0)
+            {
+                balance = parsedBalance;
+            }
+        }
+
+        snapshot = new QuotaCreditsSnapshot(hasCredits, unlimited, balance);
+        return true;
+    }
+
+    private static bool TryGetBoolean(JsonElement parent, string propertyName, out bool value)
+    {
+        if (parent.TryGetProperty(propertyName, out var node)
+            && node.ValueKind is JsonValueKind.True or JsonValueKind.False)
+        {
+            value = node.GetBoolean();
+            return true;
+        }
+
+        value = false;
+        return false;
     }
 }

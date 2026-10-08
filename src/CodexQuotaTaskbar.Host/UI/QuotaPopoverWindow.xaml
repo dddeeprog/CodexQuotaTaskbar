@@ -64,15 +64,42 @@
         </StackPanel>
         <Button x:Name="CloseButton" Grid.Column="1" Content="×" Style="{StaticResource CircleButton}" AutomationProperties.Name="关闭" />
       </Grid>
-      <Grid Grid.Row="1" Margin="1,10,0,14">
-        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-        <TextBlock x:Name="StatusText" Foreground="#9EAFAFB3" FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="11" TextWrapping="Wrap" VerticalAlignment="Center" />
-        <Border x:Name="PlanBadge" Grid.Column="1" Margin="10,0,0,0" Padding="9,4" Background="#18FFFFFF" BorderBrush="#28FFFFFF" BorderThickness="1" CornerRadius="10" VerticalAlignment="Center">
-          <TextBlock x:Name="PlanText" Text="订阅 · 未知" Foreground="#E8FFFFFF" FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="10.5" FontWeight="SemiBold" />
-        </Border>
-      </Grid>
+      <TextBlock x:Name="StatusText" Grid.Row="1" Margin="1,10,0,14" Foreground="#9EAFAFB3" FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="11" TextWrapping="Wrap" VerticalAlignment="Center" />
       <ScrollViewer Grid.Row="2" MaxHeight="340" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel>
+          <Border x:Name="AccountSummaryBorder" Margin="0,0,0,14" Background="#16FFFFFF" BorderBrush="#22FFFFFF" BorderThickness="1" CornerRadius="16">
+            <Grid>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="1"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="1"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <StackPanel Grid.Column="0" Margin="7,10" AutomationProperties.Name="订阅计划">
+                <TextBlock Text="订阅" Tag="secondary" Foreground="#9EAFAFB3" FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="9" TextAlignment="Center" />
+                <TextBlock x:Name="PlanText" Text="未知" Foreground="#F2FFFFFF" FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="11.5" FontWeight="SemiBold" TextAlignment="Center" TextWrapping="Wrap" Margin="0,3,0,0" />
+              </StackPanel>
+              <Border x:Name="AccountDividerOne" Grid.Column="1" Margin="0,9" Background="#22FFFFFF" />
+              <StackPanel Grid.Column="2" Margin="5,10" AutomationProperties.Name="会员到期时间">
+                <TextBlock Text="订阅有效至" Tag="secondary" Foreground="#9EAFAFB3" FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="9" TextAlignment="Center" />
+                <TextBlock x:Name="ExpiryText" Text="正在读取…" Tag="secondary" Foreground="#F2FFFFFF" FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="10.5" FontWeight="SemiBold" TextAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
+              </StackPanel>
+              <Border x:Name="AccountDividerTwo" Grid.Column="3" Margin="0,9" Background="#22FFFFFF" />
+              <StackPanel Grid.Column="4" Margin="7,10" AutomationProperties.Name="额外点数数量">
+                <TextBlock Text="额外点数" Tag="secondary" Foreground="#9EAFAFB3" FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="9" TextAlignment="Center" />
+                <TextBlock x:Name="ExtraCreditsText" Text="—" Tag="secondary" Foreground="#F2FFFFFF" FontFamily="{x:Static ui:OverlayTypography.Number}" FontSize="11.5" FontWeight="SemiBold" TextAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
+              </StackPanel>
+              <TextBlock x:Name="ExpiryMetaText" Grid.Row="1" Grid.ColumnSpan="5" Tag="secondary" Margin="9,-3,9,9"
+                         Text="来源：正在确认" Foreground="#9EAFAFB3" FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="8.5"
+                         TextAlignment="Center" TextTrimming="CharacterEllipsis" />
+            </Grid>
+          </Border>
+          <Button x:Name="SubscriptionLoginButton" Content="网页登录 · 更新订阅日期" Style="{StaticResource GlassButton}" Height="30" FontSize="10.5" Margin="0,-4,0,12"/>
           <TextBlock x:Name="QuotaHeading" Text="额度" Tag="secondary" Foreground="#9EAFAFB3" FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="10" FontWeight="SemiBold" Margin="1,0,0,7" />
           <StackPanel x:Name="RowsPanel" />
         </StackPanel>

@@ -28,14 +28,18 @@ public sealed class ProjectBoundaryTests
     }
 
     [Fact]
-    public void Host_uses_native_wpf_blur_without_webview()
+    public void Host_uses_native_wpf_blur_and_separate_subscription_login_webview()
     {
         var project = XDocument.Load(RepositoryPaths.HostProject);
         var packages = project.Descendants("PackageReference")
             .Select(element => (string)element.Attribute("Include")!)
             .ToArray();
 
-        Assert.Equal(["BlurredBackground.WPF"], packages);
-        Assert.DoesNotContain(packages, value => value.Contains("WebView", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(["BlurredBackground.WPF", "Microsoft.Web.WebView2"], packages);
+        foreach (var file in new[] { "QuotaCapsuleWindow.xaml", "QuotaPopoverWindow.xaml", "SessionStackWindow.xaml", "TrayMenuWindow.xaml" })
+        {
+            var path = Path.Combine(RepositoryPaths.Root, "src", "CodexQuotaTaskbar.Host", "UI", file);
+            if (File.Exists(path)) Assert.DoesNotContain("WebView", File.ReadAllText(path), StringComparison.OrdinalIgnoreCase);
+        }
     }
 }

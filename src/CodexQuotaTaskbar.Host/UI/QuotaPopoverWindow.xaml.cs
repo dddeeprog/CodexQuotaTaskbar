@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -40,6 +41,11 @@ public partial class QuotaPopoverWindow : Window
         CloseButton.Click += (_, _) => RequestClose();
         RefreshButton.Click += (_, _) => RefreshRequested?.Invoke(this, EventArgs.Empty);
         OpenCodexButton.Click += (_, _) => OpenCodexRequested?.Invoke(this, EventArgs.Empty);
+        SubscriptionLoginButton.Click += (_, _) =>
+        {
+            RequestClose();
+            OpenSubscriptionLoginRequested?.Invoke(this, EventArgs.Empty);
+        };
         Activated += (_, _) => activationEstablished = true;
         Deactivated += (_, _) =>
         {
@@ -62,6 +68,7 @@ public partial class QuotaPopoverWindow : Window
 
     internal event EventHandler? RefreshRequested;
     internal event EventHandler? OpenCodexRequested;
+    internal event EventHandler? OpenSubscriptionLoginRequested;
 
     internal void PlayEntrance((double X, double Y) offset)
     {
@@ -131,7 +138,12 @@ public partial class QuotaPopoverWindow : Window
     {
         var snapshot = quotaSnapshot;
         StatusText.Text = snapshot.StatusText + (snapshot.CapturedAt is { } captured ? $" · {captured.ToLocalTime():HH:mm:ss}" : string.Empty);
-        PlanText.Text = $"订阅 · {snapshot.SubscriptionPlan ?? "未知"}";
+        PlanText.Text = snapshot.SubscriptionPlan ?? "未知";
+        ExpiryText.Text = FormatMembershipExpiration(snapshot.SubscriptionExpiration);
+        ExpiryText.Tag = snapshot.SubscriptionExpiration.Availability == SubscriptionExpirationAvailability.Available ? null : "secondary";
+        ExpiryMetaText.Text = FormatMembershipExpirationMetadata(snapshot.SubscriptionExpiration);
+        ExtraCreditsText.Text = FormatExtraCredits(snapshot.ExtraCredits);
+        ExtraCreditsText.Tag = snapshot.ExtraCredits is null ? "secondary" : null;
         RowsPanel.Children.Clear();
         if (snapshot.Windows.Count == 0)
         {
@@ -232,6 +244,55 @@ public partial class QuotaPopoverWindow : Window
         _ => 2,
     };
 
+    internal static string FormatMembershipExpiration(SubscriptionExpirationSnapshot expiration) =>
+        expiration.Availability == SubscriptionExpirationAvailability.Available && expiration.ExpiresAt is { } value
+            ? value.ToLocalTime().ToString("yyyy年M月d日", CultureInfo.GetCultureInfo("zh-CN"))
+            : expiration.StatusText;
+
+    internal static string FormatMembershipExpirationMetadata(SubscriptionExpirationSnapshot expiration)
+    {
+        if (expiration.Availability == SubscriptionExpirationAvailability.Disabled)
+        {
+            return "可在托盘菜单中开启";
+        }
+
+        var source = expiration.Source switch
+        {
+            SubscriptionExpirationSource.CodexLogin => "Codex 登录信息",
+            SubscriptionExpirationSource.ChatGptSubscription => "ChatGPT 订阅服务",
+            SubscriptionExpirationSource.ChatGptWeb => "ChatGPT 网页登录",
+            _ => "尚无来源",
+        };
+        var checkedText = expiration.CheckedAt is { } checkedAt
+            ? $" · 更新于 {checkedAt.ToLocalTime():M月d日 HH:mm}"
+            : string.Empty;
+        var failureText = expiration.Availability == SubscriptionExpirationAvailability.Unavailable
+            && expiration.StatusText != "正在读取…"
+            ? " · 检查失败"
+            : string.Empty;
+        var staleText = expiration.IsStale ? " · 缓存" : string.Empty;
+        return $"来源：{source}{checkedText}{failureText}{staleText}";
+    }
+
+    internal static string FormatExtraCredits(QuotaCreditsSnapshot? credits)
+    {
+        if (credits is null)
+        {
+            return "—";
+        }
+        if (credits.Unlimited)
+        {
+            return "不限";
+        }
+        if (!credits.HasCredits)
+        {
+            return "0";
+        }
+        return credits.Balance is { } balance
+            ? balance.ToString("#,##0.##", CultureInfo.GetCultureInfo("zh-CN"))
+            : "可用";
+    }
+
     private void OnSystemParametersChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs eventArgs) => ApplySystemAppearance();
 
     private void ApplySystemAppearance()
@@ -243,11 +304,19 @@ public partial class QuotaPopoverWindow : Window
         SetBlurEnabled(!opaque);
         TitleText.Foreground = opaque ? System.Windows.SystemColors.WindowTextBrush : System.Windows.Media.Brushes.White;
         StatusText.Foreground = opaque ? System.Windows.SystemColors.WindowTextBrush : new SolidColorBrush(System.Windows.Media.Color.FromRgb(174, 174, 178));
-        PlanText.Foreground = opaque ? System.Windows.SystemColors.ControlTextBrush : new SolidColorBrush(System.Windows.Media.Color.FromRgb(242, 242, 247));
-        PlanBadge.Background = opaque ? System.Windows.SystemColors.ControlBrush : new SolidColorBrush(System.Windows.Media.Color.FromArgb(24, 255, 255, 255));
-        PlanBadge.BorderBrush = opaque ? System.Windows.SystemColors.ActiveBorderBrush : new SolidColorBrush(System.Windows.Media.Color.FromArgb(40, 255, 255, 255));
-        var rowText = FindTextBlocks(RowsPanel).Append(QuotaHeading);
-        foreach (var text in rowText)
+        AccountSummaryBorder.Background = opaque ? System.Windows.SystemColors.ControlBrush : new SolidColorBrush(System.Windows.Media.Color.FromArgb(22, 255, 255, 255));
+        AccountSummaryBorder.BorderBrush = opaque ? System.Windows.SystemColors.ActiveBorderBrush : new SolidColorBrush(System.Windows.Media.Color.FromArgb(34, 255, 255, 255));
+        AccountDividerOne.Background = AccountDividerTwo.Background = opaque
+            ? System.Windows.SystemColors.ActiveBorderBrush
+            : new SolidColorBrush(System.Windows.Media.Color.FromArgb(34, 255, 255, 255));
+        foreach (var text in FindTextBlocks(AccountSummaryBorder))
+        {
+            text.Foreground = opaque
+                ? System.Windows.SystemColors.ControlTextBrush
+                : Equals(text.Tag, "secondary") ? new SolidColorBrush(System.Windows.Media.Color.FromRgb(174, 174, 178))
+                : System.Windows.Media.Brushes.White;
+        }
+        foreach (var text in FindTextBlocks(RowsPanel).Append(QuotaHeading))
         {
             text.Foreground = opaque
                 ? System.Windows.SystemColors.WindowTextBrush

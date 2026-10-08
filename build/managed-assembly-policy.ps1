@@ -35,9 +35,9 @@ $script:ApprovedStagedOpaqueRelativePaths = [System.Collections.Generic.HashSet[
 $script:ApprovedSingleFileHost = [pscustomobject]@{
     RelativePath = 'CodexQuotaTaskbar.CompatibilityProbe.exe'
     FileName = 'singlefilehost.exe'
-    TemplateRelativePath = 'dotnet\packs\Microsoft.NETCore.App.Host.win-x64\10.0.10\runtimes\win-x64\native\singlefilehost.exe'
-    TemplateSize = 9980928
-    TemplateSha256 = 'c458e524b227783239693d1fdf7f474a757b49e2829c7fb00a5ac9e5274f83e8'
+    TemplateRelativePath = 'dotnet\packs\Microsoft.NETCore.App.Host.win-x64\10.0.11\runtimes\win-x64\native\singlefilehost.exe'
+    TemplateSize = 9987072
+    TemplateSha256 = 'e55054e147c18682f9d683010855591d4846c08a75f593e0d1207763a25fc7b3'
     AppPathPlaceholder = 'c3ab8ff13720e8ad9047dd39466b3c8974e592c2fa383d4a3960714caef0c4f2'
     ExpectedAppPath = 'CodexQuotaTaskbar.CompatibilityProbe.dll'
 }
