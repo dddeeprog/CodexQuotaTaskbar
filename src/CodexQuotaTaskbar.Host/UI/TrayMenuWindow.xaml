@@ -7,9 +7,48 @@
         ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True"
         SnapsToDevicePixels="True" UseLayoutRounding="True"
         FontFamily="{x:Static ui:OverlayTypography.Text}"
-        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextFormattingMode="Ideal"
         TextOptions.TextRenderingMode="Grayscale">
   <Window.Resources>
+    <Style x:Key="TransparencyTrackButton" TargetType="RepeatButton">
+      <Setter Property="IsTabStop" Value="False"/>
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RepeatButton">
+        <Border Height="4" CornerRadius="2" Background="{TemplateBinding Background}" VerticalAlignment="Center"/>
+      </ControlTemplate></Setter.Value></Setter>
+    </Style>
+    <Style x:Key="MaterialSlider" TargetType="Slider">
+      <Setter Property="Height" Value="30"/>
+      <Setter Property="Foreground" Value="#F4F4F6"/>
+      <Setter Property="Background" Value="#38FFFFFF"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Slider">
+        <Grid Background="Transparent">
+          <Track x:Name="PART_Track" Minimum="{TemplateBinding Minimum}" Maximum="{TemplateBinding Maximum}"
+                 Value="{TemplateBinding Value}" IsDirectionReversed="False">
+            <Track.DecreaseRepeatButton>
+              <RepeatButton Style="{StaticResource TransparencyTrackButton}" Command="Slider.DecreaseLarge" Background="{TemplateBinding Foreground}"/>
+            </Track.DecreaseRepeatButton>
+            <Track.IncreaseRepeatButton>
+              <RepeatButton Style="{StaticResource TransparencyTrackButton}" Command="Slider.IncreaseLarge" Background="{TemplateBinding Background}"/>
+            </Track.IncreaseRepeatButton>
+            <Track.Thumb>
+              <Thumb Width="20" Height="26">
+                <Thumb.Template><ControlTemplate TargetType="Thumb">
+                  <Grid Background="Transparent">
+                    <Ellipse Width="16" Height="16" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Slider}}"/>
+                  </Grid>
+                </ControlTemplate></Thumb.Template>
+              </Thumb>
+            </Track.Thumb>
+          </Track>
+          <Border x:Name="FocusRing" BorderBrush="{TemplateBinding Foreground}" BorderThickness="1" CornerRadius="7" Visibility="Collapsed" IsHitTestVisible="False"/>
+        </Grid>
+        <ControlTemplate.Triggers>
+          <Trigger Property="IsKeyboardFocusWithin" Value="True"><Setter TargetName="FocusRing" Property="Visibility" Value="Visible"/></Trigger>
+          <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.5"/></Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate></Setter.Value></Setter>
+    </Style>
     <Style x:Key="MenuAction" TargetType="Button">
       <Setter Property="Height" Value="42"/>
       <Setter Property="Padding" Value="12,0"/>
@@ -17,8 +56,8 @@
       <Setter Property="Background" Value="Transparent"/>
       <Setter Property="BorderThickness" Value="0"/>
       <Setter Property="FontFamily" Value="{x:Static ui:OverlayTypography.Text}"/>
-      <Setter Property="FontSize" Value="12"/>
-      <Setter Property="FontWeight" Value="Medium"/>
+      <Setter Property="FontSize" Value="13.5"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
       <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
       <Setter Property="Cursor" Value="Hand"/>
       <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
@@ -54,16 +93,9 @@
   </Window.Resources>
 
   <Grid>
-    <Border x:Name="BackdropLayer" CornerRadius="22">
-      <Border.Background>
-        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-          <GradientStop Color="#F01B1B1D" Offset="0"/>
-          <GradientStop Color="#E52B2B2E" Offset="0.5"/>
-          <GradientStop Color="#F0131315" Offset="1"/>
-        </LinearGradientBrush>
-      </Border.Background>
-    </Border>
-    <Border x:Name="GlassBorder" CornerRadius="22" Background="#8A161618" BorderBrush="#4CFFFFFF" BorderThickness="1">
+    <Border x:Name="BackdropLayer" CornerRadius="22" Background="#011D1D1F"/>
+    <Border x:Name="GlassBorder" CornerRadius="22" Background="{x:Static ui:OverlayGlassMaterial.Surface}" BorderBrush="{x:Static ui:OverlayGlassMaterial.Border}" BorderThickness="1">
+      <ScrollViewer x:Name="MenuScroller" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled" CanContentScroll="False">
       <Grid Margin="10">
         <Grid.RowDefinitions>
           <RowDefinition Height="54"/>
@@ -79,8 +111,8 @@
           <Grid.ColumnDefinitions><ColumnDefinition Width="38"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
           <Image Source="/CodexQuotaTaskbar;component/Assets/QuotaIslandIcon.png" Width="32" Height="32" RenderOptions.BitmapScalingMode="HighQuality" VerticalAlignment="Center"/>
           <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center">
-            <TextBlock x:Name="TitleText" Text="Codex 额度" Foreground="#FAFFFFFF" FontFamily="{x:Static ui:OverlayTypography.Display}" FontSize="14" FontWeight="Medium"/>
-            <TextBlock x:Name="RunningText" Text="额度岛正在运行" Foreground="#A8FFFFFF" FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="11" Margin="0,2,0,0"/>
+            <TextBlock x:Name="TitleText" Text="Codex 额度" Foreground="#FAFFFFFF" FontFamily="{x:Static ui:OverlayTypography.Display}" FontSize="14" FontWeight="SemiBold"/>
+            <TextBlock x:Name="RunningText" Text="额度岛正在运行" Foreground="#A8FFFFFF" FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="11.5" Margin="0,2,0,0"/>
           </StackPanel>
           <Border x:Name="VersionBadge" Grid.Column="2" Padding="7,3" CornerRadius="8" Background="#14FFFFFF" VerticalAlignment="Center">
             <TextBlock x:Name="VersionText" Foreground="#AFFFFFFF" FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="10"/>
@@ -119,6 +151,16 @@
         <Border Grid.Row="3" Background="#20FFFFFF" Margin="8,0"/>
 
         <StackPanel Grid.Row="4" Margin="0,5">
+          <StackPanel Margin="12,7,12,8">
+            <Grid>
+              <TextBlock x:Name="MaterialTransparencyLabel" Text="材质透明度" Foreground="#F4FFFFFF" FontSize="13.5" FontWeight="SemiBold"/>
+              <TextBlock x:Name="MaterialTransparencyValue" Text="0%" HorizontalAlignment="Right" Foreground="#F4FFFFFF" FontSize="12"/>
+            </Grid>
+            <Slider x:Name="MaterialTransparencySlider" Style="{StaticResource MaterialSlider}" Minimum="0" Maximum="100"
+                    SmallChange="1" LargeChange="10" TickFrequency="1" IsSnapToTickEnabled="True" IsMoveToPointEnabled="True"
+                    AutomationProperties.Name="材质透明度" AutomationProperties.HelpText="0% 不透明，100% 全透明；只影响背景，不改变文字和图标"/>
+            <TextBlock x:Name="MaterialTransparencyHint" Text="0% 不透明 · 100% 全透明" Foreground="#B8FFFFFF" FontSize="10.5" TextWrapping="Wrap"/>
+          </StackPanel>
           <Button x:Name="AllTaskbarsButton" Style="{StaticResource MenuAction}" AutomationProperties.Name="在全部任务栏显示">
             <Grid><TextBlock Text="全部任务栏" VerticalAlignment="Center"/>
               <Border x:Name="AllTaskbarsTrack" Width="34" Height="20" CornerRadius="10" HorizontalAlignment="Right" VerticalAlignment="Center" Padding="3">
@@ -165,6 +207,7 @@
           </Grid>
         </Button>
       </Grid>
+      </ScrollViewer>
     </Border>
   </Grid>
 </Window>

@@ -21,6 +21,7 @@ internal sealed class TrayController : IDisposable
         menu.OpenCodexRequested += (_, _) => OpenCodexRequested?.Invoke(this, EventArgs.Empty);
         menu.OpenSubscriptionLoginRequested += (_, _) => OpenSubscriptionLoginRequested?.Invoke(this, EventArgs.Empty);
         menu.SettingsChangeRequested += (_, value) => ChangeRequested(value);
+        menu.MaterialTransparencyPreviewRequested += (_, value) => MaterialTransparencyPreviewRequested?.Invoke(this, value);
         menu.ExitRequested += (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty);
         trayIcon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!)
             ?? throw new InvalidOperationException("无法加载额度岛应用图标。");
@@ -45,9 +46,12 @@ internal sealed class TrayController : IDisposable
     internal event EventHandler? OpenSubscriptionLoginRequested;
     internal event EventHandler? CheckUpdatesRequested;
     internal event EventHandler<AppSettings>? SettingsChanged;
+    internal event EventHandler<int>? MaterialTransparencyPreviewRequested;
     internal event EventHandler? ExitRequested;
 
     internal AppSettings Settings => settings;
+
+    internal void FlushPendingSettings() => menu.FlushMaterialTransparencyChange();
 
     internal void EnableSubscriptionDetails()
     {

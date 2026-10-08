@@ -3,6 +3,7 @@ using CodexQuotaTaskbar.Core.Overlay;
 using CodexQuotaTaskbar.Core.Quota;
 using CodexQuotaTaskbar.Core.Sessions;
 using CodexQuotaTaskbar.Host.Platform;
+using CodexQuotaTaskbar.Host.Resets;
 using CodexQuotaTaskbar.Host.UI;
 using Microsoft.Win32;
 
@@ -22,15 +23,18 @@ internal sealed class OverlayCoordinator : IDisposable
     private readonly Dictionary<string, ScreenRect> userPositions = new(StringComparer.Ordinal);
     private readonly DispatcherTimer timer;
     private bool showAllTaskbars;
+    private int materialTransparency;
     private bool sessionLocked;
     private QuotaSnapshot snapshot = QuotaSnapshot.Unavailable("正在连接 Codex…");
     private CodexSessionsSnapshot sessions = CodexSessionsSnapshot.Empty;
+    private ResetFeedSnapshot resetFeed = ResetFeedSnapshot.Loading;
     private QuotaPopoverWindow? popover;
     private QuotaCapsuleWindow? popoverOwner;
 
-    internal OverlayCoordinator(bool showAllTaskbars)
+    internal OverlayCoordinator(bool showAllTaskbars, int materialTransparency = 0)
     {
         this.showAllTaskbars = showAllTaskbars;
+        this.materialTransparency = Math.Clamp(materialTransparency, 0, 100);
         timer = new DispatcherTimer(TimeSpan.FromMilliseconds(750), DispatcherPriority.Background, (_, _) => Reconcile(), Dispatcher.CurrentDispatcher);
         SystemEvents.DisplaySettingsChanged += OnEnvironmentChanged;
         SystemEvents.UserPreferenceChanged += OnEnvironmentChanged;
@@ -42,6 +46,7 @@ internal sealed class OverlayCoordinator : IDisposable
     internal event EventHandler? OpenSubscriptionLoginRequested;
     internal event EventHandler? ContextRequested;
     internal event Action<string>? OpenSessionRequested;
+    internal event Action<Uri>? OpenResetSourceRequested;
 
     internal void Start()
     {
@@ -51,8 +56,17 @@ internal sealed class OverlayCoordinator : IDisposable
 
     internal void SetShowAllTaskbars(bool value)
     {
+        if (showAllTaskbars == value) return;
         showAllTaskbars = value;
         Reconcile();
+    }
+
+    internal void SetMaterialTransparency(int value)
+    {
+        materialTransparency = Math.Clamp(value, 0, 100);
+        foreach (var window in windows.Values) window.SetMaterialTransparency(materialTransparency);
+        foreach (var window in sessionWindows.Values) window.SetMaterialTransparency(materialTransparency);
+        popover?.SetMaterialTransparency(materialTransparency);
     }
 
     internal void Apply(QuotaSnapshot value)
@@ -79,6 +93,18 @@ internal sealed class OverlayCoordinator : IDisposable
             {
                 UpdateSessionStack(owner, sessionWindow);
             }
+        }
+    }
+
+    internal void ApplyResets(ResetFeedSnapshot value)
+    {
+        resetFeed = value;
+        foreach (var window in windows.Values) window.ApplyResets(value);
+        popover?.ApplyResets(value);
+        if (popoverOwner is { } owner)
+        {
+            popover?.UpdateLayout();
+            RepositionPopover(owner);
         }
     }
 
@@ -113,6 +139,8 @@ internal sealed class OverlayCoordinator : IDisposable
                 window.Show();
             }
 
+            window.ApplyResets(resetFeed);
+
             var shouldShow = anchor.IsVisible && !sessionLocked && !TaskbarTopologySource.IsMonitorFullscreen(anchor);
             if (!shouldShow)
             {
@@ -143,8 +171,10 @@ internal sealed class OverlayCoordinator : IDisposable
     private QuotaCapsuleWindow CreateWindow(string monitorId)
     {
         var window = new QuotaCapsuleWindow(monitorId);
+        window.SetMaterialTransparency(materialTransparency);
         window.PrimaryInvoked += (_, _) => TogglePopover(window);
         window.ContextInvoked += (_, _) => ContextRequested?.Invoke(window, EventArgs.Empty);
+        window.OpenResetSourceRequested += uri => OpenResetSourceRequested?.Invoke(uri);
         window.UserMoved += (previous, current) => OnWindowMoved(window, previous, current);
         return window;
     }
@@ -152,6 +182,7 @@ internal sealed class OverlayCoordinator : IDisposable
     private SessionStackWindow CreateSessionWindow(QuotaCapsuleWindow owner)
     {
         var window = new SessionStackWindow(owner.MonitorId);
+        window.SetMaterialTransparency(materialTransparency);
         window.OpenSessionRequested += threadId => OpenSessionRequested?.Invoke(threadId);
         window.ContextInvoked += (_, _) => ContextRequested?.Invoke(window, EventArgs.Empty);
         window.PresentationChanged += (_, _) => UpdateSessionStack(owner, window);
@@ -234,9 +265,12 @@ internal sealed class OverlayCoordinator : IDisposable
         }
 
         var details = new QuotaPopoverWindow { Owner = owner };
+        details.SetMaterialTransparency(materialTransparency);
         popover = details;
         popoverOwner = owner;
         details.Apply(snapshot);
+        details.ApplyResets(resetFeed);
+        details.OpenResetSourceRequested += uri => OpenResetSourceRequested?.Invoke(uri);
         details.RefreshRequested += (_, _) => RefreshRequested?.Invoke(this, EventArgs.Empty);
         details.OpenCodexRequested += (_, _) => OpenCodexRequested?.Invoke(this, EventArgs.Empty);
         details.OpenSubscriptionLoginRequested += (_, _) => OpenSubscriptionLoginRequested?.Invoke(this, EventArgs.Empty);

@@ -9,6 +9,7 @@ using CodexQuotaTaskbar.Core.Overlay;
 using CodexQuotaTaskbar.Core.Quota;
 using CodexQuotaTaskbar.Core.Sessions;
 using CodexQuotaTaskbar.Host.Platform;
+using CodexQuotaTaskbar.Host.Resets;
 using FrostedBlur = BlurredBackground.WPF.BlurredBackground;
 
 namespace CodexQuotaTaskbar.Host.UI;
@@ -16,7 +17,7 @@ namespace CodexQuotaTaskbar.Host.UI;
 public partial class QuotaCapsuleWindow : Window
 {
     internal const double WindowWidth = 306;
-    internal const double WindowHeight = 92;
+    internal const double WindowHeight = 112;
     internal const double BadgeShadowSafeInset = 12;
     internal const int BadgeAnimationMilliseconds = 180;
     internal const string GlassCaptureTargetName = "BackdropLayer";
@@ -35,6 +36,7 @@ public partial class QuotaCapsuleWindow : Window
     private readonly System.Windows.Media.Brush normalBadgeBorderBrush;
     private ScreenRect physicalBounds;
     private bool blurReady;
+    private int materialTransparency;
     private ScreenRect dragOriginBounds;
     private int dragOriginX;
     private int dragOriginY;
@@ -57,6 +59,7 @@ public partial class QuotaCapsuleWindow : Window
         normalBackdropBackground = BackdropLayer.Background;
         normalBadgeBackground = SessionBadge.Background;
         normalBadgeBorderBrush = SessionBadge.BorderBrush;
+        ResetSourceLink.Click += (_, _) => OpenResetSourceRequested?.Invoke(CodexResetFeedClient.SiteUri);
         SourceInitialized += (_, _) => WindowInteropPolicy.AttachNoActivate(this);
         Loaded += (_, _) =>
         {
@@ -74,11 +77,17 @@ public partial class QuotaCapsuleWindow : Window
     }
 
     internal string MonitorId { get; }
+    internal void SetMaterialTransparency(int value)
+    {
+        materialTransparency = Math.Clamp(value, 0, 100);
+        ApplySystemAppearance();
+    }
     internal ScreenRect PhysicalBounds => physicalBounds;
     internal bool IsUserDragging => userDragging;
     internal event EventHandler? PrimaryInvoked;
     internal event EventHandler? ContextInvoked;
     internal event Action<ScreenRect, ScreenRect>? UserMoved;
+    internal event Action<Uri>? OpenResetSourceRequested;
 
     internal void Apply(QuotaSnapshot snapshot)
     {
@@ -90,6 +99,12 @@ public partial class QuotaCapsuleWindow : Window
     {
         sessionsSnapshot = snapshot;
         Render();
+    }
+
+    internal void ApplyResets(ResetFeedSnapshot snapshot)
+    {
+        ResetSummaryText.Text = ResetFeedPresentation.IslandSummary(snapshot, DateTimeOffset.UtcNow);
+        AutomationProperties.SetName(ResetSummaryText, $"{ResetSummaryText.Text}，来源 Codex Resets，公共公告不代表个人额度到账；点击岛查看详情");
     }
 
     private void Render()
@@ -283,7 +298,7 @@ public partial class QuotaCapsuleWindow : Window
 
     private void OnMouseLeftButtonDown(object sender, MouseButtonEventArgs eventArgs)
     {
-        if (eventArgs.ChangedButton != MouseButton.Left || !WindowInteropPolicy.TryGetCursorPosition(out dragOriginX, out dragOriginY))
+        if (ResetSourceText.IsMouseOver || eventArgs.ChangedButton != MouseButton.Left || !WindowInteropPolicy.TryGetCursorPosition(out dragOriginX, out dragOriginY))
         {
             return;
         }
@@ -370,19 +385,21 @@ public partial class QuotaCapsuleWindow : Window
             GlassBorder.BorderBrush = System.Windows.SystemColors.ActiveBorderBrush;
             BackdropLayer.Background = System.Windows.SystemColors.WindowBrush;
             FirstLabel.Foreground = SecondLabel.Foreground = System.Windows.SystemColors.WindowTextBrush;
+            ResetSummaryText.Foreground = ResetSourceText.Foreground = System.Windows.SystemColors.WindowTextBrush;
             FirstValue.Foreground = SecondValue.Foreground = System.Windows.SystemColors.WindowTextBrush;
             SessionBadge.Background = System.Windows.SystemColors.ControlBrush;
             SessionBadge.BorderBrush = System.Windows.SystemColors.ActiveBorderBrush;
             return;
         }
 
-        GlassBorder.Background = normalGlassBackground;
+        GlassBorder.Background = OverlayGlassMaterial.WithTransparency(normalGlassBackground, materialTransparency);
         GlassBorder.BorderBrush = OverlayGlassMaterial.Border;
         BackdropLayer.Background = normalBackdropBackground;
         SetBlurEnabled(true);
         FirstLabel.Foreground = SecondLabel.Foreground = normalLabelForeground;
+        ResetSummaryText.Foreground = ResetSourceText.Foreground = normalLabelForeground;
         FirstValue.Foreground = SecondValue.Foreground = normalValueForeground;
-        SessionBadge.Background = normalBadgeBackground;
+        SessionBadge.Background = OverlayGlassMaterial.WithTransparency(normalBadgeBackground, materialTransparency);
         SessionBadge.BorderBrush = normalBadgeBorderBrush;
     }
 

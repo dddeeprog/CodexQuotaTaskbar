@@ -1,3 +1,5 @@
+using System.Xml.Linq;
+using CodexQuotaTaskbar.Host.Tests.TestSupport;
 using CodexQuotaTaskbar.Host.UI;
 
 namespace CodexQuotaTaskbar.Host.Tests.UI;
@@ -192,8 +194,12 @@ public sealed class SessionStackWindowTests
         Assert.Equal(0, brush.EndPoint.X);
         Assert.Equal(1, brush.EndPoint.Y);
         Assert.Equal(2, brush.GradientStops.Count);
-        Assert.Equal((136, 58, 58, 60), Components(brush.GradientStops[0].Color));
-        Assert.Equal((116, 48, 48, 50), Components(brush.GradientStops[1].Color));
+        Assert.Equal((255, 58, 58, 60), Components(brush.GradientStops[0].Color));
+        Assert.Equal((255, 48, 48, 50), Components(brush.GradientStops[1].Color));
+        Assert.Equal(OverlayGlassMaterial.CreateSurfaceBrush().GradientStops.Select(stop => (stop.Color, stop.Offset)),
+            brush.GradientStops.Select(stop => (stop.Color, stop.Offset)));
+        Assert.Equal(OverlayGlassMaterial.BlurRadius, SessionStackWindow.SessionGlassBlurRadius);
+        Assert.Equal(OverlayGlassMaterial.Merging, SessionStackWindow.SessionGlassMerging);
     }
 
     [Fact]
@@ -208,10 +214,34 @@ public sealed class SessionStackWindowTests
         var middle = SessionStackWindow.CreateCollapsedLayerSurfaceBrush(1);
         var back = SessionStackWindow.CreateCollapsedLayerSurfaceBrush(2);
 
-        Assert.Equal((184, 58, 58, 60), Components(middle.GradientStops[0].Color));
-        Assert.Equal((168, 44, 44, 46), Components(middle.GradientStops[1].Color));
-        Assert.Equal((168, 52, 52, 54), Components(back.GradientStops[0].Color));
-        Assert.Equal((152, 40, 40, 42), Components(back.GradientStops[1].Color));
+        Assert.Equal((255, 58, 58, 60), Components(middle.GradientStops[0].Color));
+        Assert.Equal((255, 44, 44, 46), Components(middle.GradientStops[1].Color));
+        Assert.Equal((255, 52, 52, 54), Components(back.GradientStops[0].Color));
+        Assert.Equal((255, 40, 40, 42), Components(back.GradientStops[1].Color));
+    }
+
+    [Fact]
+    public void Session_xaml_defaults_to_opaque_layers_and_uses_the_current_pressed_material()
+    {
+        var xaml = XDocument.Load(Path.Combine(RepositoryPaths.Root, "src", "CodexQuotaTaskbar.Host", "UI", "SessionStackWindow.xaml"));
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var middle = Assert.Single(xaml.Descendants(), element => (string?)element.Attribute(x + "Key") == "CollapsedMiddleGlassSurface");
+        var back = Assert.Single(xaml.Descendants(), element => (string?)element.Attribute(x + "Key") == "CollapsedBackGlassSurface");
+        Assert.Equal(new[] { "#FF3A3A3C", "#FF2C2C2E" },
+            middle.Elements().Select(element => (string?)element.Attribute("Color")));
+        Assert.Equal(new[] { "#FF343436", "#FF28282A" },
+            back.Elements().Select(element => (string?)element.Attribute("Color")));
+
+        var pressed = xaml.Descendants().Where(element => element.Name.LocalName == "Trigger" &&
+            (string?)element.Attribute("Property") == "IsPressed").ToArray();
+        Assert.Equal(2, pressed.Length);
+        foreach (var trigger in pressed)
+        {
+            var setter = Assert.Single(trigger.Elements());
+            Assert.Equal("Chrome", (string?)setter.Attribute("TargetName"));
+            Assert.Equal("Background", (string?)setter.Attribute("Property"));
+            Assert.Equal("{DynamicResource SessionPressedSurface}", (string?)setter.Attribute("Value"));
+        }
     }
 
     [Theory]

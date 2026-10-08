@@ -10,6 +10,7 @@ using CodexQuotaTaskbar.Host.Settings;
 using CodexQuotaTaskbar.Host.Tray;
 using CodexQuotaTaskbar.Host.Update;
 using CodexQuotaTaskbar.Host.UI;
+using CodexQuotaTaskbar.Host.Resets;
 
 namespace CodexQuotaTaskbar.Host;
 
@@ -27,6 +28,9 @@ public partial class App : System.Windows.Application
     private BrowserSubscriptionStore? browserStore;
     private CodexSubscriptionMetadataService? subscriptionService;
     private SubscriptionBrowserWindow? subscriptionBrowser;
+    private CodexResetFeedClient? resetFeedClient;
+    private Task? resetFeedLoop;
+    private Task resetRefreshTask = Task.CompletedTask;
     private bool shuttingDown;
     private bool cleanupCompleted;
 
@@ -55,18 +59,21 @@ public partial class App : System.Windows.Application
             settingsStore = SettingsStore.CreateDefault();
             var settings = await settingsStore.LoadAsync(lifetime.Token);
             lowQuotaGate = new LowQuotaGate(settings.LowQuotaThreshold);
-            coordinator = new OverlayCoordinator(settings.ShowAllTaskbars);
+            coordinator = new OverlayCoordinator(settings.ShowAllTaskbars, settings.EffectiveMaterialTransparencyPercent);
             tray = new TrayController(settings);
+            tray.MaterialTransparencyPreviewRequested += (_, value) => coordinator?.SetMaterialTransparency(value);
             browserStore = new BrowserSubscriptionStore();
             subscriptionService = new CodexSubscriptionMetadataService(browserStore: browserStore);
             provider = options.Demo ? new DemoQuotaProvider() : new CodexRateLimitProvider(settings.SubscriptionDetailsEnabled, subscriptionService);
             provider.SetSubscriptionDetailsEnabled(settings.SubscriptionDetailsEnabled);
             updateService = options.Demo ? null : new GitHubUpdateService();
+            resetFeedClient = options.Demo ? null : new CodexResetFeedClient();
 
             coordinator.RefreshRequested += OnRefreshRequested;
             coordinator.OpenCodexRequested += OnOpenCodexRequested;
             coordinator.OpenSubscriptionLoginRequested += OnOpenSubscriptionLoginRequested;
             coordinator.OpenSessionRequested += OnOpenSessionRequested;
+            coordinator.OpenResetSourceRequested += OnOpenResetSourceRequested;
             coordinator.ContextRequested += (_, _) => tray.ShowContextMenu(avoidIsland: true);
             tray.RefreshRequested += OnRefreshRequested;
             tray.OpenCodexRequested += OnOpenCodexRequested;
@@ -80,6 +87,14 @@ public partial class App : System.Windows.Application
             coordinator.Apply(provider.Current);
             coordinator.ApplySessions(provider.CurrentSessions);
             coordinator.Start();
+            if (resetFeedClient is not null)
+            {
+                resetFeedLoop = ResetFeedLoopAsync(lifetime.Token);
+            }
+            else
+            {
+                coordinator.ApplyResets(ResetFeedSnapshot.Unavailable("演示模式不读取在线公告"));
+            }
             if (options.SubscriptionLogin && !options.Demo)
             {
                 OnOpenSubscriptionLoginRequested(this, EventArgs.Empty);
@@ -274,10 +289,7 @@ public partial class App : System.Windows.Application
     {
         try
         {
-            if (provider is not null)
-            {
-                await provider.RefreshAsync(lifetime.Token);
-            }
+            await Task.WhenAll(provider?.RefreshAsync(lifetime.Token) ?? Task.CompletedTask, RefreshResetFeedAsync());
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
         {
@@ -295,6 +307,53 @@ public partial class App : System.Windows.Application
             System.Windows.MessageBox.Show("未找到可打开的 Codex 应用。", "Codex 额度", MessageBoxButton.OK, MessageBoxImage.Information);
         }
     }
+
+    private async Task ResetFeedLoopAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                await RefreshResetFeedAsync();
+                await Task.Delay(TimeSpan.FromMinutes(15), cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+    }
+
+    private Task RefreshResetFeedAsync()
+    {
+        if (resetFeedClient is null || shuttingDown) return Task.CompletedTask;
+        if (resetRefreshTask.IsCompleted) resetRefreshTask = RefreshResetFeedCoreAsync();
+        return resetRefreshTask;
+    }
+
+    private async Task RefreshResetFeedCoreAsync()
+    {
+        try
+        {
+            var snapshot = await resetFeedClient!.FetchAsync(lifetime.Token);
+            if (!shuttingDown) coordinator?.ApplyResets(snapshot);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+    }
+
+    private static void OnOpenResetSourceRequested(Uri uri)
+    {
+        // Only the fixed data-source credit is navigable, never a remote post URL.
+        if (!IsAllowedResetSource(uri)) return;
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            System.Windows.MessageBox.Show("无法打开公告来源，请稍后重试。", "Codex 额度", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+    }
+
+    internal static bool IsAllowedResetSource(Uri uri) =>
+        uri.IsAbsoluteUri && string.Equals(uri.AbsoluteUri, CodexResetFeedClient.SiteUri.AbsoluteUri, StringComparison.Ordinal);
 
     private void OnOpenSessionRequested(string threadId)
     {
@@ -321,6 +380,7 @@ public partial class App : System.Windows.Application
     {
         if (!settings.SubscriptionDetailsEnabled) subscriptionBrowser?.Close();
         coordinator?.SetShowAllTaskbars(settings.ShowAllTaskbars);
+        coordinator?.SetMaterialTransparency(settings.EffectiveMaterialTransparencyPercent);
         var refreshSubscriptionDetails = provider?.SetSubscriptionDetailsEnabled(settings.SubscriptionDetailsEnabled) == true;
         if (settingsStore is not null)
         {
@@ -331,6 +391,9 @@ public partial class App : System.Windows.Application
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
                 System.Windows.MessageBox.Show("设置暂时无法保存。", "Codex 额度", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+            {
             }
         }
         if (refreshSubscriptionDetails && provider is not null)
@@ -365,6 +428,19 @@ public partial class App : System.Windows.Application
         }
 
         shuttingDown = true;
+        tray?.FlushPendingSettings();
+        if (settingsStore is not null && tray is not null)
+        {
+            try
+            {
+                // Preserve the final slider value even when Quit follows a drag immediately.
+                await settingsStore.SaveAsync(tray.Settings, CancellationToken.None);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                System.Windows.MessageBox.Show("本次设置未能保存，下次启动可能恢复原值。", "Codex 额度", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
         lifetime.Cancel();
         subscriptionBrowser?.Close();
         coordinator?.Dispose();
@@ -374,6 +450,9 @@ public partial class App : System.Windows.Application
             await provider.DisposeAsync().ConfigureAwait(true);
         }
         updateService?.Dispose();
+        if (resetFeedLoop is not null) await resetFeedLoop;
+        await resetRefreshTask;
+        resetFeedClient?.Dispose();
         singleInstance?.ReleaseMutex();
         singleInstance?.Dispose();
         cleanupCompleted = true;
@@ -393,6 +472,7 @@ public partial class App : System.Windows.Application
                 _ = Task.Run(async () => await provider.DisposeAsync()).Wait(TimeSpan.FromSeconds(5));
             }
             updateService?.Dispose();
+            resetFeedClient?.Dispose();
             singleInstance?.Dispose();
         }
         lifetime.Dispose();

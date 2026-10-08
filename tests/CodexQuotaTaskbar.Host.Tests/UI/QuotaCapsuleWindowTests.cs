@@ -30,7 +30,7 @@ public sealed class QuotaCapsuleWindowTests
     public void Badge_shadow_has_more_safety_space_than_its_blur_and_depth()
     {
         Assert.Equal(306, QuotaCapsuleWindow.WindowWidth);
-        Assert.Equal(92, QuotaCapsuleWindow.WindowHeight);
+        Assert.Equal(112, QuotaCapsuleWindow.WindowHeight);
         Assert.True(QuotaCapsuleWindow.BadgeShadowSafeInset >= 8 + 2);
     }
 

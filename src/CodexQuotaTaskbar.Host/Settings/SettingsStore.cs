@@ -6,6 +6,7 @@ namespace CodexQuotaTaskbar.Host.Settings;
 internal sealed class SettingsStore(string path)
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private readonly SemaphoreSlim saveGate = new(1, 1);
 
     internal static SettingsStore CreateDefault() => new(Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -23,7 +24,9 @@ internal sealed class SettingsStore(string path)
 
             await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, true);
             var settings = await JsonSerializer.DeserializeAsync<AppSettings>(stream, JsonOptions, cancellationToken);
-            return settings is { LowQuotaThreshold: >= 1 and <= 100 } ? settings : AppSettings.Default;
+            return settings is { LowQuotaThreshold: >= 1 and <= 100 }
+                ? settings with { MaterialTransparencyPercent = settings.EffectiveMaterialTransparencyPercent }
+                : AppSettings.Default;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
         {
@@ -34,25 +37,35 @@ internal sealed class SettingsStore(string path)
     internal async Task SaveAsync(AppSettings settings, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        var directory = Path.GetDirectoryName(path) ?? throw new InvalidOperationException("设置路径无效。");
-        Directory.CreateDirectory(directory);
-        var temporary = Path.Combine(directory, $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
+        await saveGate.WaitAsync(cancellationToken);
         try
         {
-            await using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, true))
+            var directory = Path.GetDirectoryName(path) ?? throw new InvalidOperationException("设置路径无效。");
+            Directory.CreateDirectory(directory);
+            var temporary = Path.Combine(directory, $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
+            try
             {
-                await JsonSerializer.SerializeAsync(stream, settings, JsonOptions, cancellationToken);
-                await stream.FlushAsync(cancellationToken);
-            }
+                var normalized = settings with { MaterialTransparencyPercent = settings.EffectiveMaterialTransparencyPercent };
+                await using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, true))
+                {
+                    await JsonSerializer.SerializeAsync(stream, normalized, JsonOptions, cancellationToken);
+                    await stream.FlushAsync(cancellationToken);
+                }
 
-            File.Move(temporary, path, true);
+                cancellationToken.ThrowIfCancellationRequested();
+                File.Move(temporary, path, true);
+            }
+            finally
+            {
+                if (File.Exists(temporary))
+                {
+                    File.Delete(temporary);
+                }
+            }
         }
         finally
         {
-            if (File.Exists(temporary))
-            {
-                File.Delete(temporary);
-            }
+            saveGate.Release();
         }
     }
 }

@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using CodexQuotaTaskbar.Core.Overlay;
 using CodexQuotaTaskbar.Core.Quota;
+using CodexQuotaTaskbar.Host.Resets;
 using FrostedBlur = BlurredBackground.WPF.BlurredBackground;
 
 namespace CodexQuotaTaskbar.Host.UI;
@@ -20,6 +21,7 @@ public partial class QuotaPopoverWindow : Window
     internal static EasingMode ExitEasingMode => EasingMode.EaseOut;
     private bool activationEstablished;
     private bool blurReady;
+    private int materialTransparency;
     private bool closingAnimated;
     private double anchorOffsetX;
     private double anchorOffsetY;
@@ -41,6 +43,7 @@ public partial class QuotaPopoverWindow : Window
         CloseButton.Click += (_, _) => RequestClose();
         RefreshButton.Click += (_, _) => RefreshRequested?.Invoke(this, EventArgs.Empty);
         OpenCodexButton.Click += (_, _) => OpenCodexRequested?.Invoke(this, EventArgs.Empty);
+        ResetSiteButton.Click += (_, _) => OpenResetSourceRequested?.Invoke(CodexResetFeedClient.SiteUri);
         SubscriptionLoginButton.Click += (_, _) =>
         {
             RequestClose();
@@ -69,6 +72,37 @@ public partial class QuotaPopoverWindow : Window
     internal event EventHandler? RefreshRequested;
     internal event EventHandler? OpenCodexRequested;
     internal event EventHandler? OpenSubscriptionLoginRequested;
+    internal event Action<Uri>? OpenResetSourceRequested;
+
+    internal void ApplyResets(ResetFeedSnapshot snapshot)
+    {
+        ResetFeedStatusText.Text = ResetFeedPresentation.Status(snapshot);
+        ResetFeedStatusText.Visibility = string.IsNullOrEmpty(ResetFeedStatusText.Text) ? Visibility.Collapsed : Visibility.Visible;
+        ResetAnnouncementsPanel.Children.Clear();
+        foreach (var announcement in snapshot.Announcements.Take(3))
+        {
+            var entry = new StackPanel { Margin = new Thickness(0, 0, 0, 12) };
+            entry.Children.Add(new TextBlock
+            {
+                Text = $"{(announcement.IsObserved ? "社区观测 · " : string.Empty)}{ResetFeedPresentation.KindLabel(announcement.Kind)} · {announcement.AnnouncedAt.ToLocalTime():M月d日 HH:mm}",
+                FontFamily = OverlayTypography.Text,
+                FontSize = 11,
+                FontWeight = FontWeights.Medium,
+                TextWrapping = TextWrapping.Wrap,
+            });
+            entry.Children.Add(new TextBlock
+            {
+                Text = ResetFeedPresentation.AnnouncementText(announcement),
+                FontFamily = OverlayTypography.Text,
+                FontSize = 10.5,
+                TextWrapping = TextWrapping.Wrap,
+                Tag = "secondary",
+                Margin = new Thickness(0, 4, 0, 6),
+            });
+            ResetAnnouncementsPanel.Children.Add(entry);
+        }
+        ApplySystemAppearance();
+    }
 
     internal void PlayEntrance((double X, double Y) offset)
     {
@@ -293,12 +327,18 @@ public partial class QuotaPopoverWindow : Window
             : "可用";
     }
 
+    internal void SetMaterialTransparency(int value)
+    {
+        materialTransparency = Math.Clamp(value, 0, 100);
+        ApplySystemAppearance();
+    }
+
     private void OnSystemParametersChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs eventArgs) => ApplySystemAppearance();
 
     private void ApplySystemAppearance()
     {
         var opaque = CapsuleThemePolicy.Resolve(SystemParameters.HighContrast, SystemParameters.IsGlassEnabled) == CapsuleSurfaceMode.OpaqueSystem;
-        GlassBorder.Background = opaque ? System.Windows.SystemColors.WindowBrush : normalGlassBackground;
+        GlassBorder.Background = opaque ? System.Windows.SystemColors.WindowBrush : OverlayGlassMaterial.WithTransparency(normalGlassBackground, materialTransparency);
         GlassBorder.BorderBrush = opaque ? System.Windows.SystemColors.ActiveBorderBrush : OverlayGlassMaterial.Border;
         BackdropLayer.Background = opaque ? System.Windows.SystemColors.WindowBrush : normalBackdropBackground;
         SetBlurEnabled(!opaque);
@@ -316,7 +356,7 @@ public partial class QuotaPopoverWindow : Window
                 : Equals(text.Tag, "secondary") ? new SolidColorBrush(System.Windows.Media.Color.FromRgb(174, 174, 178))
                 : System.Windows.Media.Brushes.White;
         }
-        foreach (var text in FindTextBlocks(RowsPanel).Append(QuotaHeading))
+        foreach (var text in FindTextBlocks(RowsPanel).Concat(FindResetElements<TextBlock>(ResetSection)).Append(QuotaHeading))
         {
             text.Foreground = opaque
                 ? System.Windows.SystemColors.WindowTextBrush
@@ -325,6 +365,11 @@ public partial class QuotaPopoverWindow : Window
         }
         CloseButton.Foreground = RefreshButton.Foreground = opaque ? System.Windows.SystemColors.ControlTextBrush : System.Windows.Media.Brushes.White;
         CloseButton.Background = RefreshButton.Background = opaque ? System.Windows.SystemColors.ControlBrush : new SolidColorBrush(System.Windows.Media.Color.FromArgb(44, 255, 255, 255));
+        foreach (var button in FindResetElements<System.Windows.Controls.Button>(ResetSection))
+        {
+            button.Foreground = opaque ? System.Windows.SystemColors.ControlTextBrush : System.Windows.Media.Brushes.White;
+            button.Background = opaque ? System.Windows.SystemColors.ControlBrush : new SolidColorBrush(System.Windows.Media.Color.FromArgb(44, 255, 255, 255));
+        }
         OpenCodexButton.Foreground = opaque ? System.Windows.SystemColors.HighlightTextBrush : new SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 17, 19));
         OpenCodexButton.Background = opaque ? System.Windows.SystemColors.HighlightBrush : new SolidColorBrush(System.Windows.Media.Color.FromRgb(242, 242, 244));
     }
@@ -370,6 +415,15 @@ public partial class QuotaPopoverWindow : Window
             {
                 yield return descendant;
             }
+        }
+    }
+
+    private static IEnumerable<T> FindResetElements<T>(DependencyObject parent) where T : DependencyObject
+    {
+        foreach (var child in LogicalTreeHelper.GetChildren(parent).OfType<DependencyObject>())
+        {
+            if (child is T match) yield return match;
+            foreach (var descendant in FindResetElements<T>(child)) yield return descendant;
         }
     }
 

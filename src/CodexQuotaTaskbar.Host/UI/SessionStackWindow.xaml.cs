@@ -49,6 +49,7 @@ public partial class SessionStackWindow : Window
     private CodexSessionsSnapshot snapshot = CodexSessionsSnapshot.Empty;
     private ScreenRect physicalBounds;
     private bool expanded;
+    private int materialTransparency;
     private double scrollTarget;
     private int sessionTransitionGeneration;
     private DispatcherTimer? sessionTransitionTimer;
@@ -193,15 +194,27 @@ public partial class SessionStackWindow : Window
     internal static double GlassMaskToggleTop(int totalCount, bool isExpanded) =>
         CalculateHeight(totalCount, isExpanded) - ToggleHeight;
 
-    internal static LinearGradientBrush CreateSessionSurfaceBrush() => OverlayGlassMaterial.CreateSurfaceBrush();
+    internal void SetMaterialTransparency(int value)
+    {
+        materialTransparency = Math.Clamp(value, 0, 100);
+        ApplySystemAppearance();
+    }
 
-    internal static LinearGradientBrush CreateCollapsedLayerSurfaceBrush(int layer) => layer <= 1
-        ? CreateNeutralGradient(
-            MediaColor.FromArgb(184, 58, 58, 60),
-            MediaColor.FromArgb(168, 44, 44, 46))
+    internal static LinearGradientBrush CreateSessionSurfaceBrush(int transparencyPercent = 0) =>
+        OverlayGlassMaterial.CreateSurfaceBrush(transparencyPercent);
+
+    internal static LinearGradientBrush CreateCollapsedLayerSurfaceBrush(int layer, int transparencyPercent = 0)
+    {
+        var brush = layer <= 1 ? CreateNeutralGradient(
+            MediaColor.FromRgb(58, 58, 60),
+            MediaColor.FromRgb(44, 44, 46))
         : CreateNeutralGradient(
-            MediaColor.FromArgb(168, 52, 52, 54),
-            MediaColor.FromArgb(152, 40, 40, 42));
+            MediaColor.FromRgb(52, 52, 54),
+            MediaColor.FromRgb(40, 40, 42));
+        brush.Opacity = OverlayGlassMaterial.MaterialOpacity(transparencyPercent);
+        brush.Freeze();
+        return brush;
+    }
 
     internal static bool ShouldEnableGlass(bool elementIsLoaded, bool opaque) => elementIsLoaded && !opaque;
 
@@ -714,8 +727,9 @@ public partial class SessionStackWindow : Window
         Opacity = 0.44,
     };
 
-    private static Border CreateCollapsedLayerGhost(int layer, bool opaque) => new()
+    private Border CreateCollapsedLayerGhost(int layer, bool opaque) => new()
     {
+        Tag = layer,
         Width = layer == 1 ? 334 : 324,
         Height = CardHeight,
         Margin = new Thickness(0, layer == 1 ? 22 : 28, 0, 0),
@@ -723,7 +737,7 @@ public partial class SessionStackWindow : Window
         CornerRadius = new CornerRadius(29),
         Background = opaque
             ? WpfSystemColors.WindowBrush
-            : CreateCollapsedLayerSurfaceBrush(layer),
+            : CreateCollapsedLayerSurfaceBrush(layer, materialTransparency),
         BorderBrush = opaque
             ? WpfSystemColors.ActiveBorderBrush
             : new SolidColorBrush(layer == 1 ? MediaColor.FromArgb(59, 255, 255, 255) : MediaColor.FromArgb(46, 255, 255, 255)),
@@ -842,23 +856,30 @@ public partial class SessionStackWindow : Window
     {
         var opaque = CapsuleThemePolicy.Resolve(SystemParameters.HighContrast, SystemParameters.IsGlassEnabled) == CapsuleSurfaceMode.OpaqueSystem;
         ShadowSlots.Visibility = opaque ? Visibility.Collapsed : Visibility.Visible;
-        foreach (var button in SessionsPanel.Children.OfType<Button>())
+        Resources["SessionPressedSurface"] = opaque ? WpfSystemColors.ControlBrush
+            : OverlayGlassMaterial.WithTransparency(new SolidColorBrush(MediaColor.FromRgb(44, 44, 46)), materialTransparency);
+        foreach (var button in SessionsPanel.Children.OfType<Button>().Concat(CardTransitionOverlay.Children.OfType<Button>()))
         {
             ApplySessionButtonAppearance(button, opaque);
         }
+        foreach (var ghost in LayerTransitionOverlay.Children.OfType<Border>())
+        {
+            if (ghost.Tag is int layer)
+                ghost.Background = opaque ? WpfSystemColors.WindowBrush : CreateCollapsedLayerSurfaceBrush(layer, materialTransparency);
+        }
         ConfigureGlassCapture(!opaque);
-        CollapsedMiddleLayer.Background = opaque ? WpfSystemColors.WindowBrush : CreateCollapsedLayerSurfaceBrush(1);
-        CollapsedBackLayer.Background = opaque ? WpfSystemColors.WindowBrush : CreateCollapsedLayerSurfaceBrush(2);
+        CollapsedMiddleLayer.Background = opaque ? WpfSystemColors.WindowBrush : CreateCollapsedLayerSurfaceBrush(1, materialTransparency);
+        CollapsedBackLayer.Background = opaque ? WpfSystemColors.WindowBrush : CreateCollapsedLayerSurfaceBrush(2, materialTransparency);
         CollapsedMiddleLayer.BorderBrush = opaque ? WpfSystemColors.ActiveBorderBrush : new SolidColorBrush(MediaColor.FromArgb(68, 255, 255, 255));
         CollapsedBackLayer.BorderBrush = opaque ? WpfSystemColors.ActiveBorderBrush : new SolidColorBrush(MediaColor.FromArgb(54, 255, 255, 255));
-        ExpandButton.Background = opaque ? WpfSystemColors.ControlBrush : CreateSessionSurfaceBrush();
+        ExpandButton.Background = opaque ? WpfSystemColors.ControlBrush : CreateSessionSurfaceBrush(materialTransparency);
         ExpandButton.BorderBrush = opaque ? WpfSystemColors.ActiveBorderBrush : new SolidColorBrush(MediaColor.FromArgb(88, 255, 255, 255));
         ExpandChevron.Stroke = opaque ? WpfSystemColors.ControlTextBrush : System.Windows.Media.Brushes.White;
     }
 
     private void ApplySessionButtonAppearance(Button button, bool opaque)
     {
-        button.Background = opaque ? WpfSystemColors.WindowBrush : CreateSessionSurfaceBrush();
+        button.Background = opaque ? WpfSystemColors.WindowBrush : CreateSessionSurfaceBrush(materialTransparency);
         button.BorderBrush = opaque ? WpfSystemColors.ActiveBorderBrush : OverlayGlassMaterial.Border;
         foreach (var text in FindTextBlocks(button))
         {

@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 using CodexQuotaTaskbar.Host.Platform;
 using CodexQuotaTaskbar.Host.Settings;
 using FrostedBlur = BlurredBackground.WPF.BlurredBackground;
@@ -19,6 +20,9 @@ public partial class TrayMenuWindow : Window
     private readonly MediaBrush normalBackdropBackground;
     private bool activationEstablished;
     private bool blurReady;
+    private bool applyingSettings;
+    private bool materialTransparencyPending;
+    private readonly DispatcherTimer materialSaveTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private AppSettings settings;
 
     internal TrayMenuWindow(AppSettings settings)
@@ -27,17 +31,20 @@ public partial class TrayMenuWindow : Window
         InitializeComponent();
         normalGlassBackground = GlassBorder.Background;
         normalBackdropBackground = BackdropLayer.Background;
+        materialSaveTimer.Tick += (_, _) => FlushMaterialTransparencyChange();
+        MaterialTransparencySlider.ValueChanged += (_, _) => OnMaterialTransparencyChanged();
+        IsVisibleChanged += (_, _) => { if (!IsVisible) FlushMaterialTransparencyChange(); };
         VersionText.Text = $"v{ProductVersion.Text}";
         RefreshButton.Click += (_, _) => InvokeAndHide(RefreshRequested);
         CheckUpdatesButton.Click += (_, _) => InvokeAndHide(CheckUpdatesRequested);
         OpenCodexButton.Click += (_, _) => InvokeAndHide(OpenCodexRequested);
         SubscriptionLoginButton.Click += (_, _) => InvokeAndHide(OpenSubscriptionLoginRequested);
         ExitButton.Click += (_, _) => InvokeAndHide(ExitRequested);
-        AllTaskbarsButton.Click += (_, _) => RequestSettings(settings with { ShowAllTaskbars = !settings.ShowAllTaskbars });
-        NotificationsButton.Click += (_, _) => RequestSettings(settings with { LowQuotaNotifications = !settings.LowQuotaNotifications });
-        AutomaticUpdatesButton.Click += (_, _) => RequestSettings(settings with { AutomaticUpdates = !settings.AutomaticUpdatesEnabled });
-        SubscriptionDetailsButton.Click += (_, _) => RequestSettings(settings with { SubscriptionDetails = !settings.SubscriptionDetailsEnabled });
-        AutostartButton.Click += (_, _) => RequestSettings(settings with { StartWithWindows = !settings.StartWithWindows });
+        AllTaskbarsButton.Click += (_, _) => RequestSettings(this.settings with { ShowAllTaskbars = !this.settings.ShowAllTaskbars });
+        NotificationsButton.Click += (_, _) => RequestSettings(this.settings with { LowQuotaNotifications = !this.settings.LowQuotaNotifications });
+        AutomaticUpdatesButton.Click += (_, _) => RequestSettings(this.settings with { AutomaticUpdates = !this.settings.AutomaticUpdatesEnabled });
+        SubscriptionDetailsButton.Click += (_, _) => RequestSettings(this.settings with { SubscriptionDetails = !this.settings.SubscriptionDetailsEnabled });
+        AutostartButton.Click += (_, _) => RequestSettings(this.settings with { StartWithWindows = !this.settings.StartWithWindows });
         Loaded += (_, _) =>
         {
             blurReady = true;
@@ -59,7 +66,12 @@ public partial class TrayMenuWindow : Window
             }
         };
         SystemParameters.StaticPropertyChanged += OnSystemParametersChanged;
-        Closed += (_, _) => SystemParameters.StaticPropertyChanged -= OnSystemParametersChanged;
+        Closed += (_, _) =>
+        {
+            FlushMaterialTransparencyChange();
+            materialSaveTimer.Stop();
+            SystemParameters.StaticPropertyChanged -= OnSystemParametersChanged;
+        };
         ApplySettings(settings);
     }
 
@@ -68,11 +80,17 @@ public partial class TrayMenuWindow : Window
     internal event EventHandler? OpenCodexRequested;
     internal event EventHandler? OpenSubscriptionLoginRequested;
     internal event EventHandler<AppSettings>? SettingsChangeRequested;
+    internal event EventHandler<int>? MaterialTransparencyPreviewRequested;
     internal event EventHandler? ExitRequested;
 
     internal void ApplySettings(AppSettings value)
     {
         settings = value;
+        applyingSettings = true;
+        MaterialTransparencySlider.Value = value.EffectiveMaterialTransparencyPercent;
+        MaterialTransparencyValue.Text = $"{value.EffectiveMaterialTransparencyPercent}%";
+        applyingSettings = false;
+        ApplyMaterialAppearance();
         ApplyToggle(AllTaskbarsTrack, AllTaskbarsKnob, value.ShowAllTaskbars);
         ApplyToggle(NotificationsTrack, NotificationsKnob, value.LowQuotaNotifications);
         ApplyToggle(AutomaticUpdatesTrack, AutomaticUpdatesKnob, value.AutomaticUpdatesEnabled);
@@ -93,9 +111,12 @@ public partial class TrayMenuWindow : Window
         UpdateLayout();
         var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
         var dpi = Math.Max(96u, NativeMethods.GetDpiForWindow(handle));
+        var workArea = System.Windows.Forms.Screen.FromPoint(cursor).WorkingArea;
+        MaxHeight = Math.Max(1, (workArea.Height - 16) * 96d / dpi);
+        UpdateLayout();
         var width = checked((int)Math.Ceiling(ActualWidth * dpi / 96d));
         var height = checked((int)Math.Ceiling(ActualHeight * dpi / 96d));
-        var bounds = CalculateBounds(System.Windows.Forms.Screen.FromPoint(cursor).WorkingArea, cursor, new System.Drawing.Size(width, height), anchorGap);
+        var bounds = CalculateBounds(workArea, cursor, new System.Drawing.Size(width, height), anchorGap);
         _ = NativeMethods.SetWindowPos(handle, NativeMethods.HwndTopmost, bounds.X, bounds.Y, bounds.Width, bounds.Height, NativeMethods.SwpShowWindow);
         Activate();
         Focus();
@@ -104,6 +125,8 @@ public partial class TrayMenuWindow : Window
     internal static System.Drawing.Rectangle CalculateBounds(System.Drawing.Rectangle workArea, System.Drawing.Point cursor, System.Drawing.Size menuSize, int anchorGap = 8)
     {
         const int screenMargin = 8;
+        menuSize = new System.Drawing.Size(Math.Min(menuSize.Width, Math.Max(1, workArea.Width - 2 * screenMargin)),
+            Math.Min(menuSize.Height, Math.Max(1, workArea.Height - 2 * screenMargin)));
         var left = Math.Clamp(cursor.X - menuSize.Width + 18, workArea.Left + screenMargin, workArea.Right - menuSize.Width - screenMargin);
         var above = cursor.Y - menuSize.Height - anchorGap;
         var top = above >= workArea.Top + screenMargin ? above : cursor.Y + anchorGap;
@@ -113,8 +136,45 @@ public partial class TrayMenuWindow : Window
 
     private void RequestSettings(AppSettings value)
     {
+        FlushMaterialTransparencyChange();
         ApplySettings(value);
         SettingsChangeRequested?.Invoke(this, value);
+    }
+
+    private void OnMaterialTransparencyChanged()
+    {
+        if (applyingSettings) return;
+        var value = (int)Math.Round(MaterialTransparencySlider.Value);
+        settings = settings with { MaterialTransparencyPercent = value };
+        MaterialTransparencyValue.Text = $"{value}%";
+        ApplyMaterialAppearance();
+        MaterialTransparencyPreviewRequested?.Invoke(this, value);
+        materialTransparencyPending = true;
+        materialSaveTimer.Stop();
+        materialSaveTimer.Start();
+    }
+
+    internal void FlushMaterialTransparencyChange()
+    {
+        materialSaveTimer.Stop();
+        if (!materialTransparencyPending) return;
+        materialTransparencyPending = false;
+        SettingsChangeRequested?.Invoke(this, settings);
+    }
+
+    private void ApplyMaterialAppearance()
+    {
+        var opaque = CapsuleThemePolicy.Resolve(SystemParameters.HighContrast, SystemParameters.IsGlassEnabled) == CapsuleSurfaceMode.OpaqueSystem;
+        GlassBorder.Background = opaque ? System.Windows.SystemColors.WindowBrush
+            : OverlayGlassMaterial.WithTransparency(normalGlassBackground, settings.EffectiveMaterialTransparencyPercent);
+        MaterialTransparencySlider.IsEnabled = !opaque;
+        MaterialTransparencySlider.Foreground = opaque ? System.Windows.SystemColors.WindowTextBrush : ToggleOn;
+        MaterialTransparencySlider.Background = opaque ? System.Windows.SystemColors.ControlDarkBrush : ToggleOff;
+        MaterialTransparencyLabel.Foreground = MaterialTransparencyValue.Foreground = opaque
+            ? System.Windows.SystemColors.WindowTextBrush : MediaBrushes.White;
+        MaterialTransparencyHint.Foreground = opaque ? System.Windows.SystemColors.WindowTextBrush
+            : new SolidColorBrush(MediaColor.FromArgb(184, 255, 255, 255));
+        MaterialTransparencyHint.Text = opaque ? "系统已关闭透明效果，设置仍会保留" : "0% 不透明 · 100% 全透明";
     }
 
     private void InvokeAndHide(EventHandler? handler)
@@ -141,7 +201,7 @@ public partial class TrayMenuWindow : Window
     {
         var opaque = CapsuleThemePolicy.Resolve(SystemParameters.HighContrast, SystemParameters.IsGlassEnabled) == CapsuleSurfaceMode.OpaqueSystem;
         GlassBorder.Background = opaque ? System.Windows.SystemColors.WindowBrush : normalGlassBackground;
-        GlassBorder.BorderBrush = opaque ? System.Windows.SystemColors.ActiveBorderBrush : new SolidColorBrush(MediaColor.FromArgb(76, 255, 255, 255));
+        GlassBorder.BorderBrush = opaque ? System.Windows.SystemColors.ActiveBorderBrush : OverlayGlassMaterial.Border;
         BackdropLayer.Background = opaque ? System.Windows.SystemColors.WindowBrush : normalBackdropBackground;
         TitleText.Foreground = opaque ? System.Windows.SystemColors.WindowTextBrush : MediaBrushes.White;
         RunningText.Foreground = VersionText.Foreground = opaque
@@ -168,12 +228,12 @@ public partial class TrayMenuWindow : Window
 
     private void SetBlurEnabled(bool enabled)
     {
-        if (blurReady && FrostedBlur.GetEnableBlur(GlassBorder) != enabled)
+        if (blurReady && FrostedBlur.GetEnableBlur(BackdropLayer) != enabled)
         {
-            FrostedBlur.SetBlurRadius(GlassBorder, 22);
-            FrostedBlur.SetMerging(GlassBorder, 0.94);
-            FrostedBlur.SetDpi(GlassBorder, 48);
-            FrostedBlur.SetEnableBlur(GlassBorder, enabled);
+            FrostedBlur.SetBlurRadius(BackdropLayer, OverlayGlassMaterial.BlurRadius);
+            FrostedBlur.SetMerging(BackdropLayer, OverlayGlassMaterial.Merging);
+            FrostedBlur.SetDpi(BackdropLayer, 48);
+            FrostedBlur.SetEnableBlur(BackdropLayer, enabled);
         }
     }
 

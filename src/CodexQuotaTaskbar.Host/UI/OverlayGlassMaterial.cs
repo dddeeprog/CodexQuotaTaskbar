@@ -15,15 +15,28 @@ public static class OverlayGlassMaterial
     public static WpfBrush HoverSurface => Surface;
     public static WpfBrush Border { get; } = CreateBorderBrush();
 
-    internal static LinearGradientBrush CreateSurfaceBrush()
+    internal static double MaterialOpacity(int transparencyPercent) =>
+        1d - Math.Clamp(transparencyPercent, 0, 100) / 100d;
+
+    internal static WpfBrush WithTransparency(WpfBrush source, int transparencyPercent)
+    {
+        if (MaterialOpacity(transparencyPercent) == 1 && source.Opacity == 1) return source;
+        var brush = source.CloneCurrentValue();
+        brush.Opacity = MaterialOpacity(transparencyPercent);
+        brush.Freeze();
+        return brush;
+    }
+
+    internal static LinearGradientBrush CreateSurfaceBrush(int transparencyPercent = 0)
     {
         var brush = new LinearGradientBrush
         {
             StartPoint = new WpfPoint(0, 0),
             EndPoint = new WpfPoint(0, 1),
+            Opacity = MaterialOpacity(transparencyPercent),
         };
-        brush.GradientStops.Add(new GradientStop(WpfColor.FromArgb(136, 58, 58, 60), 0));
-        brush.GradientStops.Add(new GradientStop(WpfColor.FromArgb(116, 48, 48, 50), 1));
+        brush.GradientStops.Add(new GradientStop(WpfColor.FromRgb(58, 58, 60), 0));
+        brush.GradientStops.Add(new GradientStop(WpfColor.FromRgb(48, 48, 50), 1));
         brush.Freeze();
         return brush;
     }

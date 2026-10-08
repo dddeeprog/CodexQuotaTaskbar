@@ -7,13 +7,14 @@
         ResizeMode="NoResize" ShowInTaskbar="False" ShowActivated="False"
         SnapsToDevicePixels="True">
   <Window.Resources>
+    <SolidColorBrush x:Key="SessionPressedSurface" Color="#FF2C2C2E"/>
     <LinearGradientBrush x:Key="CollapsedMiddleGlassSurface" StartPoint="0,0" EndPoint="0,1">
-      <GradientStop Color="#B83A3A3C" Offset="0"/>
-      <GradientStop Color="#A82C2C2E" Offset="1"/>
+      <GradientStop Color="#FF3A3A3C" Offset="0"/>
+      <GradientStop Color="#FF2C2C2E" Offset="1"/>
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="CollapsedBackGlassSurface" StartPoint="0,0" EndPoint="0,1">
-      <GradientStop Color="#A8343436" Offset="0"/>
-      <GradientStop Color="#9828282A" Offset="1"/>
+      <GradientStop Color="#FF343436" Offset="0"/>
+      <GradientStop Color="#FF28282A" Offset="1"/>
     </LinearGradientBrush>
     <Style x:Key="SessionPill" TargetType="Button">
       <Setter Property="Width" Value="344"/>
@@ -42,11 +43,11 @@
             </Grid>
             <ControlTemplate.Triggers>
               <Trigger Property="IsMouseOver" Value="True">
-                <Setter TargetName="Chrome" Property="Background" Value="{x:Static ui:OverlayGlassMaterial.HoverSurface}"/>
+                <Setter TargetName="Chrome" Property="Background" Value="{Binding Background, RelativeSource={RelativeSource TemplatedParent}}"/>
                 <Setter TargetName="Chrome" Property="BorderBrush" Value="#58FFFFFF"/>
               </Trigger>
               <Trigger Property="IsPressed" Value="True">
-                <Setter TargetName="Chrome" Property="Opacity" Value="0.76"/>
+                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource SessionPressedSurface}"/>
               </Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
@@ -69,8 +70,8 @@
               <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Border>
             <ControlTemplate.Triggers>
-              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{x:Static ui:OverlayGlassMaterial.HoverSurface}"/></Trigger>
-              <Trigger Property="IsPressed" Value="True"><Setter TargetName="Chrome" Property="Opacity" Value="0.7"/></Trigger>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{Binding Background, RelativeSource={RelativeSource TemplatedParent}}"/></Trigger>
+              <Trigger Property="IsPressed" Value="True"><Setter TargetName="Chrome" Property="Background" Value="{DynamicResource SessionPressedSurface}"/></Trigger>
             </ControlTemplate.Triggers>
           </ControlTemplate>
         </Setter.Value>

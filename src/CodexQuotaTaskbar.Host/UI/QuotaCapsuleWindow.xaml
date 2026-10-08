@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="clr-namespace:CodexQuotaTaskbar.Host.UI"
-        Title="Codex 额度" Width="306" Height="92"
+        Title="Codex 额度" Width="306" Height="112"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ResizeMode="NoResize" ShowInTaskbar="False" ShowActivated="False"
         SnapsToDevicePixels="True">
@@ -10,7 +10,7 @@
   THESIS: Codex quota is a glanceable frosted taskbar surface, not a dashboard card.
   OWN-WORLD: native WPF background blur, quiet cyan status, precise paired rails.
   STORY: see two remaining windows; click for reset details; right-click for control.
-  FIRST VIEWPORT: 272x48 capsule with an overlapping numeric activity badge inside a 12-DIP shadow-safe window, 38-DIP squircle mark left, two quota rows right.
+  FIRST VIEWPORT: 272x68 capsule, existing paired quota rows above a quiet public-reset summary; the numeric activity badge and shadow-safe insets stay intact.
   FORM: native frosted glass powered by BlurredBackground.WPF.
   -->
   <Window.Resources>
@@ -50,6 +50,10 @@
             Background="{x:Static ui:OverlayGlassMaterial.Surface}"
             BorderBrush="{x:Static ui:OverlayGlassMaterial.Border}" BorderThickness="1">
     <Grid Margin="8,5,14,5">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="38" />
+        <RowDefinition Height="18" />
+      </Grid.RowDefinitions>
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="38" />
         <ColumnDefinition Width="10" />
@@ -83,6 +87,18 @@
           <TextBlock x:Name="SecondValue" Grid.Column="2" Foreground="#FAFFFFFF" FontFamily="{x:Static ui:OverlayTypography.Number}" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center" />
         </Grid>
       </Grid>
+      <Grid Grid.Row="1" Grid.ColumnSpan="3" Margin="5,0,0,0">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <TextBlock x:Name="ResetSummaryText"
+                 Text="最近重置 · 正在读取…" Foreground="#D8D8DC"
+                 FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="9.5"
+                 VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+      <TextBlock x:Name="ResetSourceText" Grid.Column="1" Margin="6,0,0,0" VerticalAlignment="Center"
+                 FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="8.5" Foreground="#D8D8DC">
+        <Hyperlink x:Name="ResetSourceLink" Foreground="{Binding Foreground, ElementName=ResetSourceText}" TextDecorations="None"
+                   AutomationProperties.Name="来源 Codex Resets，打开网站">Codex Resets</Hyperlink>
+      </TextBlock>
+      </Grid>
     </Grid>
     </Border>
     <Border x:Name="SessionBadge" MinWidth="22" Height="22" CornerRadius="11" Padding="3,1"
@@ -92,9 +108,9 @@
       <Border.RenderTransform><ScaleTransform x:Name="SessionBadgeScale"/></Border.RenderTransform>
       <Border.Background>
         <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-          <GradientStop Color="#A838383C" Offset="0"/>
-          <GradientStop Color="#A0171719" Offset="0.56"/>
-          <GradientStop Color="#A829292D" Offset="1"/>
+          <GradientStop Color="#FF38383C" Offset="0"/>
+          <GradientStop Color="#FF171719" Offset="0.56"/>
+          <GradientStop Color="#FF29292D" Offset="1"/>
         </LinearGradientBrush>
       </Border.Background>
       <Border.Effect>

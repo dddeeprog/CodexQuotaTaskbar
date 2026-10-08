@@ -1,5 +1,12 @@
 # Third-Party Notices
 
+## Codex Resets public data
+
+- Data source and attribution: [Codex Resets](https://codex-resets.com/zh-CN)
+- API documentation: https://codex-resets.com/api/docs
+- Use: latest public reset announcements and the site's Chinese display text, matched to the canonical API by event identity; no third-party source code is included. The app retains linked Codex Resets credit but does not display X links.
+- The public API is free to use without a key and requests a linked credit wherever its data is displayed. The island and details both include this credit. Announcement text remains attributed to its original source; API availability and accuracy are not guaranteed by this application.
+
 ## Microsoft.Web.WebView2
 
 - Package: https://www.nuget.org/packages/Microsoft.Web.WebView2/1.0.4258.31
