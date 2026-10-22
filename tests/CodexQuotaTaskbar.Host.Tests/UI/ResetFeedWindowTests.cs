@@ -16,13 +16,72 @@ namespace CodexQuotaTaskbar.Host.Tests.UI;
 public sealed class ResetFeedWindowTests
 {
     [Theory]
+    [InlineData(108)]
+    [InlineData(144)]
+    public void Account_summary_preserves_values_without_metadata_or_reserved_footer_space(int dpi)
+    {
+        RunInSta(() =>
+        {
+            var window = new QuotaPopoverWindow();
+            try
+            {
+                var checkedAt = DateTimeOffset.Parse("2026-10-08T19:16:00+08:00");
+                var available = SubscriptionExpirationSnapshot.Available(
+                    checkedAt.AddMonths(1), checkedAt, SubscriptionExpirationSource.ChatGptWeb);
+                SubscriptionExpirationSnapshot[] states = [
+                    available, available.AsStale(),
+                    SubscriptionExpirationSnapshot.NotProvided(checkedAt, SubscriptionExpirationSource.ChatGptSubscription),
+                    SubscriptionExpirationSnapshot.Unavailable(checkedAt, SubscriptionExpirationSource.ChatGptSubscription),
+                    SubscriptionExpirationSnapshot.Disabled(),
+                ];
+                foreach (var state in states)
+                {
+                    window.Apply(CreateQuota().WithSubscriptionExpiration(state));
+                    Layout(window, dpi);
+                    Assert.Null(window.FindName("ExpiryMetaText"));
+                    Assert.Null(window.FindName("StatusText"));
+                    Assert.Null(window.FindName("QuotaHeading"));
+                    var summary = Named<Border>(window, "AccountSummaryBorder");
+                    var grid = Assert.IsType<Grid>(summary.Child);
+                    Assert.Equal(3, grid.RowDefinitions.Count);
+                    var text = Descendants<TextBlock>(summary).ToArray();
+                    Assert.Equal(6, text.Length);
+                    Assert.Equal("PRO 5X", Named<TextBlock>(window, "PlanText").Text);
+                    Assert.Equal(QuotaPopoverWindow.FormatMembershipExpiration(state), Named<TextBlock>(window, "ExpiryText").Text);
+                    Assert.Equal("120", Named<TextBlock>(window, "ExtraCreditsText").Text);
+                    Assert.DoesNotContain(text, item => item.Text.Contains("来源：", StringComparison.Ordinal)
+                        || item.Text.Contains("更新于", StringComparison.Ordinal)
+                        || item.Text.Contains("缓存", StringComparison.Ordinal));
+                    Assert.Equal(2, grid.ColumnDefinitions.Count);
+                    Assert.Equal(new Thickness(0), summary.BorderThickness);
+                    Assert.Equal(0, Assert.IsType<SolidColorBrush>(summary.Background).Color.A);
+                    var expiry = Named<TextBlock>(window, "ExpiryText");
+                    Assert.True(((Grid)expiry.Parent).ColumnDefinitions[1].ActualWidth > 180);
+                    Assert.True(grid.ActualHeight < 100);
+                    foreach (var row in Named<StackPanel>(window, "RowsPanel").Children.OfType<Border>())
+                    {
+                        Assert.Equal(new Thickness(0), row.BorderThickness);
+                        Assert.Equal(0, Assert.IsType<SolidColorBrush>(row.Background).Color.A);
+                    }
+                    Assert.DoesNotContain(Descendants<TextBlock>((DependencyObject)window.Content), item => item.Text == "USAGE");
+                    Assert.Equal(32, Named<Button>(window, "RefreshButton").Height);
+                }
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Theory]
     [InlineData("regular", 108, "常规")]
     [InlineData("banked", 144, "备用")]
     [InlineData("loading", 108, "正在读取")]
     [InlineData("stale", 144, "缓存")]
     [InlineData("unavailable", 108, "暂不可用")]
     [InlineData("empty", 144, "暂无公告")]
-    public void Island_keeps_both_quota_rows_and_fits_reset_summary(string state, int dpi, string expected)
+    public void Compact_island_keeps_quotas_but_leaves_reset_notices_in_details(string state, int dpi, string expected)
     {
         RunInSta(() =>
         {
@@ -33,43 +92,20 @@ public sealed class ResetFeedWindowTests
                 window.ApplyResets(CreateFeed(state));
                 var content = Layout(window, dpi, window.Height);
 
-                Assert.Equal(112, window.Height);
+                Assert.Equal(80, window.Height);
                 var glass = Named<Border>(window, "GlassBorder");
-                Assert.Equal(68, glass.ActualHeight, 2);
+                Assert.Equal(48, glass.ActualHeight, 2);
                 Assert.Equal("5 小时", Named<TextBlock>(window, "FirstLabel").Text);
                 Assert.Equal("7 天", Named<TextBlock>(window, "SecondLabel").Text);
                 Assert.Equal("72%", Named<TextBlock>(window, "FirstValue").Text);
                 Assert.Equal("41%", Named<TextBlock>(window, "SecondValue").Text);
                 Assert.Equal(Visibility.Visible, Named<Grid>(window, "SecondRow").Visibility);
 
-                var source = Named<TextBlock>(window, "ResetSourceText");
-                AssertPackagedFont(source);
-                Assert.Equal(8.5, source.FontSize);
-                var sourceLink = Assert.IsType<Hyperlink>(window.FindName("ResetSourceLink"));
-                Assert.Equal("Codex Resets", new TextRange(sourceLink.ContentStart, sourceLink.ContentEnd).Text);
-                Uri? openedSource = null;
-                var detailsRequested = false;
-                window.OpenResetSourceRequested += uri => openedSource = uri;
-                window.PrimaryInvoked += (_, _) => detailsRequested = true;
-                sourceLink.RaiseEvent(new RoutedEventArgs(Hyperlink.ClickEvent));
-                Assert.Equal(CodexResetFeedClient.SiteUri, openedSource);
-                Assert.False(detailsRequested);
+                Assert.Null(window.FindName("ResetSummaryText"));
+                Assert.Null(window.FindName("ResetSourceLink"));
                 Assert.False(window.IsUserDragging);
+                Assert.NotEmpty(expected);
                 SaveProof(content, $"island-{state}-{dpi}", dpi);
-
-                var summary = Named<TextBlock>(window, "ResetSummaryText");
-                Assert.Contains(expected, summary.Text, StringComparison.Ordinal);
-                Assert.Equal(9.5, summary.FontSize);
-                AssertPackagedFont(summary);
-                var fullText = new FormattedText(summary.Text, CultureInfo.CurrentUICulture,
-                    summary.FlowDirection, new Typeface(summary.FontFamily, summary.FontStyle,
-                        summary.FontWeight, summary.FontStretch), summary.FontSize, summary.Foreground, dpi / 96d);
-                Assert.True(fullText.WidthIncludingTrailingWhitespace <= summary.ActualWidth + 0.5,
-                    $"Summary was trimmed: {summary.Text}; required {fullText.WidthIncludingTrailingWhitespace:0.##} DIP, available {summary.ActualWidth:0.##} DIP.");
-                Assert.True(fullText.Height <= summary.ActualHeight + 0.5);
-                var bounds = summary.TransformToAncestor(glass).TransformBounds(new Rect(summary.RenderSize));
-                Assert.True(bounds.Top >= 0 && bounds.Bottom <= glass.ActualHeight);
-                Assert.True(bounds.Left >= 0 && bounds.Right <= glass.ActualWidth);
             }
             finally
             {
@@ -122,7 +158,7 @@ public sealed class ResetFeedWindowTests
                 AssertSuccessfulSectionStartsWithAnnouncements(window);
                 foreach (var text in Descendants<TextBlock>(section))
                 {
-                    AssertPackagedFont(text);
+                    AssertInterfaceFont(text);
                 }
 
                 var navigated = new List<Uri>();
@@ -138,7 +174,7 @@ public sealed class ResetFeedWindowTests
                 var scroll = Assert.Single(Descendants<ScrollViewer>(content));
                 Assert.Equal(ScrollBarVisibility.Hidden, scroll.VerticalScrollBarVisibility);
                 Assert.Equal(Visibility.Collapsed, scroll.ComputedVerticalScrollBarVisibility);
-                Assert.True(scroll.ActualHeight <= 340);
+                Assert.True(scroll.ActualHeight <= 400);
                 Assert.True(scroll.ScrollableHeight > 0);
                 Assert.True(scroll.ExtentHeight > scroll.ViewportHeight);
                 Assert.True(content.ActualHeight <= window.MaxHeight);
@@ -198,7 +234,7 @@ public sealed class ResetFeedWindowTests
                     Assert.Contains(expected, status.Text, StringComparison.Ordinal);
                     Assert.True(status.DesiredSize.Height > 0);
                     Assert.True(announcements.TransformToAncestor(section).Transform(new Point()).Y > 0);
-                    AssertPackagedFont(status);
+                    AssertInterfaceFont(status);
 
                     window.ApplyResets(CreateFeed("banked"));
                     var content = Layout(window, dpi);
@@ -274,6 +310,95 @@ public sealed class ResetFeedWindowTests
         return content;
     }
 
+    [Theory]
+    [InlineData(108)]
+    [InlineData(144)]
+    public void Details_group_account_quota_and_announcements_with_clear_boundaries(int dpi)
+    {
+        RunInSta(() =>
+        {
+            var window = new QuotaPopoverWindow();
+            try
+            {
+                window.Apply(CreateQuota());
+                window.ApplyResets(CreateFeed("banked"));
+                var content = Layout(window, dpi);
+                var scroll = Assert.Single(Descendants<ScrollViewer>(content));
+                var account = Named<StackPanel>(window, "AccountSection");
+                var quota = Named<StackPanel>(window, "QuotaSection");
+                var announcements = Named<StackPanel>(window, "AnnouncementsSection");
+                Assert.Same(account, Named<Border>(window, "AccountSummaryBorder").Parent);
+                Assert.Same(account, Named<Button>(window, "SubscriptionLoginButton").Parent);
+                Assert.Same(quota, Named<StackPanel>(window, "RowsPanel").Parent);
+                Assert.Same(announcements, Named<StackPanel>(window, "ResetSection").Parent);
+                var previousBottom = 0d;
+                foreach (var (group, name, label) in new[]
+                {
+                    (account, "AccountSectionTitle", "账户与订阅"),
+                    (quota, "QuotaSectionTitle", "额度"),
+                    (announcements, "AnnouncementsSectionTitle", "重置公告"),
+                })
+                {
+                    var title = Named<TextBlock>(window, name);
+                    Assert.Equal(label, title.Text);
+                    Assert.Equal(OverlayTypography.Interface, title.FontFamily);
+                    Assert.Same(group, title.Parent);
+                    var bounds = group.TransformToAncestor(scroll).TransformBounds(new Rect(group.RenderSize));
+                    Assert.True(bounds.Top >= previousBottom);
+                    previousBottom = bounds.Bottom;
+                    var titleBounds = title.TransformToAncestor(scroll).TransformBounds(new Rect(title.RenderSize));
+                    Assert.True(titleBounds.Bottom <= scroll.ViewportHeight, label + " should be discoverable on initial open.");
+                }
+                foreach (var name in new[] { "AccountSectionDivider", "QuotaSectionDivider" })
+                    Assert.Equal(new Thickness(0, 0, 0, 1), Named<Border>(window, name).BorderThickness);
+                Assert.True(content.ActualHeight <= window.MaxHeight);
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [Theory]
+    [InlineData(96)]
+    [InlineData(108)]
+    [InlineData(120)]
+    [InlineData(144)]
+    [InlineData(192)]
+    public void Section_dividers_render_visible_pixels_with_layout_rounding(int dpi)
+    {
+        RunInSta(() =>
+        {
+            var window = new QuotaPopoverWindow();
+            try
+            {
+                foreach (var name in new[] { "AccountSectionDivider", "QuotaSectionDivider" })
+                {
+                    var source = Named<Border>(window, name);
+                    // Render just the rule so text/background cannot hide a missing stroke.
+                    var rule = new Border
+                    {
+                        BorderThickness = source.BorderThickness,
+                        BorderBrush = source.BorderBrush,
+                        UseLayoutRounding = true,
+                        SnapsToDevicePixels = source.SnapsToDevicePixels,
+                    };
+                    VisualTreeHelper.SetRootDpi(rule, new DpiScale(dpi / 96d, dpi / 96d));
+                    rule.Measure(new Size(200, 8));
+                    rule.Arrange(new Rect(0, 0, 200, 8));
+                    rule.UpdateLayout();
+                    var bitmap = new RenderTargetBitmap((int)Math.Ceiling(200 * dpi / 96d),
+                        (int)Math.Ceiling(8 * dpi / 96d), dpi, dpi, PixelFormats.Pbgra32);
+                    bitmap.Render(rule);
+                    var pixels = new byte[bitmap.PixelWidth * bitmap.PixelHeight * 4];
+                    bitmap.CopyPixels(pixels, bitmap.PixelWidth * 4, 0);
+                    var maxAlpha = Enumerable.Range(0, bitmap.PixelHeight)
+                        .Max(y => pixels[(y * bitmap.PixelWidth + bitmap.PixelWidth / 2) * 4 + 3]);
+                    Assert.True(maxAlpha >= 64, $"{name} at {dpi} DPI has no visible rule: alpha={maxAlpha}.");
+                }
+            }
+            finally { window.Close(); }
+        });
+    }
+
     private static T Named<T>(Window window, string name) where T : FrameworkElement =>
         Assert.IsType<T>(window.FindName(name));
 
@@ -295,13 +420,12 @@ public sealed class ResetFeedWindowTests
             || text.Text.Contains("每15分钟检查", StringComparison.Ordinal));
     }
 
-    private static void AssertPackagedFont(TextBlock text)
+    private static void AssertInterfaceFont(TextBlock text)
     {
-        Assert.Equal(OverlayTypography.Text, text.FontFamily);
-        var typeface = new Typeface(text.FontFamily, text.FontStyle, text.FontWeight, text.FontStretch);
-        Assert.True(typeface.TryGetGlyphTypeface(out var glyph));
-        Assert.Equal("pack", glyph.FontUri.Scheme);
-        Assert.Contains("Noto Sans SC", glyph.FamilyNames.Values);
+        Assert.Equal(OverlayTypography.Interface, text.FontFamily);
+        // Some announcement text is below the scroll viewport and has no drawing yet.
+        // Actual system-font glyphs and clipping are verified in UnifiedTypographyTests.
+        Assert.Equal(TextFormattingMode.Ideal, TextOptions.GetTextFormattingMode(text));
     }
 
     private static IEnumerable<T> Descendants<T>(DependencyObject parent) where T : DependencyObject

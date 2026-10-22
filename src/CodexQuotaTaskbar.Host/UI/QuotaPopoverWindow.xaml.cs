@@ -85,7 +85,7 @@ public partial class QuotaPopoverWindow : Window
             entry.Children.Add(new TextBlock
             {
                 Text = $"{(announcement.IsObserved ? "社区观测 · " : string.Empty)}{ResetFeedPresentation.KindLabel(announcement.Kind)} · {announcement.AnnouncedAt.ToLocalTime():M月d日 HH:mm}",
-                FontFamily = OverlayTypography.Text,
+                FontFamily = OverlayTypography.Interface,
                 FontSize = 11,
                 FontWeight = FontWeights.Medium,
                 TextWrapping = TextWrapping.Wrap,
@@ -93,8 +93,8 @@ public partial class QuotaPopoverWindow : Window
             entry.Children.Add(new TextBlock
             {
                 Text = ResetFeedPresentation.AnnouncementText(announcement),
-                FontFamily = OverlayTypography.Text,
-                FontSize = 10.5,
+                FontFamily = OverlayTypography.Interface,
+                FontSize = 11,
                 TextWrapping = TextWrapping.Wrap,
                 Tag = "secondary",
                 Margin = new Thickness(0, 4, 0, 6),
@@ -171,11 +171,9 @@ public partial class QuotaPopoverWindow : Window
     private void Render()
     {
         var snapshot = quotaSnapshot;
-        StatusText.Text = snapshot.StatusText + (snapshot.CapturedAt is { } captured ? $" · {captured.ToLocalTime():HH:mm:ss}" : string.Empty);
         PlanText.Text = snapshot.SubscriptionPlan ?? "未知";
         ExpiryText.Text = FormatMembershipExpiration(snapshot.SubscriptionExpiration);
         ExpiryText.Tag = snapshot.SubscriptionExpiration.Availability == SubscriptionExpirationAvailability.Available ? null : "secondary";
-        ExpiryMetaText.Text = FormatMembershipExpirationMetadata(snapshot.SubscriptionExpiration);
         ExtraCreditsText.Text = FormatExtraCredits(snapshot.ExtraCredits);
         ExtraCreditsText.Tag = snapshot.ExtraCredits is null ? "secondary" : null;
         RowsPanel.Children.Clear();
@@ -199,18 +197,18 @@ public partial class QuotaPopoverWindow : Window
             {
                 Text = title,
                 Foreground = System.Windows.Media.Brushes.White,
-                FontFamily = OverlayTypography.Text,
-                FontSize = 12.5,
-                FontWeight = FontWeights.SemiBold,
+                FontFamily = OverlayTypography.Interface,
+                FontSize = 13,
+                FontWeight = FontWeights.Medium,
                 VerticalAlignment = VerticalAlignment.Center,
             });
             var value = new TextBlock
             {
                 Text = $"{window.RemainingPercent:0}%",
                 Foreground = System.Windows.Media.Brushes.White,
-                FontFamily = OverlayTypography.Number,
-                FontSize = 22,
-                FontWeight = FontWeights.SemiBold,
+                FontFamily = OverlayTypography.Interface,
+                FontSize = 20,
+                FontWeight = FontWeights.Normal,
                 VerticalAlignment = VerticalAlignment.Center,
             };
             Grid.SetColumn(value, 1);
@@ -221,12 +219,12 @@ public partial class QuotaPopoverWindow : Window
                 Text = $"{window.ResetsAt.ToLocalTime():M月d日 HH:mm} 重置",
                 Tag = "secondary",
                 Foreground = new SolidColorBrush(System.Windows.Media.Color.FromArgb(150, 215, 226, 236)),
-                FontFamily = OverlayTypography.Text,
-                FontSize = 10.5,
+                FontFamily = OverlayTypography.Interface,
+                FontSize = 11,
                 Margin = new Thickness(0, 3, 0, 0),
             };
             Grid.SetRow(reset, 1);
-            Grid.SetColumnSpan(reset, 2);
+            Grid.SetColumnSpan(reset, 1);
             panel.Children.Add(reset);
             var bar = new System.Windows.Controls.ProgressBar
             {
@@ -245,12 +243,11 @@ public partial class QuotaPopoverWindow : Window
             panel.Children.Add(bar);
             RowsPanel.Children.Add(new Border
             {
-                Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(22, 255, 255, 255)),
+                Background = System.Windows.Media.Brushes.Transparent,
                 BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromArgb(34, 255, 255, 255)),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(16),
-                Padding = new Thickness(14, 12, 14, 12),
-                Margin = new Thickness(0, 0, 0, 9),
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(0, 5, 0, 12),
+                Margin = new Thickness(0, 0, 0, 4),
                 Child = panel,
             });
         }
@@ -283,31 +280,6 @@ public partial class QuotaPopoverWindow : Window
             ? value.ToLocalTime().ToString("yyyy年M月d日", CultureInfo.GetCultureInfo("zh-CN"))
             : expiration.StatusText;
 
-    internal static string FormatMembershipExpirationMetadata(SubscriptionExpirationSnapshot expiration)
-    {
-        if (expiration.Availability == SubscriptionExpirationAvailability.Disabled)
-        {
-            return "可在托盘菜单中开启";
-        }
-
-        var source = expiration.Source switch
-        {
-            SubscriptionExpirationSource.CodexLogin => "Codex 登录信息",
-            SubscriptionExpirationSource.ChatGptSubscription => "ChatGPT 订阅服务",
-            SubscriptionExpirationSource.ChatGptWeb => "ChatGPT 网页登录",
-            _ => "尚无来源",
-        };
-        var checkedText = expiration.CheckedAt is { } checkedAt
-            ? $" · 更新于 {checkedAt.ToLocalTime():M月d日 HH:mm}"
-            : string.Empty;
-        var failureText = expiration.Availability == SubscriptionExpirationAvailability.Unavailable
-            && expiration.StatusText != "正在读取…"
-            ? " · 检查失败"
-            : string.Empty;
-        var staleText = expiration.IsStale ? " · 缓存" : string.Empty;
-        return $"来源：{source}{checkedText}{failureText}{staleText}";
-    }
-
     internal static string FormatExtraCredits(QuotaCreditsSnapshot? credits)
     {
         if (credits is null)
@@ -339,12 +311,16 @@ public partial class QuotaPopoverWindow : Window
     {
         var opaque = CapsuleThemePolicy.Resolve(SystemParameters.HighContrast, SystemParameters.IsGlassEnabled) == CapsuleSurfaceMode.OpaqueSystem;
         GlassBorder.Background = opaque ? System.Windows.SystemColors.WindowBrush : OverlayGlassMaterial.WithTransparency(normalGlassBackground, materialTransparency);
-        GlassBorder.BorderBrush = opaque ? System.Windows.SystemColors.ActiveBorderBrush : OverlayGlassMaterial.Border;
+        GlassBorder.BorderBrush = SystemParameters.HighContrast ? System.Windows.SystemColors.ActiveBorderBrush : OverlayGlassMaterial.Border;
         BackdropLayer.Background = opaque ? System.Windows.SystemColors.WindowBrush : normalBackdropBackground;
         SetBlurEnabled(!opaque);
         TitleText.Foreground = opaque ? System.Windows.SystemColors.WindowTextBrush : System.Windows.Media.Brushes.White;
-        StatusText.Foreground = opaque ? System.Windows.SystemColors.WindowTextBrush : new SolidColorBrush(System.Windows.Media.Color.FromRgb(174, 174, 178));
-        AccountSummaryBorder.Background = opaque ? System.Windows.SystemColors.ControlBrush : new SolidColorBrush(System.Windows.Media.Color.FromArgb(22, 255, 255, 255));
+        foreach (var title in new[] { AccountSectionTitle, QuotaSectionTitle, AnnouncementsSectionTitle })
+            title.Foreground = opaque ? System.Windows.SystemColors.WindowTextBrush : System.Windows.Media.Brushes.White;
+        AccountSectionDivider.BorderBrush = QuotaSectionDivider.BorderBrush = opaque
+            ? System.Windows.SystemColors.ActiveBorderBrush
+            : new SolidColorBrush(System.Windows.Media.Color.FromArgb(96, 255, 255, 255));
+        AccountSummaryBorder.Background = System.Windows.Media.Brushes.Transparent;
         AccountSummaryBorder.BorderBrush = opaque ? System.Windows.SystemColors.ActiveBorderBrush : new SolidColorBrush(System.Windows.Media.Color.FromArgb(34, 255, 255, 255));
         AccountDividerOne.Background = AccountDividerTwo.Background = opaque
             ? System.Windows.SystemColors.ActiveBorderBrush
@@ -352,11 +328,11 @@ public partial class QuotaPopoverWindow : Window
         foreach (var text in FindTextBlocks(AccountSummaryBorder))
         {
             text.Foreground = opaque
-                ? System.Windows.SystemColors.ControlTextBrush
+                ? System.Windows.SystemColors.WindowTextBrush
                 : Equals(text.Tag, "secondary") ? new SolidColorBrush(System.Windows.Media.Color.FromRgb(174, 174, 178))
                 : System.Windows.Media.Brushes.White;
         }
-        foreach (var text in FindTextBlocks(RowsPanel).Concat(FindResetElements<TextBlock>(ResetSection)).Append(QuotaHeading))
+        foreach (var text in FindTextBlocks(RowsPanel).Concat(FindResetElements<TextBlock>(ResetSection)))
         {
             text.Foreground = opaque
                 ? System.Windows.SystemColors.WindowTextBrush
@@ -364,11 +340,13 @@ public partial class QuotaPopoverWindow : Window
                 : System.Windows.Media.Brushes.White;
         }
         CloseButton.Foreground = RefreshButton.Foreground = opaque ? System.Windows.SystemColors.ControlTextBrush : System.Windows.Media.Brushes.White;
-        CloseButton.Background = RefreshButton.Background = opaque ? System.Windows.SystemColors.ControlBrush : new SolidColorBrush(System.Windows.Media.Color.FromArgb(44, 255, 255, 255));
+        CloseButton.Background = RefreshButton.Background = opaque ? System.Windows.SystemColors.ControlBrush : new SolidColorBrush(System.Windows.Media.Color.FromArgb(20, 255, 255, 255));
+        SubscriptionLoginButton.Foreground = opaque ? System.Windows.SystemColors.WindowTextBrush : new SolidColorBrush(System.Windows.Media.Color.FromRgb(194, 194, 198));
+        SubscriptionLoginButton.Background = System.Windows.Media.Brushes.Transparent;
         foreach (var button in FindResetElements<System.Windows.Controls.Button>(ResetSection))
         {
-            button.Foreground = opaque ? System.Windows.SystemColors.ControlTextBrush : System.Windows.Media.Brushes.White;
-            button.Background = opaque ? System.Windows.SystemColors.ControlBrush : new SolidColorBrush(System.Windows.Media.Color.FromArgb(44, 255, 255, 255));
+            button.Foreground = opaque ? System.Windows.SystemColors.WindowTextBrush : new SolidColorBrush(System.Windows.Media.Color.FromRgb(194, 194, 198));
+            button.Background = System.Windows.Media.Brushes.Transparent;
         }
         OpenCodexButton.Foreground = opaque ? System.Windows.SystemColors.HighlightTextBrush : new SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 17, 19));
         OpenCodexButton.Background = opaque ? System.Windows.SystemColors.HighlightBrush : new SolidColorBrush(System.Windows.Media.Color.FromRgb(242, 242, 244));
@@ -387,17 +365,16 @@ public partial class QuotaPopoverWindow : Window
 
     private static Border CreateEmptyState() => new()
     {
-        Background = new SolidColorBrush(System.Windows.Media.Color.FromArgb(22, 255, 255, 255)),
+        Background = System.Windows.Media.Brushes.Transparent,
         BorderBrush = new SolidColorBrush(System.Windows.Media.Color.FromArgb(34, 255, 255, 255)),
-        BorderThickness = new Thickness(1),
-        CornerRadius = new CornerRadius(16),
-        Padding = new Thickness(14),
+        BorderThickness = new Thickness(0),
+        Padding = new Thickness(0, 10, 0, 16),
         Child = new TextBlock
         {
             Text = "暂无可显示的额度窗口",
             Tag = "secondary",
             Foreground = System.Windows.Media.Brushes.White,
-            FontFamily = OverlayTypography.Text,
+            FontFamily = OverlayTypography.Interface,
             FontSize = 12,
         },
     };

@@ -7,11 +7,12 @@ public static class OverlayTypography
 {
     public const string TextFamilyBaseUri = "pack://application:,,,/CodexQuotaTaskbar;component/Assets/Fonts/";
     public const string TextFamilyName = "./#Noto Sans SC";
-    public const string NumberFamilyName = "Segoe UI Variable Display, Segoe UI";
 
     public static WpfFontFamily Text { get; } = CreateTextFamily();
     public static WpfFontFamily Display => Text;
-    public static WpfFontFamily Number { get; } = new(NumberFamilyName);
+    public static WpfFontFamily Number => Text;
+    // The approved lighter menu/detail design uses Windows UI faces; the island stays unchanged.
+    public static WpfFontFamily Interface { get; } = new("Segoe UI, Microsoft YaHei UI");
 
     private static WpfFontFamily CreateTextFamily()
     {

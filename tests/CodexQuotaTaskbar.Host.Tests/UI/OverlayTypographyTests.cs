@@ -7,7 +7,7 @@ namespace CodexQuotaTaskbar.Host.Tests.UI;
 public sealed class OverlayTypographyTests
 {
     [Fact]
-    public void Uses_a_modern_cjk_font_with_windows_fallback()
+    public void Uses_the_embedded_cjk_font_for_text_and_headings()
     {
         Assert.Contains("Assets/Fonts/", OverlayTypography.TextFamilyBaseUri);
         Assert.Equal("./#Noto Sans SC", OverlayTypography.TextFamilyName);
@@ -38,9 +38,9 @@ public sealed class OverlayTypographyTests
     }
 
     [Fact]
-    public void Keeps_numeric_readouts_compact()
+    public void Numeric_readouts_use_the_same_embedded_font_as_text()
     {
-        Assert.Equal("Segoe UI Variable Display, Segoe UI", OverlayTypography.NumberFamilyName);
-        Assert.Contains("Segoe UI Variable Display", OverlayTypography.Number.Source);
+        Assert.Same(OverlayTypography.Text, OverlayTypography.Number);
+        Assert.Equal("./#Noto Sans SC", OverlayTypography.Number.Source);
     }
 }

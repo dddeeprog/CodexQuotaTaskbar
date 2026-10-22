@@ -16,8 +16,8 @@ namespace CodexQuotaTaskbar.Host.UI;
 
 public partial class QuotaCapsuleWindow : Window
 {
-    internal const double WindowWidth = 306;
-    internal const double WindowHeight = 112;
+    internal const double WindowWidth = 280;
+    internal const double WindowHeight = 80;
     internal const double BadgeShadowSafeInset = 12;
     internal const int BadgeAnimationMilliseconds = 180;
     internal const string GlassCaptureTargetName = "BackdropLayer";
@@ -49,17 +49,19 @@ public partial class QuotaCapsuleWindow : Window
     private int completedCount;
     private int badgeAnimationGeneration;
 
-    internal QuotaCapsuleWindow(string monitorId)
+    internal QuotaCapsuleWindow(string monitorId, bool unifiedPanel = true)
     {
         MonitorId = monitorId;
         InitializeComponent();
+        IsUnifiedPanel = unifiedPanel;
+        if (!unifiedPanel) InitializeClassicLayout();
         normalLabelForeground = FirstLabel.Foreground;
         normalValueForeground = FirstValue.Foreground;
         normalGlassBackground = GlassBorder.Background;
         normalBackdropBackground = BackdropLayer.Background;
         normalBadgeBackground = SessionBadge.Background;
         normalBadgeBorderBrush = SessionBadge.BorderBrush;
-        ResetSourceLink.Click += (_, _) => OpenResetSourceRequested?.Invoke(CodexResetFeedClient.SiteUri);
+        if (unifiedPanel) InitializePanelSessions();
         SourceInitialized += (_, _) => WindowInteropPolicy.AttachNoActivate(this);
         Loaded += (_, _) =>
         {
@@ -77,6 +79,10 @@ public partial class QuotaCapsuleWindow : Window
     }
 
     internal string MonitorId { get; }
+    internal bool IsUnifiedPanel { get; }
+    internal double LayoutWidth => IsUnifiedPanel ? WindowWidth : 306;
+    internal double LayoutBaseHeight => IsUnifiedPanel ? WindowHeight : 112;
+    internal event Action<Uri>? OpenResetSourceRequested;
     internal void SetMaterialTransparency(int value)
     {
         materialTransparency = Math.Clamp(value, 0, 100);
@@ -86,8 +92,7 @@ public partial class QuotaCapsuleWindow : Window
     internal bool IsUserDragging => userDragging;
     internal event EventHandler? PrimaryInvoked;
     internal event EventHandler? ContextInvoked;
-    internal event Action<ScreenRect, ScreenRect>? UserMoved;
-    internal event Action<Uri>? OpenResetSourceRequested;
+    internal event Action<ScreenRect>? UserMoveRequested;
 
     internal void Apply(QuotaSnapshot snapshot)
     {
@@ -97,14 +102,17 @@ public partial class QuotaCapsuleWindow : Window
 
     internal void ApplySessions(CodexSessionsSnapshot snapshot)
     {
+        var previous = sessionsSnapshot;
         sessionsSnapshot = snapshot;
         Render();
+        if (IsUnifiedPanel) RenderPanelSessions(previous);
     }
 
     internal void ApplyResets(ResetFeedSnapshot snapshot)
     {
-        ResetSummaryText.Text = ResetFeedPresentation.IslandSummary(snapshot, DateTimeOffset.UtcNow);
-        AutomationProperties.SetName(ResetSummaryText, $"{ResetSummaryText.Text}，来源 Codex Resets，公共公告不代表个人额度到账；点击岛查看详情");
+        if (classicResetSummary is null) return;
+        classicResetSummary.Text = ResetFeedPresentation.IslandSummary(snapshot, DateTimeOffset.UtcNow);
+        AutomationProperties.SetName(classicResetSummary, $"{classicResetSummary.Text}，来源 Codex Resets");
     }
 
     private void Render()
@@ -113,7 +121,8 @@ public partial class QuotaCapsuleWindow : Window
         var projection = QuotaCapsuleProjection.Create(snapshot);
         ApplyRow(projection.Rows[0], FirstLabel, FirstBar, FirstValue);
         var hasSecondRow = projection.Rows.Count > 1;
-        System.Windows.Controls.Grid.SetRowSpan(FirstRow, hasSecondRow ? 1 : 2);
+        if (IsUnifiedPanel) System.Windows.Controls.Grid.SetColumnSpan(FirstRow, hasSecondRow ? 1 : 2);
+        else System.Windows.Controls.Grid.SetRowSpan(FirstRow, hasSecondRow ? 1 : 2);
         SecondRow.Visibility = hasSecondRow ? Visibility.Visible : Visibility.Collapsed;
         if (hasSecondRow)
         {
@@ -284,8 +293,16 @@ public partial class QuotaCapsuleWindow : Window
 
     internal void Place(ScreenRect bounds)
     {
+        if (physicalBounds == bounds) return;
         physicalBounds = bounds;
         WindowInteropPolicy.Position(this, bounds);
+    }
+
+    internal void MoveByUser(ScreenRect requested)
+    {
+        // The coordinator resolves the whole group's bounds before any native window move.
+        if (UserMoveRequested is { } move) move(requested);
+        else Place(requested);
     }
 
     internal static bool ExceedsDragThreshold(int deltaX, int deltaY) => Math.Abs(deltaX) >= 4 || Math.Abs(deltaY) >= 4;
@@ -298,7 +315,7 @@ public partial class QuotaCapsuleWindow : Window
 
     private void OnMouseLeftButtonDown(object sender, MouseButtonEventArgs eventArgs)
     {
-        if (ResetSourceText.IsMouseOver || eventArgs.ChangedButton != MouseButton.Left || !WindowInteropPolicy.TryGetCursorPosition(out dragOriginX, out dragOriginY))
+        if (!QuotaHeader.IsMouseOver || SessionToggle.IsMouseOver || classicResetSource?.IsMouseOver == true || eventArgs.ChangedButton != MouseButton.Left || !WindowInteropPolicy.TryGetCursorPosition(out dragOriginX, out dragOriginY))
         {
             return;
         }
@@ -328,9 +345,7 @@ public partial class QuotaCapsuleWindow : Window
         userDragging = true;
         Cursor = System.Windows.Input.Cursors.SizeAll;
         var moved = TranslateBounds(dragOriginBounds, deltaX, deltaY);
-        var previous = physicalBounds;
-        Place(moved);
-        UserMoved?.Invoke(previous, moved);
+        MoveByUser(moved);
         eventArgs.Handled = true;
     }
 
@@ -385,10 +400,11 @@ public partial class QuotaCapsuleWindow : Window
             GlassBorder.BorderBrush = System.Windows.SystemColors.ActiveBorderBrush;
             BackdropLayer.Background = System.Windows.SystemColors.WindowBrush;
             FirstLabel.Foreground = SecondLabel.Foreground = System.Windows.SystemColors.WindowTextBrush;
-            ResetSummaryText.Foreground = ResetSourceText.Foreground = System.Windows.SystemColors.WindowTextBrush;
             FirstValue.Foreground = SecondValue.Foreground = System.Windows.SystemColors.WindowTextBrush;
             SessionBadge.Background = System.Windows.SystemColors.ControlBrush;
             SessionBadge.BorderBrush = System.Windows.SystemColors.ActiveBorderBrush;
+            ApplyPanelSessionAppearance(true);
+            ApplyClassicAppearance(System.Windows.SystemColors.WindowTextBrush);
             return;
         }
 
@@ -397,10 +413,11 @@ public partial class QuotaCapsuleWindow : Window
         BackdropLayer.Background = normalBackdropBackground;
         SetBlurEnabled(true);
         FirstLabel.Foreground = SecondLabel.Foreground = normalLabelForeground;
-        ResetSummaryText.Foreground = ResetSourceText.Foreground = normalLabelForeground;
         FirstValue.Foreground = SecondValue.Foreground = normalValueForeground;
         SessionBadge.Background = OverlayGlassMaterial.WithTransparency(normalBadgeBackground, materialTransparency);
         SessionBadge.BorderBrush = normalBadgeBorderBrush;
+        ApplyPanelSessionAppearance(false);
+        ApplyClassicAppearance(normalLabelForeground);
     }
 
     private void SetBlurEnabled(bool enabled)

@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [ValidateSet('Verify', 'Build', 'Host', 'Package', 'Probe')]
+    [ValidateSet('Verify', 'Build', 'Host', 'Package', 'Installer', 'Probe')]
     [string]$Target,
 
     [ValidateSet('Debug', 'Release')]
@@ -26,6 +26,10 @@ switch ($Target) {
     }
     'Package' {
         & (Join-Path $repositoryRoot 'build\package-host.ps1') -Configuration $Configuration
+        exit $LASTEXITCODE
+    }
+    'Installer' {
+        & (Join-Path $repositoryRoot 'build\package-installer.ps1') -Configuration $Configuration
         exit $LASTEXITCODE
     }
     'Probe' {

@@ -61,12 +61,10 @@ public sealed class QuotaPopoverWindowTests
 
         Assert.Equal("2026年12月31日", QuotaPopoverWindow.FormatMembershipExpiration(available));
         Assert.Equal("未提供", QuotaPopoverWindow.FormatMembershipExpiration(missing));
-        Assert.Contains("Codex 登录信息", QuotaPopoverWindow.FormatMembershipExpirationMetadata(available), StringComparison.Ordinal);
-        Assert.Contains("更新于", QuotaPopoverWindow.FormatMembershipExpirationMetadata(available), StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Distinguishes_disabled_failed_and_stale_subscription_states()
+    public void Preserves_disabled_failed_and_cached_subscription_values()
     {
         var checkedAt = DateTimeOffset.Parse("2026-10-08T16:08:00+08:00");
         var unavailable = SubscriptionExpirationSnapshot.Unavailable(
@@ -79,8 +77,7 @@ public sealed class QuotaPopoverWindowTests
 
         Assert.Equal("增强读取已关闭", QuotaPopoverWindow.FormatMembershipExpiration(SubscriptionExpirationSnapshot.Disabled()));
         Assert.Equal("暂不可用", QuotaPopoverWindow.FormatMembershipExpiration(unavailable));
-        Assert.Contains("检查失败", QuotaPopoverWindow.FormatMembershipExpirationMetadata(unavailable), StringComparison.Ordinal);
-        Assert.Contains("缓存", QuotaPopoverWindow.FormatMembershipExpirationMetadata(stale), StringComparison.Ordinal);
+        Assert.Equal("2026年11月8日", QuotaPopoverWindow.FormatMembershipExpiration(stale));
     }
 
     [Fact]

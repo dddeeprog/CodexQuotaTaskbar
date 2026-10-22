@@ -8,6 +8,7 @@
     <ApplicationIcon>Assets\QuotaIslandIcon.ico</ApplicationIcon>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <AssemblyName>CodexQuotaTaskbar</AssemblyName>
+    <Version>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)..\..\VERSION').Trim())</Version>
     <RootNamespace>CodexQuotaTaskbar.Host</RootNamespace>
     <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
   </PropertyGroup>

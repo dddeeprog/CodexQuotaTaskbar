@@ -46,13 +46,13 @@ public sealed class OverlayGlassMaterialTests
     }
 
     [Fact]
-    public void Badge_shell_is_opaque_while_preserving_its_neutral_gradient()
+    public void Inline_badge_reuses_the_panel_material_without_a_second_opaque_shell()
     {
         var xaml = XDocument.Load(Path.Combine(RepositoryPaths.Root, "src", "CodexQuotaTaskbar.Host", "UI", "QuotaCapsuleWindow.xaml"));
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
         var badge = Assert.Single(xaml.Descendants(), element => (string?)element.Attribute(x + "Name") == "SessionBadge");
 
-        Assert.Equal(new[] { "#FF38383C", "#FF171719", "#FF29292D" },
+        Assert.Equal(new[] { "#0038383C", "#00171719", "#0029292D" },
             badge.Descendants().Where(element => element.Name.LocalName == "GradientStop")
                 .Select(element => (string?)element.Attribute("Color")));
     }

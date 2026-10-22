@@ -19,15 +19,22 @@ public static class SessionStackPlacementCalculator
         {
             shiftY = work.Top - capsule.Top;
         }
+        // Clamp the union, not just the stack: both windows must keep one center line.
+        var left = capsule.Left + (capsule.Width - width) / 2;
+        var groupLeft = Math.Min(capsule.Left, left);
+        var groupRight = Math.Max(capsule.Right, left + width);
+        var groupWidth = groupRight - groupLeft;
+        var clampedLeft = groupWidth >= work.Width
+            ? work.Left
+            : Math.Clamp(groupLeft, work.Left, work.Right - groupWidth);
+        var shiftX = clampedLeft - groupLeft;
         var adjustedCapsule = new ScreenRect(
-            capsule.Left,
+            capsule.Left + shiftX,
             capsule.Top + shiftY,
-            capsule.Right,
+            capsule.Right + shiftX,
             capsule.Bottom + shiftY);
         var top = adjustedCapsule.Bottom + gap;
-        var left = capsule.Left + (capsule.Width - width) / 2;
-
-        left = width >= work.Width ? work.Left : Math.Clamp(left, work.Left, work.Right - width);
+        left += shiftX;
         var stack = new ScreenRect(left, top, checked(left + width), checked(top + height));
         return new SessionStackPlacement(adjustedCapsule, stack);
     }

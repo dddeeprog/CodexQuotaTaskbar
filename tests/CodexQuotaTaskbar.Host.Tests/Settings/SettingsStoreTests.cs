@@ -6,6 +6,17 @@ namespace CodexQuotaTaskbar.Host.Tests.Settings;
 
 public sealed class SettingsStoreTests : IDisposable
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Layout_choice_roundtrips_without_changing_other_preferences(bool unified)
+    {
+        var store = new SettingsStore(Path.Combine(directory, "settings.json"));
+        var settings = new AppSettings(false, true, false, 25, false, false, 37, unified);
+        await store.SaveAsync(settings, CancellationToken.None);
+        Assert.Equal(settings, await store.LoadAsync(CancellationToken.None));
+    }
+
     private readonly string directory = Path.Combine(Path.GetTempPath(), "CodexQuotaTaskbar.Tests", Guid.NewGuid().ToString("N"));
 
     [Fact]
@@ -41,6 +52,7 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.True(value.AutomaticUpdatesEnabled);
         Assert.True(value.SubscriptionDetailsEnabled);
         Assert.Equal(0, value.MaterialTransparencyPercent);
+        Assert.False(value.UnifiedPanel); // Existing installations retain the classic style.
     }
 
     [Fact]

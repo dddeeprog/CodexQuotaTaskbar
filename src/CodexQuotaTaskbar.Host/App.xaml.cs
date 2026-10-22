@@ -59,7 +59,7 @@ public partial class App : System.Windows.Application
             settingsStore = SettingsStore.CreateDefault();
             var settings = await settingsStore.LoadAsync(lifetime.Token);
             lowQuotaGate = new LowQuotaGate(settings.LowQuotaThreshold);
-            coordinator = new OverlayCoordinator(settings.ShowAllTaskbars, settings.EffectiveMaterialTransparencyPercent);
+            coordinator = new OverlayCoordinator(settings.ShowAllTaskbars, settings.EffectiveMaterialTransparencyPercent, settings.UnifiedPanel);
             tray = new TrayController(settings);
             tray.MaterialTransparencyPreviewRequested += (_, value) => coordinator?.SetMaterialTransparency(value);
             browserStore = new BrowserSubscriptionStore();
@@ -379,6 +379,7 @@ public partial class App : System.Windows.Application
     private async void OnSettingsChanged(object? sender, AppSettings settings)
     {
         if (!settings.SubscriptionDetailsEnabled) subscriptionBrowser?.Close();
+        coordinator?.SetUnifiedPanel(settings.UnifiedPanel);
         coordinator?.SetShowAllTaskbars(settings.ShowAllTaskbars);
         coordinator?.SetMaterialTransparency(settings.EffectiveMaterialTransparencyPercent);
         var refreshSubscriptionDetails = provider?.SetSubscriptionDetailsEnabled(settings.SubscriptionDetailsEnabled) == true;

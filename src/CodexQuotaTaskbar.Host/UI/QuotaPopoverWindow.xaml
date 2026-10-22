@@ -4,15 +4,22 @@
         xmlns:ui="clr-namespace:CodexQuotaTaskbar.Host.UI"
         Title="Codex 额度详情" Width="328" SizeToContent="Height" MaxHeight="520"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
-        ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True">
+        ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True"
+        FontFamily="{x:Static ui:OverlayTypography.Interface}" UseLayoutRounding="True" TextOptions.TextFormattingMode="Ideal" TextOptions.TextRenderingMode="Grayscale">
   <Window.Resources>
+    <Style x:Key="SectionTitle" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="FontWeight" Value="Medium"/>
+      <Setter Property="Foreground" Value="#F0F0F2"/>
+      <Setter Property="Margin" Value="0,0,0,8"/>
+    </Style>
     <Style x:Key="LiquidProgress" TargetType="ProgressBar">
       <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ProgressBar">
         <Grid Height="5"><Border Background="#20FFFFFF" CornerRadius="2.5"/><Grid x:Name="PART_Track"><Border x:Name="PART_Indicator" HorizontalAlignment="Left" Background="{TemplateBinding Foreground}" CornerRadius="2.5"/></Grid></Grid>
       </ControlTemplate></Setter.Value></Setter>
     </Style>
     <Style x:Key="CircleButton" TargetType="Button">
-      <Setter Property="Width" Value="30"/><Setter Property="Height" Value="30"/>
+      <Setter Property="Width" Value="26"/><Setter Property="Height" Value="26"/>
       <Setter Property="Foreground" Value="#C8FFFFFF"/><Setter Property="Background" Value="#18FFFFFF"/>
       <Setter Property="BorderThickness" Value="0"/><Setter Property="FontSize" Value="16"/>
       <Setter Property="Cursor" Value="Hand"/>
@@ -27,17 +34,20 @@
       </ControlTemplate></Setter.Value></Setter>
     </Style>
     <Style x:Key="GlassButton" TargetType="Button">
-      <Setter Property="Height" Value="40"/><Setter Property="Padding" Value="15,0"/>
+      <Setter Property="Height" Value="32"/><Setter Property="Padding" Value="15,0"/>
       <Setter Property="Foreground" Value="White"/><Setter Property="Background" Value="#18FFFFFF"/>
-      <Setter Property="BorderBrush" Value="#24FFFFFF"/><Setter Property="BorderThickness" Value="1"/>
-      <Setter Property="FontFamily" Value="{x:Static ui:OverlayTypography.Text}"/><Setter Property="FontSize" Value="12.5"/>
-      <Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="BorderBrush" Value="#24FFFFFF"/><Setter Property="BorderThickness" Value="0"/>
+      <Setter Property="FontFamily" Value="{x:Static ui:OverlayTypography.Interface}"/><Setter Property="FontSize" Value="12.5"/>
+      <Setter Property="FontWeight" Value="Normal"/><Setter Property="Cursor" Value="Hand"/>
       <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
-        <Border x:Name="ButtonChrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="14">
+        <Grid>
+          <Border x:Name="ButtonChrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="9"/>
+          <Border x:Name="HoverChrome" Background="#18FFFFFF" CornerRadius="9" Opacity="0" IsHitTestVisible="False"/>
           <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-        </Border>
+        </Grid>
         <ControlTemplate.Triggers>
-          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ButtonChrome" Property="Background" Value="#2DFFFFFF"/><Setter TargetName="ButtonChrome" Property="BorderBrush" Value="#42FFFFFF"/></Trigger>
+          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="HoverChrome" Property="Opacity" Value="1"/></Trigger>
+          <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="HoverChrome" Property="Opacity" Value="1"/></Trigger>
           <Trigger Property="IsPressed" Value="True"><Setter TargetName="ButtonChrome" Property="Opacity" Value="0.72"/></Trigger>
         </ControlTemplate.Triggers>
       </ControlTemplate></Setter.Value></Setter>
@@ -50,66 +60,59 @@
         <TranslateTransform x:Name="PopoverTranslate"/>
       </TransformGroup>
     </Grid.RenderTransform>
-    <Border x:Name="BackdropLayer" CornerRadius="28" Background="#011D1D1F"/>
-    <Border x:Name="GlassBorder" CornerRadius="28"
+    <Border x:Name="BackdropLayer" CornerRadius="16" Background="#011D1D1F"/>
+    <Border x:Name="GlassBorder" CornerRadius="16"
             Background="{x:Static ui:OverlayGlassMaterial.Surface}"
-            BorderBrush="{x:Static ui:OverlayGlassMaterial.Border}" BorderThickness="1">
-    <Grid Margin="20,18,20,18">
-      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+            BorderBrush="{x:Static ui:OverlayGlassMaterial.Border}" BorderThickness="0.5">
+    <Grid Margin="16">
+      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
       <Grid>
         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
         <StackPanel VerticalAlignment="Center">
-          <TextBlock x:Name="TitleText" Text="Codex 额度" Foreground="#FAFFFFFF" FontFamily="{x:Static ui:OverlayTypography.Display}" FontSize="20" FontWeight="SemiBold" />
-          <TextBlock Text="USAGE" Foreground="#78FFFFFF" FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="9" FontWeight="SemiBold" Margin="1,2,0,0" />
+          <TextBlock x:Name="TitleText" Text="Codex 额度" Foreground="#FAFFFFFF" FontFamily="{x:Static ui:OverlayTypography.Interface}" FontSize="15" FontWeight="Medium" />
+
         </StackPanel>
         <Button x:Name="CloseButton" Grid.Column="1" Content="×" Style="{StaticResource CircleButton}" AutomationProperties.Name="关闭" />
       </Grid>
-      <TextBlock x:Name="StatusText" Grid.Row="1" Margin="1,10,0,14" Foreground="#9EAFAFB3" FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="11" TextWrapping="Wrap" VerticalAlignment="Center" />
-      <ScrollViewer Grid.Row="2" MaxHeight="340" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
+      <ScrollViewer Grid.Row="1" Margin="0,12,0,0" MaxHeight="400" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
         <StackPanel>
-          <Border x:Name="AccountSummaryBorder" Margin="0,0,0,14" Background="#16FFFFFF" BorderBrush="#22FFFFFF" BorderThickness="1" CornerRadius="16">
+          <Border x:Name="AccountSectionDivider" BorderBrush="#60FFFFFF" BorderThickness="0,0,0,1" SnapsToDevicePixels="True" Padding="0,0,0,12">
+          <StackPanel x:Name="AccountSection" AutomationProperties.Name="账户与订阅">
+          <TextBlock x:Name="AccountSectionTitle" Text="账户与订阅" Style="{StaticResource SectionTitle}"/>
+          <Border x:Name="AccountSummaryBorder" Background="Transparent" BorderThickness="0" Padding="0">
             <Grid>
-              <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-              </Grid.RowDefinitions>
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="1"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="1"/>
-                <ColumnDefinition Width="*"/>
-              </Grid.ColumnDefinitions>
-              <StackPanel Grid.Column="0" Margin="7,10" AutomationProperties.Name="订阅计划">
-                <TextBlock Text="订阅" Tag="secondary" Foreground="#9EAFAFB3" FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="9" TextAlignment="Center" />
-                <TextBlock x:Name="PlanText" Text="未知" Foreground="#F2FFFFFF" FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="11.5" FontWeight="SemiBold" TextAlignment="Center" TextWrapping="Wrap" Margin="0,3,0,0" />
-              </StackPanel>
-              <Border x:Name="AccountDividerOne" Grid.Column="1" Margin="0,9" Background="#22FFFFFF" />
-              <StackPanel Grid.Column="2" Margin="5,10" AutomationProperties.Name="会员到期时间">
-                <TextBlock Text="订阅有效至" Tag="secondary" Foreground="#9EAFAFB3" FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="9" TextAlignment="Center" />
-                <TextBlock x:Name="ExpiryText" Text="正在读取…" Tag="secondary" Foreground="#F2FFFFFF" FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="10.5" FontWeight="SemiBold" TextAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
-              </StackPanel>
-              <Border x:Name="AccountDividerTwo" Grid.Column="3" Margin="0,9" Background="#22FFFFFF" />
-              <StackPanel Grid.Column="4" Margin="7,10" AutomationProperties.Name="额外点数数量">
-                <TextBlock Text="额外点数" Tag="secondary" Foreground="#9EAFAFB3" FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="9" TextAlignment="Center" />
-                <TextBlock x:Name="ExtraCreditsText" Text="—" Tag="secondary" Foreground="#F2FFFFFF" FontFamily="{x:Static ui:OverlayTypography.Number}" FontSize="11.5" FontWeight="SemiBold" TextAlignment="Center" TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
-              </StackPanel>
-              <TextBlock x:Name="ExpiryMetaText" Grid.Row="1" Grid.ColumnSpan="5" Tag="secondary" Margin="9,-3,9,9"
-                         Text="来源：正在确认" Foreground="#9EAFAFB3" FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="8.5"
-                         TextAlignment="Center" TextTrimming="CharacterEllipsis" />
+              <Grid.RowDefinitions><RowDefinition Height="28"/><RowDefinition Height="28"/><RowDefinition Height="28"/></Grid.RowDefinitions>
+              <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+              <TextBlock Text="订阅计划" Tag="secondary" FontSize="12" VerticalAlignment="Center"/>
+              <TextBlock x:Name="PlanText" Grid.Column="1" Text="未知" FontSize="13" FontWeight="Medium" HorizontalAlignment="Right" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" AutomationProperties.Name="订阅计划"/>
+              <TextBlock Grid.Row="1" Text="订阅有效至" Tag="secondary" FontSize="12" VerticalAlignment="Center" Margin="0,0,12,0"/>
+              <TextBlock x:Name="ExpiryText" Grid.Row="1" Grid.Column="1" Text="正在读取…" Tag="secondary" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" AutomationProperties.Name="会员到期时间"/>
+              <TextBlock Grid.Row="2" Text="额外点数" Tag="secondary" FontSize="12" VerticalAlignment="Center"/>
+              <TextBlock x:Name="ExtraCreditsText" Grid.Row="2" Grid.Column="1" Text="—" Tag="secondary" FontSize="13" HorizontalAlignment="Right" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" AutomationProperties.Name="额外点数数量"/>
+              <Border x:Name="AccountDividerOne" Visibility="Collapsed"/>
+              <Border x:Name="AccountDividerTwo" Visibility="Collapsed"/>
             </Grid>
           </Border>
-          <Button x:Name="SubscriptionLoginButton" Content="网页登录 · 更新订阅日期" Style="{StaticResource GlassButton}" Height="30" FontSize="10.5" Margin="0,-4,0,12"/>
-          <TextBlock x:Name="QuotaHeading" Text="额度" Tag="secondary" Foreground="#9EAFAFB3" FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="10" FontWeight="SemiBold" Margin="1,0,0,7" />
-          <StackPanel x:Name="RowsPanel" />
-          <StackPanel x:Name="ResetSection" Margin="1,10,1,0">
-            <TextBlock x:Name="ResetFeedStatusText" Visibility="Collapsed" Tag="secondary" FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="9.5" TextWrapping="Wrap" Foreground="#AEAEB2" Margin="0,0,0,10" />
+          <Button x:Name="SubscriptionLoginButton" Content="网页登录 · 更新订阅日期" Style="{StaticResource GlassButton}" Height="28" FontSize="11" HorizontalAlignment="Left" Padding="0" Margin="0,4,0,0" Background="Transparent"/>
+          </StackPanel>
+          </Border>
+          <Border x:Name="QuotaSectionDivider" BorderBrush="#60FFFFFF" BorderThickness="0,0,0,1" SnapsToDevicePixels="True" Margin="0,16,0,0" Padding="0,0,0,8">
+          <StackPanel x:Name="QuotaSection" AutomationProperties.Name="额度">
+            <TextBlock x:Name="QuotaSectionTitle" Text="额度" Style="{StaticResource SectionTitle}"/>
+            <StackPanel x:Name="RowsPanel" />
+          </StackPanel>
+          </Border>
+          <StackPanel x:Name="AnnouncementsSection" Margin="0,16,0,0" AutomationProperties.Name="重置公告">
+          <TextBlock x:Name="AnnouncementsSectionTitle" Text="重置公告" Style="{StaticResource SectionTitle}"/>
+          <StackPanel x:Name="ResetSection">
+            <TextBlock x:Name="ResetFeedStatusText" Visibility="Collapsed" Tag="secondary" FontFamily="{x:Static ui:OverlayTypography.Interface}" FontSize="11" TextWrapping="Wrap" Foreground="#AEAEB2" Margin="0,0,0,10" />
             <StackPanel x:Name="ResetAnnouncementsPanel" />
-            <Button x:Name="ResetSiteButton" Content="来源：Codex Resets ↗" Style="{StaticResource GlassButton}" Height="30" FontSize="10.5" Margin="0,2,0,0" />
+            <Button x:Name="ResetSiteButton" Content="来源：Codex Resets ↗" Style="{StaticResource GlassButton}" Height="28" FontSize="11" Margin="0,0,0,0" HorizontalAlignment="Left" Padding="0" Background="Transparent" />
+          </StackPanel>
           </StackPanel>
         </StackPanel>
       </ScrollViewer>
-      <Grid Grid.Row="3" Margin="0,16,0,0">
+      <Grid Grid.Row="2" Margin="0,12,0,0">
         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="9"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
         <Button x:Name="RefreshButton" Content="刷新" Style="{StaticResource GlassButton}" />
         <Button x:Name="OpenCodexButton" Grid.Column="2" Content="打开 Codex" Style="{StaticResource GlassButton}" Background="#EAF7F7F8" BorderBrush="#F8FFFFFF" Foreground="#111113" />

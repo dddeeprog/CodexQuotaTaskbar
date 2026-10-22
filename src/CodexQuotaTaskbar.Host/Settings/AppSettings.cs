@@ -7,7 +7,8 @@ internal sealed record AppSettings(
     int LowQuotaThreshold,
     bool? AutomaticUpdates = true,
     bool? SubscriptionDetails = true,
-    int MaterialTransparencyPercent = 0)
+    int MaterialTransparencyPercent = 0,
+    bool UnifiedPanel = false)
 {
     internal static AppSettings Default { get; } = new(true, false, true, 10, true, true);
     internal bool AutomaticUpdatesEnabled => AutomaticUpdates is not false;

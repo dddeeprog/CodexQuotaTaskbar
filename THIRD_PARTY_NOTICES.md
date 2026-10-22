@@ -1,5 +1,12 @@
 # Third-Party Notices
 
+## Inno Setup installer and Simplified Chinese translation
+
+- Installer engine: Inno Setup, https://jrsoftware.org/ (build-time tool; not bundled as a compiler).
+- Chinese messages: `build/installer/ChineseSimplified.isl`, copied unchanged from `jrsoftware/issrc`, tag `is-6_4_1`, `Files/Languages/Unofficial/ChineseSimplified.isl`, Git blob `1ef03921ffaa270394efd5047611e4c3db41e407`. Maintainer attribution is retained in the file header.
+- Source: https://github.com/jrsoftware/issrc/blob/is-6_4_1/Files/Languages/Unofficial/ChineseSimplified.isl
+- Inno Setup copyright and license: https://github.com/jrsoftware/issrc/blob/is-6_4_1/license.txt . Original installer engine copyright and website notices are retained by the compiler in the installer/uninstaller.
+
 ## Codex Resets public data
 
 - Data source and attribution: [Codex Resets](https://codex-resets.com/zh-CN)

@@ -18,7 +18,10 @@ namespace CodexQuotaTaskbar.Host.UI;
 
 public partial class SessionStackWindow : Window
 {
-    internal const double StackWidth = 392;
+    internal const double CardWidth = 272;
+    internal const double CollapsedMiddleWidth = CardWidth - 10;
+    internal const double CollapsedBackWidth = CardWidth - 20;
+    internal const double StackWidth = CardWidth + 2 * ShadowHorizontalInset;
     internal const double ShadowHorizontalInset = 24;
     internal const double ShadowTopInset = 16;
     internal const double ShadowBottomInset = 24;
@@ -54,6 +57,12 @@ public partial class SessionStackWindow : Window
     private int sessionTransitionGeneration;
     private DispatcherTimer? sessionTransitionTimer;
     private readonly Dictionary<int, TranslateTransform> glassMaskTransforms = [];
+
+    static SessionStackWindow()
+    {
+        ShadowFill.Freeze();
+        ShadowOutline.Freeze();
+    }
 
     internal SessionStackWindow(string monitorId)
     {
@@ -707,7 +716,7 @@ public partial class SessionStackWindow : Window
     {
         var shadow = new Border
         {
-            Width = 344,
+            Width = CardWidth,
             Height = CardHeight,
             CornerRadius = new CornerRadius(29),
             Background = ShadowFill,
@@ -730,7 +739,7 @@ public partial class SessionStackWindow : Window
     private Border CreateCollapsedLayerGhost(int layer, bool opaque) => new()
     {
         Tag = layer,
-        Width = layer == 1 ? 334 : 324,
+        Width = layer == 1 ? CollapsedMiddleWidth : CollapsedBackWidth,
         Height = CardHeight,
         Margin = new Thickness(0, layer == 1 ? 22 : 28, 0, 0),
         VerticalAlignment = VerticalAlignment.Top,
@@ -763,7 +772,7 @@ public partial class SessionStackWindow : Window
                 var top = GlassMaskCardTop(index, true) - SessionsScroller.VerticalOffset;
                 AddGlassMaskRectangle(
                     drawing,
-                    new Rect(ShadowHorizontalInset, top, 344, CardHeight),
+                    new Rect(ShadowHorizontalInset, top, CardWidth, CardHeight),
                     29,
                     index,
                     viewportClip);
@@ -773,7 +782,7 @@ public partial class SessionStackWindow : Window
         {
             AddGlassMaskRectangle(
                 drawing,
-                new Rect(ShadowHorizontalInset, GlassMaskCardTop(0, false), 344, CardHeight),
+                new Rect(ShadowHorizontalInset, GlassMaskCardTop(0, false), CardWidth, CardHeight),
                 29,
                 0);
             var layerCount = CollapsedLayerCount(snapshot.Sessions.Count);
@@ -781,7 +790,7 @@ public partial class SessionStackWindow : Window
             {
                 AddGlassMaskRectangle(
                     drawing,
-                    new Rect((StackWidth - 334) / 2, GlassMaskCardTop(1, false), 334, CardHeight),
+                    new Rect((StackWidth - CollapsedMiddleWidth) / 2, GlassMaskCardTop(1, false), CollapsedMiddleWidth, CardHeight),
                     29,
                     1);
             }
@@ -789,7 +798,7 @@ public partial class SessionStackWindow : Window
             {
                 AddGlassMaskRectangle(
                     drawing,
-                    new Rect((StackWidth - 324) / 2, GlassMaskCardTop(2, false), 324, CardHeight),
+                    new Rect((StackWidth - CollapsedBackWidth) / 2, GlassMaskCardTop(2, false), CollapsedBackWidth, CardHeight),
                     29,
                     2);
             }

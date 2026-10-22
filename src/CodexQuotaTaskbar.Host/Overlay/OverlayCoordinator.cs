@@ -16,10 +16,10 @@ internal sealed class OverlayCoordinator : IDisposable
     private const double PopoverWidth = 328;
     private const double CapsuleFarMargin = 0;
     private const double CapsuleEdgeGap = -4;
-    private const double SessionStackGap = -16;
     private readonly TaskbarTopologySource topology = new();
     private readonly Dictionary<string, QuotaCapsuleWindow> windows = new(StringComparer.Ordinal);
     private readonly Dictionary<string, SessionStackWindow> sessionWindows = new(StringComparer.Ordinal);
+    private bool unifiedPanel;
     private readonly Dictionary<string, ScreenRect> userPositions = new(StringComparer.Ordinal);
     private readonly DispatcherTimer timer;
     private bool showAllTaskbars;
@@ -31,9 +31,10 @@ internal sealed class OverlayCoordinator : IDisposable
     private QuotaPopoverWindow? popover;
     private QuotaCapsuleWindow? popoverOwner;
 
-    internal OverlayCoordinator(bool showAllTaskbars, int materialTransparency = 0)
+    internal OverlayCoordinator(bool showAllTaskbars, int materialTransparency = 0, bool unifiedPanel = false)
     {
         this.showAllTaskbars = showAllTaskbars;
+        this.unifiedPanel = unifiedPanel;
         this.materialTransparency = Math.Clamp(materialTransparency, 0, 100);
         timer = new DispatcherTimer(TimeSpan.FromMilliseconds(750), DispatcherPriority.Background, (_, _) => Reconcile(), Dispatcher.CurrentDispatcher);
         SystemEvents.DisplaySettingsChanged += OnEnvironmentChanged;
@@ -61,11 +62,25 @@ internal sealed class OverlayCoordinator : IDisposable
         Reconcile();
     }
 
+    internal void SetUnifiedPanel(bool value)
+    {
+        if (unifiedPanel == value) return;
+        popover?.Close();
+        foreach (var stack in sessionWindows.Values) stack.Close();
+        sessionWindows.Clear();
+        foreach (var window in windows.Values)
+            if (window.PhysicalBounds.Width > 0) userPositions[window.MonitorId] = window.PhysicalBounds;
+        foreach (var window in windows.Values) window.Close();
+        windows.Clear();
+        unifiedPanel = value;
+        Reconcile();
+    }
+
     internal void SetMaterialTransparency(int value)
     {
         materialTransparency = Math.Clamp(value, 0, 100);
         foreach (var window in windows.Values) window.SetMaterialTransparency(materialTransparency);
-        foreach (var window in sessionWindows.Values) window.SetMaterialTransparency(materialTransparency);
+        foreach (var stack in sessionWindows.Values) stack.SetMaterialTransparency(materialTransparency);
         popover?.SetMaterialTransparency(materialTransparency);
     }
 
@@ -85,15 +100,9 @@ internal sealed class OverlayCoordinator : IDisposable
         foreach (var window in windows.Values)
         {
             window.ApplySessions(value);
+            if (sessionWindows.TryGetValue(window.MonitorId, out var stack)) stack.Apply(value);
         }
-        foreach (var (monitorId, sessionWindow) in sessionWindows)
-        {
-            sessionWindow.Apply(value);
-            if (windows.TryGetValue(monitorId, out var owner))
-            {
-                UpdateSessionStack(owner, sessionWindow);
-            }
-        }
+        Reconcile();
     }
 
     internal void ApplyResets(ResetFeedSnapshot value)
@@ -110,17 +119,15 @@ internal sealed class OverlayCoordinator : IDisposable
 
     private void Reconcile()
     {
-        var anchors = topology.Capture()
+        var availableAnchors = topology.Capture();
+        var anchors = availableAnchors
             .Where(anchor => showAllTaskbars || anchor.IsPrimary)
             .ToDictionary(anchor => anchor.MonitorId, StringComparer.Ordinal);
 
         foreach (var stale in windows.Keys.Except(anchors.Keys, StringComparer.Ordinal).ToArray())
         {
+            if (sessionWindows.Remove(stale, out var staleStack)) staleStack.Close();
             windows[stale].Close();
-            if (sessionWindows.Remove(stale, out var sessionWindow))
-            {
-                sessionWindow.Close();
-            }
             windows.Remove(stale);
             userPositions.Remove(stale);
         }
@@ -131,12 +138,19 @@ internal sealed class OverlayCoordinator : IDisposable
             {
                 window = CreateWindow(anchor.MonitorId);
                 windows.Add(anchor.MonitorId, window);
-                var sessionWindow = CreateSessionWindow(window);
-                sessionWindows.Add(anchor.MonitorId, sessionWindow);
                 window.Apply(snapshot);
                 window.ApplySessions(sessions);
-                sessionWindow.Apply(sessions);
                 window.Show();
+                if (!unifiedPanel)
+                {
+                    var stack = new SessionStackWindow(anchor.MonitorId);
+                    stack.SetMaterialTransparency(materialTransparency);
+                    stack.OpenSessionRequested += id => OpenSessionRequested?.Invoke(id);
+                    stack.ContextInvoked += (_, _) => ContextRequested?.Invoke(window, EventArgs.Empty);
+                    stack.PresentationChanged += (_, _) => UpdatePanelPlacement(window);
+                    sessionWindows.Add(anchor.MonitorId, stack);
+                    stack.Apply(sessions);
+                }
             }
 
             window.ApplyResets(resetFeed);
@@ -145,11 +159,11 @@ internal sealed class OverlayCoordinator : IDisposable
             if (!shouldShow)
             {
                 window.Hide();
+                if (sessionWindows.TryGetValue(anchor.MonitorId, out var hiddenStack)) hiddenStack.Hide();
                 if (popover?.Owner == window)
                 {
                     popover.Close();
                 }
-                sessionWindows[anchor.MonitorId].Hide();
                 continue;
             }
 
@@ -157,45 +171,36 @@ internal sealed class OverlayCoordinator : IDisposable
             {
                 window.Show();
             }
-            if (!window.IsUserDragging)
+            var placementAnchor = userPositions.TryGetValue(window.MonitorId, out var movedBounds)
+                ? SelectAnchor(availableAnchors, window.MonitorId, movedBounds) ?? anchor
+                : anchor;
+            if (sessionWindows.TryGetValue(anchor.MonitorId, out var visibleStack))
             {
-                if (sessions.Sessions.Count == 0)
-                {
-                    window.Place(DesiredOwnerBounds(window, anchor));
-                }
+                if (sessions.Sessions.Count > 0) visibleStack.Show();
+                else visibleStack.Hide();
             }
-            UpdateSessionStack(window, sessionWindows[anchor.MonitorId], anchor);
+            UpdatePanelPlacement(window, placementAnchor);
         }
     }
 
     private QuotaCapsuleWindow CreateWindow(string monitorId)
     {
-        var window = new QuotaCapsuleWindow(monitorId);
+        var window = new QuotaCapsuleWindow(monitorId, unifiedPanel);
         window.SetMaterialTransparency(materialTransparency);
         window.PrimaryInvoked += (_, _) => TogglePopover(window);
         window.ContextInvoked += (_, _) => ContextRequested?.Invoke(window, EventArgs.Empty);
-        window.OpenResetSourceRequested += uri => OpenResetSourceRequested?.Invoke(uri);
-        window.UserMoved += (previous, current) => OnWindowMoved(window, previous, current);
-        return window;
-    }
-
-    private SessionStackWindow CreateSessionWindow(QuotaCapsuleWindow owner)
-    {
-        var window = new SessionStackWindow(owner.MonitorId);
-        window.SetMaterialTransparency(materialTransparency);
+        window.UserMoveRequested += requested => OnWindowMoveRequested(window, requested);
         window.OpenSessionRequested += threadId => OpenSessionRequested?.Invoke(threadId);
-        window.ContextInvoked += (_, _) => ContextRequested?.Invoke(window, EventArgs.Empty);
-        window.PresentationChanged += (_, _) => UpdateSessionStack(owner, window);
+        window.OpenResetSourceRequested += uri => OpenResetSourceRequested?.Invoke(uri);
+        window.PresentationChanged += (_, _) => UpdatePanelPlacement(window);
         return window;
     }
 
-    private void OnWindowMoved(QuotaCapsuleWindow window, ScreenRect _previous, ScreenRect current)
+    private void OnWindowMoveRequested(QuotaCapsuleWindow window, ScreenRect requested)
     {
-        userPositions[window.MonitorId] = current;
-        if (sessionWindows.TryGetValue(window.MonitorId, out var sessionWindow))
-        {
-            UpdateSessionStack(window, sessionWindow);
-        }
+        UpdatePanelPlacement(window, requestedOwner: requested);
+        // Persist the position that was actually applied, not the off-screen pointer request.
+        userPositions[window.MonitorId] = window.PhysicalBounds;
         if (popover is null || !ReferenceEquals(popoverOwner, window))
         {
             return;
@@ -203,46 +208,62 @@ internal sealed class OverlayCoordinator : IDisposable
         RepositionPopover(window);
     }
 
-    private void UpdateSessionStack(QuotaCapsuleWindow owner, SessionStackWindow sessionWindow, TaskbarAnchor? knownAnchor = null)
+    private void UpdatePanelPlacement(QuotaCapsuleWindow owner, TaskbarAnchor? knownAnchor = null, ScreenRect? requestedOwner = null)
     {
-        if (!owner.IsVisible || sessions.Sessions.Count == 0)
-        {
-            sessionWindow.Hide();
-            return;
-        }
-
-        if (!sessionWindow.IsVisible)
-        {
-            sessionWindow.Show();
-        }
-        var anchor = knownAnchor ?? SelectAnchor(topology.Capture(), owner.MonitorId, owner.PhysicalBounds);
+        if (!owner.IsVisible) return;
+        var anchor = knownAnchor ?? SelectAnchor(topology.Capture(), owner.MonitorId, requestedOwner ?? owner.PhysicalBounds);
         if (anchor is null)
         {
             return;
         }
-        var desiredOwner = owner.IsUserDragging ? owner.PhysicalBounds : DesiredOwnerBounds(owner, anchor);
-        var reservedSessionHeight = ReservedSessionHeight(sessions.Sessions.Count);
-        var placement = SessionStackPlacementCalculator.CalculateBelow(
-            anchor,
-            desiredOwner,
-            SessionStackWindow.StackWidth,
-            reservedSessionHeight,
-            SessionStackGap);
-        if (!owner.IsUserDragging)
+        var desiredOwner = requestedOwner ?? (owner.IsUserDragging ? owner.PhysicalBounds : DesiredOwnerBounds(owner, anchor));
+        if (owner.IsUnifiedPanel)
+            owner.Place(CalculatePanelBounds(anchor, desiredOwner, owner.DesiredHeight, owner.ReservedHeight));
+        else
         {
-            owner.Place(placement.Capsule);
+            var candidate = ResizeOwner(anchor, desiredOwner, owner.LayoutWidth, owner.LayoutBaseHeight);
+            if (sessions.Sessions.Count > 0 && sessionWindows.TryGetValue(owner.MonitorId, out var stack))
+            {
+                var placement = SessionStackPlacementCalculator.CalculateBelow(anchor, candidate,
+                    SessionStackWindow.StackWidth, ReservedSessionHeight(sessions.Sessions.Count), -16);
+                owner.Place(placement.Capsule);
+                if (stack.IsVisible) stack.Place(ResizeStackHeight(placement.Stack, stack.DesiredHeight, anchor.Dpi));
+            }
+            else owner.Place(SessionStackPlacementCalculator.CalculateBelow(anchor, candidate, owner.LayoutWidth, 0, 0).Capsule);
         }
-        sessionWindow.Place(ResizeStackHeight(placement.Stack, sessionWindow.DesiredHeight, anchor.Dpi));
         if (ReferenceEquals(popoverOwner, owner))
         {
             RepositionPopover(owner);
         }
     }
 
+    internal static ScreenRect CalculatePanelBounds(TaskbarAnchor anchor, ScreenRect requested, double heightDip, double reservedHeightDip)
+    {
+        var scale = anchor.Dpi / 96d;
+        var width = checked((int)Math.Round(CapsuleWidth * scale));
+        var height = checked((int)Math.Round(heightDip * scale));
+        var candidate = new ScreenRect(requested.Left, requested.Top, requested.Left + width, requested.Top + height);
+        // Reserve expansion space without giving the session list a second native window.
+        var reservedPixels = checked((int)Math.Round(reservedHeightDip * scale));
+        return SessionStackPlacementCalculator.CalculateBelow(anchor, candidate, CapsuleWidth,
+            Math.Max(0, reservedPixels - height) / scale, 0).Capsule;
+    }
+
+    internal static ScreenRect ResizeOwner(TaskbarAnchor anchor, ScreenRect requested, double widthDip, double heightDip)
+    {
+        var scale = anchor.Dpi / 96d;
+        return new(requested.Left, requested.Top, requested.Left + (int)Math.Round(widthDip * scale),
+            requested.Top + (int)Math.Round(heightDip * scale));
+    }
+
+    private ScreenRect GroupBounds(QuotaCapsuleWindow owner) =>
+        sessionWindows.TryGetValue(owner.MonitorId, out var stack) && stack.IsVisible
+            ? Union(owner.PhysicalBounds, stack.PhysicalBounds) : owner.PhysicalBounds;
+
     private ScreenRect DesiredOwnerBounds(QuotaCapsuleWindow owner, TaskbarAnchor anchor) =>
         userPositions.TryGetValue(owner.MonitorId, out var userPosition)
             ? userPosition
-            : OverlayPlacementCalculator.Calculate(anchor, CapsuleWidth, CapsuleHeight, CapsuleFarMargin, CapsuleEdgeGap);
+            : OverlayPlacementCalculator.Calculate(anchor, owner.LayoutWidth, owner.LayoutBaseHeight, CapsuleFarMargin, CapsuleEdgeGap);
 
     private void RepositionPopover(QuotaCapsuleWindow owner)
     {
@@ -283,11 +304,7 @@ internal sealed class OverlayCoordinator : IDisposable
         var bounds = CalculatePopoverBounds(owner, details);
         _ = NativeMethods.SetWindowPos(new System.Windows.Interop.WindowInteropHelper(details).Handle, NativeMethods.HwndTopmost,
             bounds.Left, bounds.Top, bounds.Width, bounds.Height, NativeMethods.SwpShowWindow);
-        var motionAnchor = owner.PhysicalBounds;
-        if (sessionWindows.TryGetValue(owner.MonitorId, out var motionSessions) && motionSessions.IsVisible)
-        {
-            motionAnchor = Union(motionAnchor, motionSessions.PhysicalBounds);
-        }
+        var motionAnchor = GroupBounds(owner);
         details.PlayEntrance(QuotaPopoverWindow.CalculateEntranceOffset(motionAnchor, bounds));
         details.Activate();
     }
@@ -300,11 +317,7 @@ internal sealed class OverlayCoordinator : IDisposable
         var width = checked((int)Math.Round(PopoverWidth * scale));
         var heightDip = Math.Max(240, details.ActualHeight);
         var height = checked((int)Math.Round(heightDip * scale));
-        var obstruction = owner.PhysicalBounds;
-        if (sessionWindows.TryGetValue(owner.MonitorId, out var sessionWindow) && sessionWindow.IsVisible)
-        {
-            obstruction = Union(obstruction, sessionWindow.PhysicalBounds);
-        }
+        var obstruction = GroupBounds(owner);
         return anchor is null
             ? new ScreenRect(obstruction.Right - width, obstruction.Top - height, obstruction.Right, obstruction.Top)
             : PopoverPlacementCalculator.Calculate(anchor, obstruction, PopoverWidth, heightDip, 8);
@@ -352,15 +365,12 @@ internal sealed class OverlayCoordinator : IDisposable
         SystemEvents.UserPreferenceChanged -= OnEnvironmentChanged;
         SystemEvents.SessionSwitch -= OnSessionSwitch;
         popover?.Close();
+        foreach (var stack in sessionWindows.Values) stack.Close();
+        sessionWindows.Clear();
         foreach (var window in windows.Values)
         {
             window.Close();
         }
-        foreach (var window in sessionWindows.Values)
-        {
-            window.Close();
-        }
         windows.Clear();
-        sessionWindows.Clear();
     }
 }

@@ -59,7 +59,7 @@ public sealed class TrayMenuWindowTests
         Assert.Equal("True", (string?)window.Attribute("UseLayoutRounding"));
         Assert.Equal("Ideal", (string?)window.Attribute("TextOptions.TextFormattingMode"));
         Assert.Equal("Grayscale", (string?)window.Attribute("TextOptions.TextRenderingMode"));
-        Assert.Contains("OverlayTypography.Text", (string?)window.Attribute("FontFamily"), StringComparison.Ordinal);
+        Assert.Contains("OverlayTypography.Interface", (string?)window.Attribute("FontFamily"), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -83,102 +83,151 @@ public sealed class TrayMenuWindowTests
     [Theory]
     [InlineData(108)]
     [InlineData(144)]
-    public void Menu_action_labels_match_session_title_glyphs_without_clipping(int dpi)
+    public void Lightweight_menu_and_submenus_use_system_ui_font_without_clipping(int dpi)
     {
         Exception? failure = null;
         var thread = new Thread(() =>
         {
             try
             {
-                var menu = new TrayMenuWindow(AppSettings.Default);
-                var sessions = new SessionStackWindow("menu-font-test");
+                var menu = new TrayMenuWindow(AppSettings.Default with { MaterialTransparencyPercent = 37, LowQuotaNotifications = false });
                 try
                 {
-                    var now = DateTimeOffset.UtcNow;
-                    sessions.Apply(new([new("font-test", "立即刷新", CodexSessionState.Running, now)], now));
-                    var sessionPanel = Assert.IsType<StackPanel>(sessions.FindName("SessionsPanel"));
-                    var sessionButton = Assert.IsType<Button>(Assert.Single(sessionPanel.Children.Cast<UIElement>()));
-                    var sessionContent = Assert.IsType<Grid>(sessionButton.Content);
-                    var sessionTitle = Assert.Single(sessionContent.Children.OfType<TextBlock>(), text => text.Text == "立即刷新");
-                    // Render the actual generated title, not the unrelated shared session shadow resources.
-                    sessionContent.Children.Remove(sessionTitle);
-                    var titleHost = new Grid();
-                    titleHost.Children.Add(sessionTitle);
-                    VisualTreeHelper.SetRootDpi(titleHost, new DpiScale(dpi / 96d, dpi / 96d));
-                    titleHost.Measure(new System.Windows.Size(302, double.PositiveInfinity));
-                    titleHost.Arrange(new Rect(0, 0, 302, titleHost.DesiredSize.Height));
-                    titleHost.UpdateLayout();
-                    var sessionDrawing = VisualTreeHelper.GetDrawing(sessionTitle);
-                    Assert.NotNull(sessionDrawing);
-                    var sessionGlyphs = GlyphRuns(sessionDrawing).ToArray();
-                    Assert.NotEmpty(sessionGlyphs);
-
-                    var content = (FrameworkElement)menu.Content;
-                    VisualTreeHelper.SetRootDpi(content, new DpiScale(dpi / 96d, dpi / 96d));
-                    content.Measure(new System.Windows.Size(menu.Width, double.PositiveInfinity));
-                    content.Arrange(new Rect(0, 0, menu.Width, content.DesiredSize.Height));
-                    content.UpdateLayout();
-                    Assert.Equal(dpi / 96d, VisualTreeHelper.GetDpi(content).PixelsPerDip);
-
-                    var labels = Descendants<Button>(content)
-                        .SelectMany(button => Descendants<TextBlock>(button))
-                        .ToArray();
-                    Assert.Equal(10, labels.Length);
-                    foreach (var label in labels)
+                    Assert.Equal(252, menu.Width);
+                    Assert.Null(menu.FindName("RunningText"));
+                    Assert.Null(menu.FindName("AllTaskbarsTrack"));
+                    foreach (var name in new[] { "AppearancePopup", "PreferencesPopup" })
                     {
-                        Assert.Equal(OverlayTypography.Text, label.FontFamily);
-                        Assert.Equal(FontWeights.SemiBold, label.FontWeight);
-                        Assert.Equal(13.5, label.FontSize);
-                        Assert.Equal(sessionTitle.FontFamily, label.FontFamily);
-                        Assert.Equal(sessionTitle.FontWeight, label.FontWeight);
-                        Assert.Equal(sessionTitle.FontSize, label.FontSize);
-                        Assert.Equal(TextFormattingMode.Ideal, TextOptions.GetTextFormattingMode(label));
-                        var fullText = new FormattedText(label.Text, CultureInfo.CurrentUICulture,
-                            label.FlowDirection, new Typeface(label.FontFamily, label.FontStyle,
-                                label.FontWeight, label.FontStretch), label.FontSize, label.Foreground, dpi / 96d);
-                        Assert.True(fullText.WidthIncludingTrailingWhitespace <= label.ActualWidth + 0.5,
-                            $"Menu label width was clipped: {label.Text}");
-                        Assert.True(fullText.Height <= label.ActualHeight + 1,
-                            $"Menu label height was clipped: {label.Text}");
-                        var drawing = VisualTreeHelper.GetDrawing(label);
-                        Assert.NotNull(drawing);
-                        var glyphs = GlyphRuns(drawing).ToArray();
-                        Assert.NotEmpty(glyphs);
-                        foreach (var glyph in glyphs)
-                        {
-                            Assert.True(glyph.GlyphTypeface.FamilyNames.Values.Contains("Noto Sans SC"),
-                                $"{label.Text}: {string.Join(", ", glyph.GlyphTypeface.FamilyNames.Values)}; {glyph.GlyphTypeface.FontUri}");
-                            Assert.Equal("pack", glyph.GlyphTypeface.FontUri.Scheme);
-                            Assert.Equal(sessionGlyphs[0].GlyphTypeface.FontUri, glyph.GlyphTypeface.FontUri);
-                            Assert.Equal(sessionGlyphs[0].GlyphTypeface.StyleSimulations, glyph.GlyphTypeface.StyleSimulations);
-                            Assert.Equal(sessionGlyphs[0].FontRenderingEmSize, glyph.FontRenderingEmSize);
-                        }
+                        var popup = Assert.IsType<System.Windows.Controls.Primitives.Popup>(menu.FindName(name));
+                        Assert.False(popup.IsOpen);
+                        Assert.Equal(System.Windows.Controls.Primitives.PlacementMode.Custom, popup.Placement);
+                        Assert.True(popup.AllowsTransparency);
                     }
-                    var matchingLabel = Assert.Single(labels, label => label.Text == sessionTitle.Text);
-                    var matchingGlyphs = GlyphRuns(VisualTreeHelper.GetDrawing(matchingLabel)!).ToArray();
-                    Assert.Equal(sessionGlyphs.SelectMany(glyph => glyph.GlyphIndices), matchingGlyphs.SelectMany(glyph => glyph.GlyphIndices));
-                    Assert.Equal(sessionGlyphs.SelectMany(glyph => glyph.AdvanceWidths), matchingGlyphs.SelectMany(glyph => glyph.AdvanceWidths));
-                    SaveProof(content, dpi);
+                    foreach (var content in new[]
+                    {
+                        (FrameworkElement)menu.Content,
+                        Assert.IsType<Grid>(menu.FindName("AppearanceRoot")),
+                        Assert.IsType<Grid>(menu.FindName("PreferencesRoot")),
+                    })
+                    {
+                        VisualTreeHelper.SetRootDpi(content, new DpiScale(dpi / 96d, dpi / 96d));
+                        content.Measure(new System.Windows.Size(252, double.PositiveInfinity));
+                        content.Arrange(new Rect(0, 0, 252, content.DesiredSize.Height));
+                        content.UpdateLayout();
+                        Assert.InRange(content.ActualHeight, 150, 340);
+                        var labels = Descendants<Button>(content).SelectMany(button => Descendants<TextBlock>(button))
+                            .Where(label => label.ActualWidth > 0 && label.Name != "StyleSummaryText").ToArray();
+                        Assert.NotEmpty(labels);
+                        foreach (var label in labels)
+                        {
+                            Assert.Equal(OverlayTypography.Interface, label.FontFamily);
+                            Assert.Equal(FontWeights.Normal, label.FontWeight);
+                            Assert.Equal(13, label.FontSize);
+                            var fullText = new FormattedText(label.Text, CultureInfo.CurrentUICulture, label.FlowDirection,
+                                new Typeface(label.FontFamily, label.FontStyle, label.FontWeight, label.FontStretch),
+                                label.FontSize, label.Foreground, dpi / 96d);
+                            Assert.True(fullText.WidthIncludingTrailingWhitespace <= label.ActualWidth + 0.5, label.Text);
+                            Assert.True(fullText.Height <= label.ActualHeight + 1, label.Text);
+                            var glyphs = GlyphRuns(VisualTreeHelper.GetDrawing(label)!).ToArray();
+                            Assert.NotEmpty(glyphs);
+                            Assert.All(glyphs, glyph =>
+                            {
+                                Assert.DoesNotContain("Noto Sans SC", glyph.GlyphTypeface.FamilyNames.Values);
+                                Assert.All(glyph.GlyphIndices, index => Assert.NotEqual((ushort)0, index));
+                            });
+                        }
+                        SaveProof(content, dpi);
+                    }
+                    var requested = new List<AppSettings>();
+                    menu.SettingsChangeRequested += (_, value) => requested.Add(value);
+                    var toggle = Assert.IsType<Button>(menu.FindName("NotificationsButton"));
+                    toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Assert.True(Assert.Single(requested).LowQuotaNotifications);
+                    Assert.Equal(37, requested[0].EffectiveMaterialTransparencyPercent);
+                    Assert.Equal(Visibility.Visible, Assert.IsType<System.Windows.Shapes.Path>(menu.FindName("NotificationsCheck")).Visibility);
+                    Assert.Equal("已开启", System.Windows.Automation.AutomationProperties.GetItemStatus(toggle));
+                    var slider = Assert.IsType<Slider>(menu.FindName("MaterialTransparencySlider"));
+                    slider.Value = 42;
+                    menu.FlushMaterialTransparencyChange();
+                    Assert.Equal(42, requested.Last().EffectiveMaterialTransparencyPercent);
+                    Assert.True(requested.Last().LowQuotaNotifications);
                 }
-                finally
-                {
-                    menu.Close();
-                    sessions.Close();
-                }
+                finally { menu.Close(); }
             }
-            catch (Exception exception)
-            {
-                failure = exception;
-            }
+            catch (Exception exception) { failure = exception; }
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.IsBackground = true;
         thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(30)), "Menu typography verification did not finish in time.");
-        if (failure is not null)
+        Assert.True(thread.Join(TimeSpan.FromSeconds(30)));
+        if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
+    [Fact]
+    public void Native_submenu_stays_on_screen_and_closes_with_its_owner()
+    {
+        // Opt-in native-window smoke check; normal CI uses offscreen layout tests above.
+        if (Environment.GetEnvironmentVariable("CODEX_QUOTA_UI_PROOFS") != "1") return;
+        Exception? failure = null;
+        var thread = new Thread(() =>
         {
-            ExceptionDispatchInfo.Capture(failure).Throw();
-        }
+            TrayMenuWindow? menu = null;
+            try
+            {
+                menu = new TrayMenuWindow(AppSettings.Default);
+                var work = System.Windows.Forms.Screen.PrimaryScreen!.WorkingArea;
+                menu.ShowAt(new Point(work.Right - 10, work.Bottom - 10));
+                void Pump()
+                {
+                    var frame = new System.Windows.Threading.DispatcherFrame();
+                    menu.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle,
+                        new Action(() => frame.Continue = false));
+                    System.Windows.Threading.Dispatcher.PushFrame(frame);
+                }
+                Pump();
+                var mainHandle = new System.Windows.Interop.WindowInteropHelper(menu).Handle;
+                Assert.True(CodexQuotaTaskbar.Host.Platform.NativeMethods.GetWindowRect(mainHandle, out var before));
+                foreach (var name in new[] { "Appearance", "Preferences" })
+                {
+                    Assert.IsType<Button>(menu.FindName(name + "Button")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Pump();
+                    var popup = Assert.IsType<System.Windows.Controls.Primitives.Popup>(menu.FindName(name + "Popup"));
+                    Assert.True(menu.IsVisible);
+                    Assert.True(popup.IsOpen);
+                    Assert.False(BlurredBackground.WPF.BlurredBackground.GetEnableBlur(
+                        Assert.IsType<Border>(menu.FindName(name + "Backdrop"))));
+                    var popupSource = Assert.IsType<System.Windows.Interop.HwndSource>(PresentationSource.FromVisual(popup.Child));
+                    Assert.True(CodexQuotaTaskbar.Host.Platform.NativeMethods.GetWindowRect(popupSource.Handle, out var bounds));
+                    Assert.InRange(bounds.Left, work.Left, work.Right - 1);
+                    Assert.InRange(bounds.Top, work.Top, work.Bottom - 1);
+                    Assert.InRange(bounds.Right, bounds.Left + 1, work.Right);
+                    Assert.InRange(bounds.Bottom, bounds.Top + 1, work.Bottom);
+                    if (name == "Appearance")
+                    {
+                        var slider = Assert.IsType<Slider>(menu.FindName("MaterialTransparencySlider"));
+                        slider.Focus();
+                        var key = new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice,
+                            popupSource, 0, System.Windows.Input.Key.Left) { RoutedEvent = System.Windows.Input.Keyboard.PreviewKeyDownEvent };
+                        Assert.IsType<Grid>(menu.FindName("AppearanceRoot")).RaiseEvent(key);
+                        Assert.False(key.Handled);
+                        Assert.True(popup.IsOpen);
+                    }
+                    Assert.True(CodexQuotaTaskbar.Host.Platform.NativeMethods.GetWindowRect(mainHandle, out var after));
+                    Assert.Equal(before.Left, after.Left);
+                    Assert.Equal(before.Top, after.Top);
+                }
+                menu.Hide();
+                Assert.False(Assert.IsType<System.Windows.Controls.Primitives.Popup>(menu.FindName("AppearancePopup")).IsOpen);
+                Assert.False(Assert.IsType<System.Windows.Controls.Primitives.Popup>(menu.FindName("PreferencesPopup")).IsOpen);
+            }
+            catch (Exception error) { failure = error; }
+            finally { menu?.Close(); }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.IsBackground = true;
+        thread.Start();
+        Assert.True(thread.Join(TimeSpan.FromSeconds(30)));
+        if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
     }
 
     private static void SaveProof(FrameworkElement content, int dpi)
@@ -191,7 +240,7 @@ public sealed class TrayMenuWindowTests
         encoder.Frames.Add(BitmapFrame.Create(bitmap));
         var directory = Path.Combine(RepositoryPaths.Root, "artifacts", "tray-font-proof");
         Directory.CreateDirectory(directory);
-        using var stream = File.Create(Path.Combine(directory, $"menu-matched-{dpi}.png"));
+        using var stream = File.Create(Path.Combine(directory, $"menu-{(string.IsNullOrEmpty(content.Name) ? "main" : content.Name)}-{dpi}.png"));
         encoder.Save(stream);
     }
 

@@ -1,4 +1,10 @@
 using System.Xml.Linq;
+using System.Runtime.ExceptionServices;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using CodexQuotaTaskbar.Core.Sessions;
 using CodexQuotaTaskbar.Host.Tests.TestSupport;
 using CodexQuotaTaskbar.Host.UI;
 
@@ -6,6 +12,89 @@ namespace CodexQuotaTaskbar.Host.Tests.UI;
 
 public sealed class SessionStackWindowTests
 {
+    [Theory]
+    [InlineData(108, false)]
+    [InlineData(108, true)]
+    [InlineData(144, false)]
+    [InlineData(144, true)]
+    public void Compact_sessions_keep_layers_shadows_and_long_titles_inside_the_window(int dpi, bool expanded)
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                var window = new SessionStackWindow("compact-session-test");
+                try
+                {
+                    var now = DateTimeOffset.UtcNow;
+                    window.Apply(new([
+                        new("one", "介绍项目", CodexSessionState.Running, now),
+                        new("two", "查找主设备模型", CodexSessionState.Running, now),
+                        new("three", "这是一个很长的会话名称用于验证收窄后仍然正确显示省略号而不会撑宽气泡", CodexSessionState.Waiting, now),
+                        new("four", "更多任务", CodexSessionState.Running, now)], now));
+                    if (expanded)
+                    {
+                        ((Button)window.FindName("ExpandButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                        // Let the existing transition finish before inspecting the settled layout.
+                        var frame = new System.Windows.Threading.DispatcherFrame();
+                        var timer = new System.Windows.Threading.DispatcherTimer
+                        {
+                            Interval = TimeSpan.FromMilliseconds(SessionStackWindow.ExpansionAnimationMilliseconds + 80)
+                        };
+                        timer.Tick += (_, _) => { timer.Stop(); frame.Continue = false; };
+                        timer.Start();
+                        System.Windows.Threading.Dispatcher.PushFrame(frame);
+                    }
+                    var content = (FrameworkElement)window.Content;
+                    VisualTreeHelper.SetRootDpi(content, new DpiScale(dpi / 96d, dpi / 96d));
+                    content.Measure(new Size(window.Width, window.DesiredHeight));
+                    content.Arrange(new Rect(0, 0, window.Width, window.DesiredHeight));
+                    content.UpdateLayout();
+
+                    Assert.Equal(SessionStackWindow.StackWidth, window.Width);
+                    var panel = (StackPanel)window.FindName("SessionsPanel");
+                    Assert.Equal(expanded ? 4 : 1, panel.Children.Count);
+                    foreach (Button pill in panel.Children)
+                    {
+                        Assert.Equal(SessionStackWindow.CardWidth, pill.ActualWidth);
+                        Assert.Equal(58, pill.ActualHeight);
+                        var bounds = pill.TransformToAncestor(content).TransformBounds(new Rect(pill.RenderSize));
+                        Assert.Equal(SessionStackWindow.ShadowHorizontalInset, bounds.Left, 2);
+                        var labels = ((Grid)pill.Content).Children.OfType<TextBlock>().ToArray();
+                        Assert.All(labels, label => Assert.Equal(TextTrimming.CharacterEllipsis, label.TextTrimming));
+                        Assert.All(labels, label => Assert.InRange(label.ActualWidth, 1, SessionStackWindow.CardWidth - 40));
+                    }
+                    Assert.Equal(SessionStackWindow.CollapsedMiddleWidth, ((Border)window.FindName("CollapsedMiddleLayer")).Width);
+                    Assert.Equal(SessionStackWindow.CollapsedBackWidth, ((Border)window.FindName("CollapsedBackLayer")).Width);
+                    Assert.All(((StackPanel)window.FindName("ShadowSlots")).Children.OfType<Border>(),
+                        shadow => Assert.Equal(SessionStackWindow.CardWidth, shadow.Width));
+                    if (expanded)
+                        Assert.True(((ScrollViewer)window.FindName("SessionsScroller")).ScrollableHeight > 0);
+
+                    if (Environment.GetEnvironmentVariable("CODEX_QUOTA_UI_PROOFS") == "1")
+                    {
+                        var bitmap = new RenderTargetBitmap((int)Math.Ceiling(window.Width * dpi / 96d),
+                            (int)Math.Ceiling(window.DesiredHeight * dpi / 96d), dpi, dpi, PixelFormats.Pbgra32);
+                        bitmap.Render(content);
+                        var encoder = new PngBitmapEncoder();
+                        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                        var directory = Path.Combine(RepositoryPaths.Root, "artifacts", "material-transparency-proof");
+                        Directory.CreateDirectory(directory);
+                        using var stream = File.Create(Path.Combine(directory, $"compact-sessions-{dpi}-{expanded}.png"));
+                        encoder.Save(stream);
+                    }
+                }
+                finally { window.Close(); }
+            }
+            catch (Exception exception) { failure = exception; }
+        }) { IsBackground = true };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        Assert.True(thread.Join(TimeSpan.FromSeconds(30)), "Compact session layout verification timed out.");
+        if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
     [Theory]
     [InlineData(0, false, 0)]
     [InlineData(5, false, 1)]
@@ -45,7 +134,9 @@ public sealed class SessionStackWindowTests
     [Fact]
     public void Shadow_safety_area_contains_the_full_blur_and_depth()
     {
-        Assert.Equal(392, SessionStackWindow.StackWidth);
+        Assert.Equal(320, SessionStackWindow.StackWidth);
+        Assert.Equal(272, SessionStackWindow.CardWidth);
+        Assert.Equal(SessionStackWindow.CardWidth + 2 * SessionStackWindow.ShadowHorizontalInset, SessionStackWindow.StackWidth);
         Assert.True(SessionStackWindow.ShadowHorizontalInset >= 18);
         Assert.True(SessionStackWindow.ShadowTopInset >= 18 - 5);
         Assert.True(SessionStackWindow.ShadowBottomInset >= 18 + 5);
