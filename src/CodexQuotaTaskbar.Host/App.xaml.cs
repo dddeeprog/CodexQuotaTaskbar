@@ -28,6 +28,7 @@ public partial class App : System.Windows.Application
     private BrowserSubscriptionStore? browserStore;
     private CodexSubscriptionMetadataService? subscriptionService;
     private SubscriptionBrowserWindow? subscriptionBrowser;
+    private readonly DotChatProcess dotChat = new();
     private CodexResetFeedClient? resetFeedClient;
     private Task? resetFeedLoop;
     private Task resetRefreshTask = Task.CompletedTask;
@@ -39,6 +40,7 @@ public partial class App : System.Windows.Application
         base.OnStartup(eventArgs);
         try
         {
+            if (DotChatProcess.TryOpen(eventArgs.Args, this)) return;
             if (UpdateApplyOptions.TryParse(eventArgs.Args, out var updateOptions))
             {
                 await UpdateApplier.ApplyAsync(updateOptions!, CancellationToken.None);
@@ -47,6 +49,10 @@ public partial class App : System.Windows.Application
             }
 
             var options = HostOptions.Parse(eventArgs.Args);
+            // Small always-on-top surfaces do not need a per-process GPU shader/compiler cache.
+            // Keep an explicit hardware override for machines where software rendering costs more CPU.
+            if (options.SoftwareRendering)
+                System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
             singleInstance = new Mutex(true, "Local\\CodexQuotaTaskbar.Host", out var created);
             if (!created)
             {
@@ -58,10 +64,17 @@ public partial class App : System.Windows.Application
 
             settingsStore = SettingsStore.CreateDefault();
             var settings = await settingsStore.LoadAsync(lifetime.Token);
+            if (options.DotRealtime)
+            {
+                settings = settings with { DotRealtime = true };
+                await settingsStore.SaveAsync(settings, lifetime.Token);
+            }
             lowQuotaGate = new LowQuotaGate(settings.LowQuotaThreshold);
             coordinator = new OverlayCoordinator(settings.ShowAllTaskbars, settings.EffectiveMaterialTransparencyPercent, settings.UnifiedPanel);
+            coordinator.SetCompanion(settings.CompanionBallEnabled, settings.ReduceCompanionMotion);
             tray = new TrayController(settings);
             tray.MaterialTransparencyPreviewRequested += (_, value) => coordinator?.SetMaterialTransparency(value);
+            tray.CompanionPreviewRequested += (_, _) => coordinator?.ToggleCompanionTour();
             browserStore = new BrowserSubscriptionStore();
             subscriptionService = new CodexSubscriptionMetadataService(browserStore: browserStore);
             provider = options.Demo ? new DemoQuotaProvider() : new CodexRateLimitProvider(settings.SubscriptionDetailsEnabled, subscriptionService);
@@ -72,12 +85,15 @@ public partial class App : System.Windows.Application
             coordinator.RefreshRequested += OnRefreshRequested;
             coordinator.OpenCodexRequested += OnOpenCodexRequested;
             coordinator.OpenSubscriptionLoginRequested += OnOpenSubscriptionLoginRequested;
+            coordinator.OpenDotChatRequested += OnOpenDotChatRequested;
+            coordinator.DotAnchorChanged += dotChat.UpdateAnchor;
             coordinator.OpenSessionRequested += OnOpenSessionRequested;
             coordinator.OpenResetSourceRequested += OnOpenResetSourceRequested;
-            coordinator.ContextRequested += (_, _) => tray.ShowContextMenu(avoidIsland: true);
+            coordinator.ContextRequested += (sender, _) => tray.ShowContextMenu(sender as CodexQuotaTaskbar.Host.UI.QuotaCapsuleWindow);
             tray.RefreshRequested += OnRefreshRequested;
             tray.OpenCodexRequested += OnOpenCodexRequested;
             tray.OpenSubscriptionLoginRequested += OnOpenSubscriptionLoginRequested;
+            tray.OpenDotChatRequested += OnOpenDotChatRequested;
             tray.CheckUpdatesRequested += OnCheckUpdatesRequested;
             tray.SettingsChanged += OnSettingsChanged;
             tray.ExitRequested += async (_, _) => await RequestShutdownAsync();
@@ -87,6 +103,7 @@ public partial class App : System.Windows.Application
             coordinator.Apply(provider.Current);
             coordinator.ApplySessions(provider.CurrentSessions);
             coordinator.Start();
+            if (settings.DotRealtime && !options.Demo) StartDotReceiving();
             if (resetFeedClient is not null)
             {
                 resetFeedLoop = ResetFeedLoopAsync(lifetime.Token);
@@ -112,7 +129,7 @@ public partial class App : System.Windows.Application
         }
         catch (Exception exception) when (exception is ArgumentException or IOException or UnauthorizedAccessException or InvalidOperationException or TimeoutException or System.ComponentModel.Win32Exception)
         {
-            System.Windows.MessageBox.Show(exception.Message, "Codex 额度", MessageBoxButton.OK, MessageBoxImage.Error);
+            System.Windows.MessageBox.Show(exception.Message, "点岛", MessageBoxButton.OK, MessageBoxImage.Error);
             await RequestShutdownAsync();
         }
     }
@@ -120,6 +137,11 @@ public partial class App : System.Windows.Application
     private void OnOpenSubscriptionLoginRequested(object? sender, EventArgs eventArgs)
     {
         if (shuttingDown || browserStore is null || subscriptionService is null || provider is not CodexRateLimitProvider) return;
+        if (dotChat.IsRunning)
+        {
+            System.Windows.MessageBox.Show("请先关闭 Dot 聊天，再打开订阅网页登录。两者共用网页登录资料。", "点岛");
+            return;
+        }
         tray?.EnableSubscriptionDetails();
         if (subscriptionBrowser is not null)
         {
@@ -133,6 +155,27 @@ public partial class App : System.Windows.Application
         subscriptionBrowser.Closed += (_, _) => subscriptionBrowser = null;
         subscriptionBrowser.Show();
         subscriptionBrowser.Activate();
+    }
+
+    private void OnOpenDotChatRequested(object? sender, EventArgs eventArgs)
+    {
+        if (shuttingDown) return;
+        if (sender is QuotaCapsuleWindow && tray?.Settings.DotRealtime != true) return;
+        tray?.EnableDotRealtime();
+        subscriptionBrowser?.Close();
+        try { dotChat.Show(); }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            System.Windows.MessageBox.Show("Dot 聊天暂时无法启动，请重试。", "点岛");
+        }
+    }
+
+    private void StartDotReceiving()
+    {
+        subscriptionBrowser?.Close();
+        try { dotChat.Start(); }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+        { tray?.ShowUpdateNotification("Dot 未连接", "实时接收未能启动，请从菜单重新开启。"); }
     }
 
     private async void OnBrowserLoginCleared(object? sender, EventArgs eventArgs)
@@ -196,17 +239,19 @@ public partial class App : System.Windows.Application
 
     private async Task CheckForUpdatesAsync(bool manual, CancellationToken cancellationToken)
     {
-        if (updateService is null || !await updateGate.WaitAsync(0, cancellationToken))
+        if (cancellationToken.IsCancellationRequested) return;
+        if (updateService is null || !await updateGate.WaitAsync(0))
         {
             if (manual)
             {
-                tray?.ShowUpdateNotification("正在检查更新", "已有更新检查正在进行。");
+                tray?.ShowUpdateNotification("正在检查更新", "已有更新检查正在进行。", showWhenTrayHidden: true);
             }
             return;
         }
 
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (manual)
             {
                 tray?.ShowUpdateNotification("检查更新", "正在连接 GitHub 正式发行版…");
@@ -217,7 +262,7 @@ public partial class App : System.Windows.Application
             {
                 if (manual)
                 {
-                    tray?.ShowUpdateNotification("已是最新版本", $"当前版本为 v{ProductVersion.Text}。");
+                    tray?.ShowUpdateNotification("暂无可用更新", $"当前版本为 v{ProductVersion.Text}，没有更高版本的正式更新。", showWhenTrayHidden: true);
                 }
                 return;
             }
@@ -235,12 +280,20 @@ public partial class App : System.Windows.Application
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
         }
-        catch (Exception exception) when (exception is HttpRequestException or IOException or UnauthorizedAccessException or InvalidOperationException or System.Text.Json.JsonException)
+        catch (Exception exception) when (exception is HttpRequestException or IOException or InvalidDataException or UnauthorizedAccessException or InvalidOperationException or System.Text.Json.JsonException or System.ComponentModel.Win32Exception or OperationCanceledException)
         {
+            var message = exception switch
+            {
+                OperationCanceledException => "更新请求超时或中断，请稍后重试。",
+                InvalidDataException => "发行信息或更新包校验失败，请稍后重试。",
+                System.Text.Json.JsonException => "发行信息无效，请稍后重试。",
+                _ => "无法从 GitHub 获取或安装更新，请稍后重试。",
+            };
             tray?.ShowUpdateNotification(
                 "更新失败",
-                manual ? "无法从 GitHub 获取或安装更新。" : "自动更新暂时失败，稍后会重试。",
-                System.Windows.Forms.ToolTipIcon.Warning);
+                manual ? message : "自动更新暂时失败，稍后会重试。",
+                System.Windows.Forms.ToolTipIcon.Warning,
+                showWhenTrayHidden: manual);
         }
         finally
         {
@@ -304,7 +357,7 @@ public partial class App : System.Windows.Application
         }
         catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception)
         {
-            System.Windows.MessageBox.Show("未找到可打开的 Codex 应用。", "Codex 额度", MessageBoxButton.OK, MessageBoxImage.Information);
+            System.Windows.MessageBox.Show("未找到可打开的 Codex 应用。", "点岛", MessageBoxButton.OK, MessageBoxImage.Information);
         }
     }
 
@@ -348,7 +401,7 @@ public partial class App : System.Windows.Application
         }
         catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception)
         {
-            System.Windows.MessageBox.Show("无法打开公告来源，请稍后重试。", "Codex 额度", MessageBoxButton.OK, MessageBoxImage.Information);
+            System.Windows.MessageBox.Show("无法打开公告来源，请稍后重试。", "点岛", MessageBoxButton.OK, MessageBoxImage.Information);
         }
     }
 
@@ -378,8 +431,10 @@ public partial class App : System.Windows.Application
 
     private async void OnSettingsChanged(object? sender, AppSettings settings)
     {
+        if (settings.DotRealtime) StartDotReceiving(); else dotChat.Dispose();
         if (!settings.SubscriptionDetailsEnabled) subscriptionBrowser?.Close();
         coordinator?.SetUnifiedPanel(settings.UnifiedPanel);
+        coordinator?.SetCompanion(settings.CompanionBallEnabled, settings.ReduceCompanionMotion);
         coordinator?.SetShowAllTaskbars(settings.ShowAllTaskbars);
         coordinator?.SetMaterialTransparency(settings.EffectiveMaterialTransparencyPercent);
         var refreshSubscriptionDetails = provider?.SetSubscriptionDetailsEnabled(settings.SubscriptionDetailsEnabled) == true;
@@ -391,7 +446,7 @@ public partial class App : System.Windows.Application
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
-                System.Windows.MessageBox.Show("设置暂时无法保存。", "Codex 额度", MessageBoxButton.OK, MessageBoxImage.Warning);
+                System.Windows.MessageBox.Show("设置暂时无法保存。", "点岛", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
             catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
             {
@@ -439,11 +494,12 @@ public partial class App : System.Windows.Application
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
-                System.Windows.MessageBox.Show("本次设置未能保存，下次启动可能恢复原值。", "Codex 额度", MessageBoxButton.OK, MessageBoxImage.Warning);
+                System.Windows.MessageBox.Show("本次设置未能保存，下次启动可能恢复原值。", "点岛", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
         lifetime.Cancel();
         subscriptionBrowser?.Close();
+        dotChat.Dispose();
         coordinator?.Dispose();
         tray?.Dispose();
         if (provider is not null)
@@ -466,6 +522,7 @@ public partial class App : System.Windows.Application
         {
             lifetime.Cancel();
             subscriptionBrowser?.Close();
+            dotChat.Dispose();
             coordinator?.Dispose();
             tray?.Dispose();
             if (provider is not null)

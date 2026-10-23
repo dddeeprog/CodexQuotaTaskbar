@@ -60,7 +60,7 @@ try {
         foreach ($file in 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'unins000.exe') {
             if (-not (Test-Path -LiteralPath (Join-Path $installDirectory $file))) { throw "Missing installed file: $file" }
         }
-        $shortcut = Join-Path $groupDirectory 'Codex 额度岛.lnk'
+        $shortcut = Join-Path $groupDirectory '点岛.lnk'
         if (-not (Test-Path -LiteralPath $shortcut)) { throw 'Start menu shortcut is missing.' }
         $shell = New-Object -ComObject WScript.Shell
         if ($shell.CreateShortcut($shortcut).TargetPath -ne $installedExe) { throw 'Shortcut target mismatch.' }

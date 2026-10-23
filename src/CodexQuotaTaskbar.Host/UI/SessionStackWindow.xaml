@@ -23,7 +23,7 @@
       <Setter Property="Foreground" Value="#FAFFFFFF"/>
       <Setter Property="Background" Value="{x:Static ui:OverlayGlassMaterial.Surface}"/>
       <Setter Property="BorderBrush" Value="{x:Static ui:OverlayGlassMaterial.Border}"/>
-      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="BorderThickness" Value="0.5"/>
       <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
       <Setter Property="Cursor" Value="Hand"/>
       <Setter Property="FocusVisualStyle" Value="{x:Null}"/>

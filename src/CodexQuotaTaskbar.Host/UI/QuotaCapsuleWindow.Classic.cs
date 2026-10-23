@@ -25,7 +25,7 @@ public partial class QuotaCapsuleWindow
         Height = 112;
         BackdropLayer.Margin = GlassBorder.Margin = new Thickness(12, 28, 22, 16);
         BackdropLayer.CornerRadius = GlassBorder.CornerRadius = new CornerRadius(24);
-        GlassBorder.BorderThickness = new Thickness(1);
+        GlassBorder.BorderThickness = new Thickness(0.5);
         var body = (Grid)GlassBorder.Child;
         body.RowDefinitions[0].Height = new GridLength(1, GridUnitType.Star);
         body.RowDefinitions[1].Height = new GridLength(0);
@@ -47,8 +47,8 @@ public partial class QuotaCapsuleWindow
             { ViewboxUnits = BrushMappingMode.Absolute, Viewbox = new Rect(1124, 274, 1591, 1613), Stretch = Stretch.Uniform }
         };
         RenderOptions.SetBitmapScalingMode(logo, BitmapScalingMode.HighQuality);
-        QuotaHeader.Children.Add(new Border { Width = 38, Height = 38, CornerRadius = new CornerRadius(14),
-            Background = Freeze("#1AFFFFFF"), BorderBrush = Freeze("#34FFFFFF"), BorderThickness = new Thickness(1), Child = logo });
+        QuotaHeader.Children.Add(new Border { Width = 38, Height = 38, CornerRadius = new CornerRadius(16),
+            Background = Freeze("#1AFFFFFF"), BorderBrush = Freeze("#28FFFFFF"), BorderThickness = new Thickness(0.5), Child = logo });
 
         var rows = new Grid();
         rows.RowDefinitions.Add(new RowDefinition { Height = new GridLength(19) });

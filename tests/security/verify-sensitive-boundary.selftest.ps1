@@ -317,21 +317,40 @@ function Invoke-SelfTest {
         }).Count -eq 1) -Message 'a second credential reader received the reviewed source allowance'
         Remove-Item -LiteralPath $secondReaderPath -Force
 
-        $allowedArtifactDirectory = Join-Path $fixtureRoot 'artifacts\host-publish\Release'
-        $null = New-Item -ItemType Directory -Path $allowedArtifactDirectory -Force
+        $reviewedArtifactDirectories = @(
+            'artifacts/host-publish/Debug', 'artifacts/host-publish/Release',
+            'artifacts/installer-publish/Debug', 'artifacts/installer-publish/Release'
+        )
+        foreach ($relativeDirectory in $reviewedArtifactDirectories) {
+            $allowedArtifactDirectory = Join-Path $fixtureRoot $relativeDirectory
+            $null = New-Item -ItemType Directory -Path $allowedArtifactDirectory -Force
+            [System.IO.File]::WriteAllText(
+                (Join-Path $allowedArtifactDirectory 'CodexQuotaTaskbar.exe'),
+                'auth.json https://chatgpt.com/backend-api/subscriptions AccountManager')
+            [System.IO.File]::WriteAllText(
+                (Join-Path $allowedArtifactDirectory 'Renamed.exe'),
+                'auth.json https://chatgpt.com/backend-api/subscriptions')
+        }
+        $unreviewedArtifactDirectory = Join-Path $fixtureRoot 'artifacts/installer-publish/Unreviewed'
+        $null = New-Item -ItemType Directory -Path $unreviewedArtifactDirectory -Force
         [System.IO.File]::WriteAllText(
-            (Join-Path $allowedArtifactDirectory 'CodexQuotaTaskbar.exe'),
+            (Join-Path $unreviewedArtifactDirectory 'CodexQuotaTaskbar.exe'),
             'auth.json https://chatgpt.com/backend-api/subscriptions')
-        [System.IO.File]::WriteAllText(
-            (Join-Path $allowedArtifactDirectory 'Renamed.exe'),
-            'auth.json')
         $reviewedArtifactFindings = @(Invoke-RepositoryScan -RepositoryRoot $fixtureRoot -SecurityDirectory $securityDirectory -ProductionRoots @('artifacts'))
+        foreach ($relativeDirectory in $reviewedArtifactDirectories) {
+            Assert-SelfTest -Condition (@($reviewedArtifactFindings | Where-Object {
+                $_.Path -ceq "$relativeDirectory/CodexQuotaTaskbar.exe" -and $_.Pattern -in @('auth.json', 'chatgpt[.]com/backend-api')
+            }).Count -eq 0) -Message "the exact reviewed executable was rejected: $relativeDirectory"
+            Assert-SelfTest -Condition (@($reviewedArtifactFindings | Where-Object {
+                $_.Path -ceq "$relativeDirectory/Renamed.exe" -and $_.Pattern -in @('auth.json', 'chatgpt[.]com/backend-api')
+            }).Count -eq 2) -Message "a renamed executable received the reviewed artifact allowance: $relativeDirectory"
+            Assert-SelfTest -Condition (@($reviewedArtifactFindings | Where-Object {
+                $_.Path -ceq "$relativeDirectory/CodexQuotaTaskbar.exe" -and $_.Pattern -ceq 'AccountManager'
+            }).Count -eq 1) -Message "an unrelated forbidden pattern received the reviewed artifact allowance: $relativeDirectory"
+        }
         Assert-SelfTest -Condition (@($reviewedArtifactFindings | Where-Object {
-            $_.Path -ceq 'artifacts/host-publish/Release/CodexQuotaTaskbar.exe' -and $_.Pattern -in @('auth.json', 'chatgpt[.]com/backend-api')
-        }).Count -eq 0) -Message 'the exact reviewed executable was rejected'
-        Assert-SelfTest -Condition (@($reviewedArtifactFindings | Where-Object {
-            $_.Path -ceq 'artifacts/host-publish/Release/Renamed.exe' -and $_.Pattern -ceq 'auth.json'
-        }).Count -eq 1) -Message 'a renamed executable received the reviewed artifact allowance'
+            $_.Path -ceq 'artifacts/installer-publish/Unreviewed/CodexQuotaTaskbar.exe' -and $_.Pattern -in @('auth.json', 'chatgpt[.]com/backend-api')
+        }).Count -eq 2) -Message 'an unreviewed installer staging directory inherited the allowance'
 
         $releaseFixtureDirectory = Join-Path $fixtureRoot 'artifacts\releases'
         $null = New-Item -ItemType Directory -Path $releaseFixtureDirectory -Force

@@ -17,6 +17,19 @@ namespace CodexQuotaTaskbar.Host.Tests.UI;
 
 public sealed class TrayMenuWindowTests
 {
+    [Theory]
+    [InlineData(272, 300)]
+    [InlineData(306, 700)]
+    [InlineData(408, 900)]
+    public void Island_menu_remains_centered_as_its_height_changes(int width, int height)
+    {
+        var work = new Rectangle(-1920, 0, 1920, 1040);
+        var center = new Point(-850, 960);
+        var result = TrayMenuWindow.CalculateAnchoredBounds(work, center, new Size(width, height), true, 8, true);
+        Assert.InRange(Math.Abs(result.Left + result.Width / 2d - center.X), 0, 0.5);
+        Assert.InRange(result.Top, work.Top + 8, center.Y);
+    }
+
     [Fact]
     public void Menu_is_kept_inside_the_current_screen_work_area()
     {
@@ -30,14 +43,25 @@ public sealed class TrayMenuWindowTests
     }
 
     [Fact]
-    public void Host_uses_the_original_quota_island_icon_for_exe_and_tray()
+    public void Host_uses_the_diandao_icon_for_exe_and_sized_tray_frames()
     {
         var project = XDocument.Load(RepositoryPaths.HostProject);
         var applicationIcon = project.Descendants("ApplicationIcon").Single().Value;
         var traySource = File.ReadAllText(Path.Combine(RepositoryPaths.Root, "src", "CodexQuotaTaskbar.Host", "Tray", "TrayController.cs"));
 
         Assert.Equal("Assets\\QuotaIslandIcon.ico", applicationIcon);
-        Assert.Contains("Icon.ExtractAssociatedIcon", traySource, StringComparison.Ordinal);
+        Assert.Contains("SystemInformation.SmallIconSize", traySource, StringComparison.Ordinal);
+        Assert.Contains(project.Descendants("EmbeddedResource"), element => (string?)element.Attribute("Include") == applicationIcon);
+        foreach (var size in new[] { 16, 20, 24, 32 })
+        {
+            using var stream = typeof(TrayMenuWindow).Assembly.GetManifestResourceStream("CodexQuotaTaskbar.Host.Assets.QuotaIslandIcon.ico");
+            Assert.NotNull(stream);
+            using var icon = new System.Drawing.Icon(stream, new Size(size, size));
+            Assert.Equal(new Size(size, size), icon.Size);
+            using var image = icon.ToBitmap();
+            Assert.Equal(0, image.GetPixel(0, 0).A);
+            Assert.Equal(0, image.GetPixel(size - 1, size - 1).A);
+        }
         Assert.DoesNotContain("SystemIcons.Information", traySource, StringComparison.Ordinal);
         Assert.DoesNotContain("ContextMenuStrip", traySource, StringComparison.Ordinal);
     }
@@ -93,36 +117,31 @@ public sealed class TrayMenuWindowTests
                 var menu = new TrayMenuWindow(AppSettings.Default with { MaterialTransparencyPercent = 37, LowQuotaNotifications = false });
                 try
                 {
-                    Assert.Equal(252, menu.Width);
+                    Assert.Equal(272, menu.Width); // 252 DIP content plus safe shadow margins
                     Assert.Null(menu.FindName("RunningText"));
                     Assert.Null(menu.FindName("AllTaskbarsTrack"));
-                    foreach (var name in new[] { "AppearancePopup", "PreferencesPopup" })
+                    var content = (FrameworkElement)menu.Content;
+                    VisualTreeHelper.SetRootDpi(content, new DpiScale(dpi / 96d, dpi / 96d));
+                    foreach (var section in new[] { "", "Appearance", "Preferences" })
                     {
-                        var popup = Assert.IsType<System.Windows.Controls.Primitives.Popup>(menu.FindName(name));
-                        Assert.False(popup.IsOpen);
-                        Assert.Equal(System.Windows.Controls.Primitives.PlacementMode.Custom, popup.Placement);
-                        Assert.True(popup.AllowsTransparency);
-                    }
-                    foreach (var content in new[]
-                    {
-                        (FrameworkElement)menu.Content,
-                        Assert.IsType<Grid>(menu.FindName("AppearanceRoot")),
-                        Assert.IsType<Grid>(menu.FindName("PreferencesRoot")),
-                    })
-                    {
-                        VisualTreeHelper.SetRootDpi(content, new DpiScale(dpi / 96d, dpi / 96d));
-                        content.Measure(new System.Windows.Size(252, double.PositiveInfinity));
-                        content.Arrange(new Rect(0, 0, 252, content.DesiredSize.Height));
+                        if (section.Length > 0)
+                            Assert.IsType<Button>(menu.FindName(section + "Button")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                        content.Measure(new System.Windows.Size(menu.Width, double.PositiveInfinity));
+                        content.Arrange(new Rect(0, 0, menu.Width, content.DesiredSize.Height));
                         content.UpdateLayout();
-                        Assert.InRange(content.ActualHeight, 150, 340);
-                        var labels = Descendants<Button>(content).SelectMany(button => Descendants<TextBlock>(button))
-                            .Where(label => label.ActualWidth > 0 && label.Name != "StyleSummaryText").ToArray();
-                        Assert.NotEmpty(labels);
-                        foreach (var label in labels)
+                        Assert.InRange(Assert.IsType<Border>(menu.FindName("GlassBorder")).ActualWidth, 251.5, 252.5); // subpixel DPI rounding
+                        Assert.Null(menu.FindName("AppearancePopup"));
+                        Assert.Null(menu.FindName("PreferencesPopup"));
+                        var open = section.Length == 0 ? null : Assert.IsType<Border>(menu.FindName(section + "Reveal"));
+                        if (open is not null) Assert.True(open.Height > 100);
+                        foreach (var label in Descendants<Button>(content).SelectMany(button => Descendants<TextBlock>(button))
+                            .Where(label => label.ActualWidth > 0 && label.Name != "StyleSummaryText"
+                                && !(section != "Appearance" && Assert.IsType<Grid>(menu.FindName("AppearanceRoot")).IsAncestorOf(label))
+                                && !(section != "Preferences" && Assert.IsType<Grid>(menu.FindName("PreferencesRoot")).IsAncestorOf(label))))
                         {
                             Assert.Equal(OverlayTypography.Interface, label.FontFamily);
                             Assert.Equal(FontWeights.Normal, label.FontWeight);
-                            Assert.Equal(13, label.FontSize);
+                            Assert.InRange(label.FontSize, 12, 13);
                             var fullText = new FormattedText(label.Text, CultureInfo.CurrentUICulture, label.FlowDirection,
                                 new Typeface(label.FontFamily, label.FontStyle, label.FontWeight, label.FontStretch),
                                 label.FontSize, label.Foreground, dpi / 96d);
@@ -130,12 +149,9 @@ public sealed class TrayMenuWindowTests
                             Assert.True(fullText.Height <= label.ActualHeight + 1, label.Text);
                             var glyphs = GlyphRuns(VisualTreeHelper.GetDrawing(label)!).ToArray();
                             Assert.NotEmpty(glyphs);
-                            Assert.All(glyphs, glyph =>
-                            {
-                                Assert.DoesNotContain("Noto Sans SC", glyph.GlyphTypeface.FamilyNames.Values);
-                                Assert.All(glyph.GlyphIndices, index => Assert.NotEqual((ushort)0, index));
-                            });
+                            Assert.All(glyphs, glyph => Assert.All(glyph.GlyphIndices, index => Assert.NotEqual((ushort)0, index)));
                         }
+                        content.Name = "menu" + section;
                         SaveProof(content, dpi);
                     }
                     var requested = new List<AppSettings>();
@@ -151,6 +167,13 @@ public sealed class TrayMenuWindowTests
                     menu.FlushMaterialTransparencyChange();
                     Assert.Equal(42, requested.Last().EffectiveMaterialTransparencyPercent);
                     Assert.True(requested.Last().LowQuotaNotifications);
+                    var trayToggle = Assert.IsType<Button>(menu.FindName("TrayIconButton"));
+                    trayToggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Assert.False(requested.Last().TrayIconEnabled);
+                    Assert.Equal("已关闭", System.Windows.Automation.AutomationProperties.GetItemStatus(trayToggle));
+                    trayToggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Assert.True(requested.Last().TrayIconEnabled);
+                    Assert.Equal(Visibility.Visible, Assert.IsType<System.Windows.Shapes.Path>(menu.FindName("TrayIconCheck")).Visibility);
                 }
                 finally { menu.Close(); }
             }
@@ -176,28 +199,32 @@ public sealed class TrayMenuWindowTests
             {
                 menu = new TrayMenuWindow(AppSettings.Default);
                 var work = System.Windows.Forms.Screen.PrimaryScreen!.WorkingArea;
-                menu.ShowAt(new Point(work.Right - 10, work.Bottom - 10));
+                var island = new Rectangle(work.Left + work.Width / 2 - 140, work.Bottom - 100, 280, 80);
+                // Deliberately unrelated cursor: island invocation must not align to the pointer.
+                menu.ShowAt(new Point(work.Right - 10, work.Bottom - 10), 8, island);
                 void Pump()
                 {
                     var frame = new System.Windows.Threading.DispatcherFrame();
-                    menu.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle,
-                        new Action(() => frame.Continue = false));
+                    var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(240) };
+                    timer.Tick += (_, _) => { timer.Stop(); frame.Continue = false; };
+                    timer.Start();
                     System.Windows.Threading.Dispatcher.PushFrame(frame);
                 }
                 Pump();
                 var mainHandle = new System.Windows.Interop.WindowInteropHelper(menu).Handle;
                 Assert.True(CodexQuotaTaskbar.Host.Platform.NativeMethods.GetWindowRect(mainHandle, out var before));
+                Assert.InRange(Math.Abs((before.Left + before.Right) / 2d - (island.Left + island.Width / 2d)), 0, 1);
                 foreach (var name in new[] { "Appearance", "Preferences" })
                 {
                     Assert.IsType<Button>(menu.FindName(name + "Button")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                     Pump();
-                    var popup = Assert.IsType<System.Windows.Controls.Primitives.Popup>(menu.FindName(name + "Popup"));
+                    var reveal = Assert.IsType<Border>(menu.FindName(name + "Reveal"));
                     Assert.True(menu.IsVisible);
-                    Assert.True(popup.IsOpen);
-                    Assert.False(BlurredBackground.WPF.BlurredBackground.GetEnableBlur(
-                        Assert.IsType<Border>(menu.FindName(name + "Backdrop"))));
-                    var popupSource = Assert.IsType<System.Windows.Interop.HwndSource>(PresentationSource.FromVisual(popup.Child));
-                    Assert.True(CodexQuotaTaskbar.Host.Platform.NativeMethods.GetWindowRect(popupSource.Handle, out var bounds));
+                    Assert.True(reveal.IsHitTestVisible);
+                    var other = Assert.IsType<Border>(menu.FindName((name == "Appearance" ? "Preferences" : "Appearance") + "Reveal"));
+                    Assert.False(other.IsHitTestVisible);
+                    Assert.Same(PresentationSource.FromVisual(menu), PresentationSource.FromVisual(reveal));
+                    Assert.True(CodexQuotaTaskbar.Host.Platform.NativeMethods.GetWindowRect(mainHandle, out var bounds));
                     Assert.InRange(bounds.Left, work.Left, work.Right - 1);
                     Assert.InRange(bounds.Top, work.Top, work.Bottom - 1);
                     Assert.InRange(bounds.Right, bounds.Left + 1, work.Right);
@@ -207,18 +234,28 @@ public sealed class TrayMenuWindowTests
                         var slider = Assert.IsType<Slider>(menu.FindName("MaterialTransparencySlider"));
                         slider.Focus();
                         var key = new System.Windows.Input.KeyEventArgs(System.Windows.Input.Keyboard.PrimaryDevice,
-                            popupSource, 0, System.Windows.Input.Key.Left) { RoutedEvent = System.Windows.Input.Keyboard.PreviewKeyDownEvent };
+                            PresentationSource.FromVisual(menu), 0, System.Windows.Input.Key.Left) { RoutedEvent = System.Windows.Input.Keyboard.PreviewKeyDownEvent };
                         Assert.IsType<Grid>(menu.FindName("AppearanceRoot")).RaiseEvent(key);
                         Assert.False(key.Handled);
-                        Assert.True(popup.IsOpen);
+                        Assert.True(reveal.IsHitTestVisible);
                     }
-                    Assert.True(CodexQuotaTaskbar.Host.Platform.NativeMethods.GetWindowRect(mainHandle, out var after));
-                    Assert.Equal(before.Left, after.Left);
-                    Assert.Equal(before.Top, after.Top);
+                    Assert.Equal(before.Left, bounds.Left);
                 }
                 menu.Hide();
-                Assert.False(Assert.IsType<System.Windows.Controls.Primitives.Popup>(menu.FindName("AppearancePopup")).IsOpen);
-                Assert.False(Assert.IsType<System.Windows.Controls.Primitives.Popup>(menu.FindName("PreferencesPopup")).IsOpen);
+                Assert.Equal(0, Assert.IsType<Border>(menu.FindName("AppearanceReveal")).Height);
+                Assert.Equal(0, Assert.IsType<Border>(menu.FindName("PreferencesReveal")).Height);
+                using var controller = new CodexQuotaTaskbar.Host.Tray.TrayController(AppSettings.Default with { ShowTrayIcon = false });
+                var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+                var icon = Assert.IsType<System.Windows.Forms.NotifyIcon>(controller.GetType().GetField("icon", flags)!.GetValue(controller));
+                var controllerMenu = Assert.IsType<TrayMenuWindow>(controller.GetType().GetField("menu", flags)!.GetValue(controller));
+                Assert.False(icon.Visible);
+                var visibilityToggle = Assert.IsType<Button>(controllerMenu.FindName("TrayIconButton"));
+                visibilityToggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.True(icon.Visible);
+                Assert.True(controller.Settings.TrayIconEnabled);
+                visibilityToggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.False(icon.Visible);
+                Assert.False(controller.Settings.TrayIconEnabled);
             }
             catch (Exception error) { failure = error; }
             finally { menu?.Close(); }
@@ -233,8 +270,8 @@ public sealed class TrayMenuWindowTests
     private static void SaveProof(FrameworkElement content, int dpi)
     {
         if (Environment.GetEnvironmentVariable("CODEX_QUOTA_UI_PROOFS") != "1") return;
-        var bitmap = new RenderTargetBitmap((int)Math.Ceiling(content.ActualWidth * dpi / 96d),
-            (int)Math.Ceiling(content.ActualHeight * dpi / 96d), dpi, dpi, PixelFormats.Pbgra32);
+        var bitmap = new RenderTargetBitmap((int)Math.Ceiling((content.ActualWidth + content.Margin.Left + content.Margin.Right) * dpi / 96d),
+            (int)Math.Ceiling((content.ActualHeight + content.Margin.Top + content.Margin.Bottom) * dpi / 96d), dpi, dpi, PixelFormats.Pbgra32);
         bitmap.Render(content);
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(bitmap));

@@ -733,7 +733,7 @@ public partial class SessionStackWindow : Window
         Color = MediaColor.FromRgb(0, 0, 0),
         BlurRadius = 18,
         ShadowDepth = 5,
-        Opacity = 0.44,
+        Opacity = 0.28,
     };
 
     private Border CreateCollapsedLayerGhost(int layer, bool opaque) => new()

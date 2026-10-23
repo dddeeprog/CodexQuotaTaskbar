@@ -8,15 +8,24 @@
     <ApplicationIcon>Assets\QuotaIslandIcon.ico</ApplicationIcon>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <AssemblyName>CodexQuotaTaskbar</AssemblyName>
+    <Title>点岛</Title>
+    <AssemblyTitle>点岛</AssemblyTitle>
+    <Product>点岛</Product>
+    <Description>点岛 · 桌面伙伴与额度提醒</Description>
     <Version>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)..\..\VERSION').Trim())</Version>
     <RootNamespace>CodexQuotaTaskbar.Host</RootNamespace>
     <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\CodexQuotaTaskbar.Core\CodexQuotaTaskbar.Core.csproj" />
+    <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="7" />
     <PackageReference Include="BlurredBackground.WPF" Version="1.1.0" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
     <EmbeddedResource Include="Provider\BrowserSubscriptionReader.js" />
+    <EmbeddedResource Include="Provider\DotChatBridge.js" />
+    <EmbeddedResource Include="Assets\QuotaIslandIcon.ico" />
+    <EmbeddedResource Include="Assets\Companion\poses.json" />
+    <EmbeddedResource Include="Assets\Companion\LICENSE.txt" />
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Assets\OpenAILogo.png" />

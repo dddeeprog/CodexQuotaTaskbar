@@ -35,6 +35,31 @@ public sealed class GitHubUpdateServiceTests : IDisposable
         Assert.Null(await service.CheckAsync(CancellationToken.None));
     }
 
+    [Fact]
+    public async Task Older_official_release_does_not_downgrade_a_local_build()
+    {
+        var older = new Version(ProductVersion.Value.Major, ProductVersion.Value.Minor, ProductVersion.Value.Build - 1);
+        using var http = new HttpClient(new FakeHandler(GitHubReleaseParserTests.CreateJson($"v{older}"), []));
+        using var service = new GitHubUpdateService(http, root);
+
+        Assert.Null(await service.CheckAsync(CancellationToken.None));
+        Assert.False(Directory.Exists(root));
+    }
+
+    [Theory]
+    [InlineData("CodexQuotaTaskbar-win-x64.zip", "DianDao-Setup-0.1.12.exe")]
+    [InlineData("sha256:", "missing:")]
+    [InlineData("tag_name", "missing_tag")]
+    public async Task Incompatible_release_is_a_failed_check_instead_of_no_update(string before, string after)
+    {
+        var json = GitHubReleaseParserTests.CreateJson("v99.0.0").Replace(before, after, StringComparison.Ordinal);
+        using var http = new HttpClient(new FakeHandler(json, []));
+        using var service = new GitHubUpdateService(http, root);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => service.CheckAsync(CancellationToken.None));
+        Assert.False(Directory.Exists(root));
+    }
+
     private static byte[] CreateArchive()
     {
         using var memory = new MemoryStream();

@@ -300,8 +300,9 @@ public sealed class MaterialTransparencyTests
         var menu = new TrayMenuWindow(AppSettings.Default with { MaterialTransparencyPercent = 38 });
         try
         {
-            var content = Named<Grid>(menu, "AppearanceRoot");
+            var content = (FrameworkElement)menu.Content;
             VisualTreeHelper.SetRootDpi(content, new DpiScale(dpi / 96d, dpi / 96d));
+            Named<System.Windows.Controls.Button>(menu, "AppearanceButton").RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
             content.Measure(new System.Windows.Size(menu.Width, double.PositiveInfinity));
             content.Arrange(new Rect(0, 0, menu.Width, content.DesiredSize.Height));
             content.UpdateLayout();

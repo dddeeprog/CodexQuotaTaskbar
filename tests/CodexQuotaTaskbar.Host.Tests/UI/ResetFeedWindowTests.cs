@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using CodexQuotaTaskbar.Core.Quota;
@@ -15,6 +16,35 @@ namespace CodexQuotaTaskbar.Host.Tests.UI;
 
 public sealed class ResetFeedWindowTests
 {
+    [Fact]
+    public void Centered_details_shrink_the_scroll_area_and_recover_when_space_returns()
+    {
+        RunInSta(() =>
+        {
+            var details = new QuotaPopoverWindow();
+            try
+            {
+                details.Show();
+                details.UpdateLayout();
+                var originalHeight = details.ActualHeight;
+                var targetHeight = Math.Min(280, originalHeight - 30);
+                details.FitAvailableHeight(targetHeight);
+                Assert.InRange(details.ActualHeight, 1, targetHeight + 1);
+                var scroll = Assert.IsType<ScrollViewer>(details.FindName("DetailsScroller"));
+                Assert.True(scroll.ActualHeight < 400);
+                // Scrolled-out content remains IsVisible in WPF; only fixed controls must stay in view.
+                foreach (var button in Descendants<Button>(details).Where(b => b.IsVisible && b.ActualHeight > 0 && !scroll.IsAncestorOf(b)))
+                {
+                    var point = button.TranslatePoint(new System.Windows.Point(), details);
+                    Assert.InRange(point.Y + button.ActualHeight, 0, details.ActualHeight + 1);
+                }
+                details.FitAvailableHeight(552);
+                Assert.InRange(details.ActualHeight, originalHeight - 1, originalHeight + 1);
+            }
+            finally { details.Close(); }
+        });
+    }
+
     [Theory]
     [InlineData(108)]
     [InlineData(144)]
@@ -301,6 +331,14 @@ public sealed class ResetFeedWindowTests
     private static FrameworkElement Layout(Window window, int dpi, double? fixedHeight = null)
     {
         var content = (FrameworkElement)window.Content;
+        // Initialize WPF's system-DPI cache before synthetic scales are inserted.
+        // Otherwise the first HWND created by a parallel test can insert the system
+        // scale at index zero and invalidate an unshown visual's synthetic-DPI index.
+        // This source has no WS_VISIBLE style, so it is never shown or activated.
+        using var dpiSource = new HwndSource(new HwndSourceParameters("ResetFeedDpiFixture")
+        {
+            Width = 0, Height = 0, WindowStyle = 0,
+        });
         // An unshown Window has not attached its content to a presentation source.
         VisualTreeHelper.SetRootDpi(content, new DpiScale(dpi / 96d, dpi / 96d));
         content.Measure(new Size(window.Width, fixedHeight ?? window.MaxHeight));
@@ -442,8 +480,8 @@ public sealed class ResetFeedWindowTests
     {
         // Opt in for local visual review without making ordinary tests write artifacts.
         if (Environment.GetEnvironmentVariable("CODEX_QUOTA_UI_PROOFS") != "1") return;
-        var bitmap = new RenderTargetBitmap((int)Math.Ceiling(content.ActualWidth * dpi / 96d),
-            (int)Math.Ceiling(content.ActualHeight * dpi / 96d), dpi, dpi, PixelFormats.Pbgra32);
+        var bitmap = new RenderTargetBitmap((int)Math.Ceiling((content.ActualWidth + content.Margin.Left + content.Margin.Right) * dpi / 96d),
+            (int)Math.Ceiling((content.ActualHeight + content.Margin.Top + content.Margin.Bottom) * dpi / 96d), dpi, dpi, PixelFormats.Pbgra32);
         bitmap.Render(content);
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(bitmap));

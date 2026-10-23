@@ -29,6 +29,7 @@ public partial class TrayMenuWindow : Window
     {
         this.settings = settings;
         InitializeComponent();
+        InitializeCompanionMenu();
         normalGlassBackground = GlassBorder.Background;
         normalBackdropBackground = BackdropLayer.Background;
         materialSaveTimer.Tick += (_, _) => FlushMaterialTransparencyChange();
@@ -36,21 +37,21 @@ public partial class TrayMenuWindow : Window
         IsVisibleChanged += (_, _) => { if (!IsVisible) { CloseSubmenus(); FlushMaterialTransparencyChange(); } };
         AppearanceButton.Click += (_, _) => ToggleSubmenu(true);
         PreferencesButton.Click += (_, _) => ToggleSubmenu(false);
-        AppearancePopup.Opened += (_, _) => ApplySubmenuAppearance();
-        PreferencesPopup.Opened += (_, _) => ApplySubmenuAppearance();
+        InitializeMenuInteraction();
         AppearanceRoot.PreviewKeyDown += OnSubmenuKeyDown;
         PreferencesRoot.PreviewKeyDown += OnSubmenuKeyDown;
-        ConfigureSubmenuPlacement(AppearancePopup, AppearanceButton);
-        ConfigureSubmenuPlacement(PreferencesPopup, PreferencesButton);
         VersionText.Text = $"v{ProductVersion.Text}";
         RefreshButton.Click += (_, _) => InvokeAndHide(RefreshRequested);
         CheckUpdatesButton.Click += (_, _) => InvokeAndHide(CheckUpdatesRequested);
         OpenCodexButton.Click += (_, _) => InvokeAndHide(OpenCodexRequested);
+        DotChatButton.Click += (_, _) => InvokeAndHide(OpenDotChatRequested);
+        DotRealtimeButton.Click += (_, _) => RequestSettings(this.settings with { DotRealtime = !this.settings.DotRealtime });
         SubscriptionLoginButton.Click += (_, _) => InvokeAndHide(OpenSubscriptionLoginRequested);
         ExitButton.Click += (_, _) => InvokeAndHide(ExitRequested);
         ClassicStyleButton.Click += (_, _) => RequestSettings(this.settings with { UnifiedPanel = false });
         UnifiedStyleButton.Click += (_, _) => RequestSettings(this.settings with { UnifiedPanel = true });
         AllTaskbarsButton.Click += (_, _) => RequestSettings(this.settings with { ShowAllTaskbars = !this.settings.ShowAllTaskbars });
+        TrayIconButton.Click += (_, _) => RequestSettings(this.settings with { ShowTrayIcon = !this.settings.TrayIconEnabled });
         NotificationsButton.Click += (_, _) => RequestSettings(this.settings with { LowQuotaNotifications = !this.settings.LowQuotaNotifications });
         AutomaticUpdatesButton.Click += (_, _) => RequestSettings(this.settings with { AutomaticUpdates = !this.settings.AutomaticUpdatesEnabled });
         SubscriptionDetailsButton.Click += (_, _) => RequestSettings(this.settings with { SubscriptionDetails = !this.settings.SubscriptionDetailsEnabled });
@@ -72,7 +73,7 @@ public partial class TrayMenuWindow : Window
         {
             if (eventArgs.Key == Key.Escape)
             {
-                if (AppearancePopup.IsOpen || PreferencesPopup.IsOpen) CloseSubmenus();
+                if (appearanceOpen || preferencesOpen) CloseSubmenus();
                 else Hide();
                 eventArgs.Handled = true;
             }
@@ -91,6 +92,7 @@ public partial class TrayMenuWindow : Window
     internal event EventHandler? RefreshRequested;
     internal event EventHandler? CheckUpdatesRequested;
     internal event EventHandler? OpenCodexRequested;
+    internal event EventHandler? OpenDotChatRequested;
     internal event EventHandler? OpenSubscriptionLoginRequested;
     internal event EventHandler<AppSettings>? SettingsChangeRequested;
     internal event EventHandler<int>? MaterialTransparencyPreviewRequested;
@@ -99,6 +101,7 @@ public partial class TrayMenuWindow : Window
     internal void ApplySettings(AppSettings value)
     {
         settings = value;
+        ApplyCompanionMenu(value);
         ClassicStyleButton.Background = UnifiedStyleButton.Background = MediaBrushes.Transparent;
         StyleSummaryText.Text = value.UnifiedPanel ? "一体面板" : "经典气泡";
         ClassicStyleCheck.Visibility = value.UnifiedPanel ? Visibility.Hidden : Visibility.Visible;
@@ -111,13 +114,15 @@ public partial class TrayMenuWindow : Window
         applyingSettings = false;
         ApplyMaterialAppearance();
         ApplyCheck(AllTaskbarsButton, AllTaskbarsCheck, value.ShowAllTaskbars);
+        ApplyCheck(TrayIconButton, TrayIconCheck, value.TrayIconEnabled);
+        ApplyCheck(DotRealtimeButton, DotRealtimeCheck, value.DotRealtime);
         ApplyCheck(NotificationsButton, NotificationsCheck, value.LowQuotaNotifications);
         ApplyCheck(AutomaticUpdatesButton, AutomaticUpdatesCheck, value.AutomaticUpdatesEnabled);
         ApplyCheck(SubscriptionDetailsButton, SubscriptionDetailsCheck, value.SubscriptionDetailsEnabled);
         ApplyCheck(AutostartButton, AutostartCheck, value.StartWithWindows);
     }
 
-    internal void ShowAt(System.Drawing.Point cursor, int anchorGap = 8)
+    internal void ShowAt(System.Drawing.Point cursor, int anchorGap = 8, System.Drawing.Rectangle? island = null)
     {
         if (IsVisible)
         {
@@ -126,17 +131,31 @@ public partial class TrayMenuWindow : Window
         }
 
         activationEstablished = false;
+        menuCenteredOnIsland = island.HasValue;
+        if (island is { } body)
+        {
+            var bodyCenter = new System.Drawing.Point(body.Left + body.Width / 2, body.Top + body.Height / 2);
+            var work = System.Windows.Forms.Screen.FromPoint(bodyCenter).WorkingArea;
+            menuOpensAbove = body.Top - work.Top >= work.Bottom - body.Bottom;
+            cursor = new System.Drawing.Point(bodyCenter.X, menuOpensAbove ? body.Top : body.Bottom);
+        }
+        menuAnchor = cursor;
+        menuAnchorGap = anchorGap;
+        var area = System.Windows.Forms.Screen.FromPoint(cursor).WorkingArea;
+        if (!menuCenteredOnIsland) menuOpensAbove = cursor.Y - area.Top >= area.Bottom - cursor.Y;
         Show();
         UpdateLayout();
         var handle = new System.Windows.Interop.WindowInteropHelper(this).Handle;
         var dpi = Math.Max(96u, NativeMethods.GetDpiForWindow(handle));
         var workArea = System.Windows.Forms.Screen.FromPoint(cursor).WorkingArea;
         MaxHeight = Math.Max(1, (workArea.Height - 16) * 96d / dpi);
-        AppearanceRoot.MaxHeight = PreferencesRoot.MaxHeight = MaxHeight;
+        if (menuCenteredOnIsland)
+            MaxHeight = Math.Min(MaxHeight, Math.Max(1, ((menuOpensAbove ? cursor.Y - workArea.Top : workArea.Bottom - cursor.Y) - anchorGap - 8) * 96d / dpi));
+        MenuScroller.MaxHeight = Math.Max(1, MaxHeight - 20);
         UpdateLayout();
         var width = checked((int)Math.Ceiling(ActualWidth * dpi / 96d));
         var height = checked((int)Math.Ceiling(ActualHeight * dpi / 96d));
-        var bounds = CalculateBounds(workArea, cursor, new System.Drawing.Size(width, height), anchorGap);
+        var bounds = CalculateAnchoredBounds(workArea, cursor, new System.Drawing.Size(width, height), menuOpensAbove, anchorGap, menuCenteredOnIsland);
         _ = NativeMethods.SetWindowPos(handle, NativeMethods.HwndTopmost, bounds.X, bounds.Y, bounds.Width, bounds.Height, NativeMethods.SwpShowWindow);
         Activate();
         Focus();
@@ -210,45 +229,12 @@ public partial class TrayMenuWindow : Window
         System.Windows.Automation.AutomationProperties.SetItemStatus(button, enabled ? "已开启" : "已关闭");
     }
 
-    private void ToggleSubmenu(bool appearance)
-    {
-        var wasOpen = appearance ? AppearancePopup.IsOpen : PreferencesPopup.IsOpen;
-        CloseSubmenus();
-        if (wasOpen) return;
-        if (appearance) AppearancePopup.IsOpen = true;
-        else PreferencesPopup.IsOpen = true;
-        (appearance ? ClassicStyleButton : NotificationsButton).Focus();
-    }
-
-    private static void ConfigureSubmenuPlacement(System.Windows.Controls.Primitives.Popup popup, System.Windows.Controls.Button anchor)
-    {
-        popup.Placement = System.Windows.Controls.Primitives.PlacementMode.Custom;
-        popup.HorizontalOffset = 0;
-        popup.CustomPopupPlacementCallback = (popupSize, targetSize, offset) =>
-        {
-            var origin = anchor.PointToScreen(new System.Windows.Point());
-            var dpi = VisualTreeHelper.GetDpi(anchor);
-            var work = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)origin.X, (int)origin.Y)).WorkingArea;
-            const double gap = 10;
-            var x = targetSize.Width + gap;
-            if (origin.X + (x + popupSize.Width) * dpi.DpiScaleX > work.Right - 8)
-                x = -popupSize.Width - gap;
-            var minX = (work.Left + 8 - origin.X) / dpi.DpiScaleX;
-            var maxX = (work.Right - 8 - origin.X) / dpi.DpiScaleX - popupSize.Width;
-            var minY = (work.Top + 8 - origin.Y) / dpi.DpiScaleY;
-            var maxY = (work.Bottom - 8 - origin.Y) / dpi.DpiScaleY - popupSize.Height;
-            x = Math.Clamp(x, minX, Math.Max(minX, maxX));
-            var y = Math.Clamp(0, minY, Math.Max(minY, maxY));
-            return [new(new System.Windows.Point(x, y), System.Windows.Controls.Primitives.PopupPrimaryAxis.None)];
-        };
-    }
-
     private void OnSubmenuKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         if (e.Key is not (Key.Escape or Key.Left)) return;
         // Left still adjusts the slider; Escape always returns to the parent menu.
         if (e.Key == Key.Left && MaterialTransparencySlider.IsKeyboardFocusWithin) return;
-        var target = AppearancePopup.IsOpen ? AppearanceButton : PreferencesButton;
+        var target = appearanceOpen ? AppearanceButton : PreferencesButton;
         CloseSubmenus();
         target.Focus();
         e.Handled = true;
@@ -256,30 +242,29 @@ public partial class TrayMenuWindow : Window
 
     private void CloseSubmenus()
     {
-        AppearancePopup.IsOpen = PreferencesPopup.IsOpen = false;
+        SetSection(true, false, animate: false);
+        SetSection(false, false, animate: false);
+        MenuHighlight.Opacity = 0;
+        highlightedButton = null;
     }
 
     private void ApplySubmenuAppearance()
     {
         var opaque = CapsuleThemePolicy.Resolve(SystemParameters.HighContrast, SystemParameters.IsGlassEnabled) == CapsuleSurfaceMode.OpaqueSystem;
-        foreach (var (root, glass, backdrop) in new[]
+        foreach (var (root, glass) in new[]
         {
-            (AppearanceRoot, AppearanceGlass, AppearanceBackdrop),
-            (PreferencesRoot, PreferencesGlass, PreferencesBackdrop),
+            (AppearanceRoot, AppearanceGlass),
+            (PreferencesRoot, PreferencesGlass),
         })
         {
-            glass.Background = opaque ? System.Windows.SystemColors.WindowBrush
-                : OverlayGlassMaterial.WithTransparency(normalGlassBackground, settings.EffectiveMaterialTransparencyPercent);
+            glass.Background = MediaBrushes.Transparent;
             glass.BorderBrush = opaque ? System.Windows.SystemColors.ActiveBorderBrush : OverlayGlassMaterial.Border;
-            backdrop.Background = opaque ? System.Windows.SystemColors.WindowBrush : normalBackdropBackground;
             foreach (var text in FindVisualChildren<System.Windows.Controls.TextBlock>(root))
                 text.Foreground = opaque ? System.Windows.SystemColors.WindowTextBrush
                     : Equals(text.Tag, "secondary") ? Freeze("#B5B5BA") : Freeze("#F4F4F6");
             foreach (var path in FindVisualChildren<System.Windows.Shapes.Path>(root))
                 path.Stroke = opaque ? System.Windows.SystemColors.WindowTextBrush : Freeze("#E9E9EE");
-            // BlurredBackground.WPF assumes a containing Window. Popup has its own
-            // presentation source, so its deferred Loaded handler dereferences null.
-            // Keep the shared surface/opacity here; only the owning Window uses blur.
+            // Inline sections share the owning surface and backdrop; no extra blur layer.
         }
     }
 
@@ -287,6 +272,7 @@ public partial class TrayMenuWindow : Window
 
     private void ApplySystemAppearance()
     {
+        SurfaceShadow.Visibility = SystemParameters.HighContrast ? Visibility.Hidden : Visibility.Visible;
         var opaque = CapsuleThemePolicy.Resolve(SystemParameters.HighContrast, SystemParameters.IsGlassEnabled) == CapsuleSurfaceMode.OpaqueSystem;
         GlassBorder.Background = opaque ? System.Windows.SystemColors.WindowBrush : normalGlassBackground;
         GlassBorder.BorderBrush = SystemParameters.HighContrast ? System.Windows.SystemColors.ActiveBorderBrush : OverlayGlassMaterial.Border;
@@ -311,6 +297,7 @@ public partial class TrayMenuWindow : Window
                 ? new SolidColorBrush(MediaColor.FromRgb(255, 123, 134))
                 : new SolidColorBrush(MediaColor.FromArgb(200, 255, 255, 255));
         }
+        MenuHighlight.Background = opaque ? System.Windows.SystemColors.ControlBrush : Freeze("#1FFFFFFF");
         ApplySettings(settings);
         SetBlurEnabled(!opaque);
     }

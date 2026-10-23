@@ -46,8 +46,9 @@ public sealed class InstallerContractTests
     public void Offers_shortcuts_without_starting_during_silent_install()
     {
         Assert.Contains("创建桌面快捷方式\"; Flags: unchecked", Script);
-        Assert.Contains("{group}\\Codex 额度岛", Script);
-        Assert.Contains("{autodesktop}\\Codex 额度岛", Script);
+        Assert.Contains("{group}\\点岛", Script);
+        Assert.Contains("UsePreviousGroup=no", Script);
+        Assert.Contains("{autodesktop}\\点岛", Script);
         Assert.Contains("postinstall skipifsilent", Script);
         Assert.Contains("MessagesFile: \"ChineseSimplified.isl\"", Script);
         Assert.Contains("LicenseFile={#RepoRoot}\\LICENSE", Script);

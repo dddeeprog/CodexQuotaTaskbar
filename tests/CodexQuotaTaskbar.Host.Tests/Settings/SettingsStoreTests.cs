@@ -6,6 +6,43 @@ namespace CodexQuotaTaskbar.Host.Tests.Settings;
 
 public sealed class SettingsStoreTests : IDisposable
 {
+    [Fact]
+    public async Task Dot_realtime_is_opt_in_and_persists_without_changing_the_ball()
+    {
+        Assert.False(AppSettings.Default.DotRealtime);
+        var store = new SettingsStore(Path.Combine(directory, "settings.json"));
+        var settings = AppSettings.Default with { DotRealtime = true };
+        await store.SaveAsync(settings, CancellationToken.None);
+        Assert.Equal(settings, await store.LoadAsync(CancellationToken.None));
+        Assert.True(settings.CompanionBallEnabled);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    [InlineData(null)]
+    public async Task Tray_icon_visibility_persists_and_null_keeps_the_recovery_entry(bool? show)
+    {
+        var store = new SettingsStore(Path.Combine(directory, "settings.json"));
+        await store.SaveAsync(AppSettings.Default with { ShowTrayIcon = show }, CancellationToken.None);
+        var loaded = await store.LoadAsync(CancellationToken.None);
+        Assert.Equal(show, loaded.ShowTrayIcon);
+        Assert.Equal(show is not false, loaded.TrayIconEnabled);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    [InlineData(null, true)]
+    public async Task Companion_preferences_roundtrip_and_null_enables_the_ball(bool? enabled, bool reduced)
+    {
+        var store = new SettingsStore(Path.Combine(directory, "settings.json"));
+        var settings = AppSettings.Default with { CompanionBall = enabled, ReduceCompanionMotion = reduced };
+        await store.SaveAsync(settings, CancellationToken.None);
+        var loaded = await store.LoadAsync(CancellationToken.None);
+        Assert.Equal(settings, loaded);
+        Assert.Equal(enabled is not false, loaded.CompanionBallEnabled);
+    }
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -53,6 +90,9 @@ public sealed class SettingsStoreTests : IDisposable
         Assert.True(value.SubscriptionDetailsEnabled);
         Assert.Equal(0, value.MaterialTransparencyPercent);
         Assert.False(value.UnifiedPanel); // Existing installations retain the classic style.
+        Assert.True(value.CompanionBallEnabled);
+        Assert.True(value.TrayIconEnabled);
+        Assert.False(value.ReduceCompanionMotion);
     }
 
     [Fact]

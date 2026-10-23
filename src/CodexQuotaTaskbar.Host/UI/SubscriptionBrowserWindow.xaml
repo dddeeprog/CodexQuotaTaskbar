@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="clr-namespace:CodexQuotaTaskbar.Host.UI"
         xmlns:wv="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
-        Title="ChatGPT 订阅登录 — Codex 额度" Width="1040" Height="780" MinWidth="780" MinHeight="560"
+        Title="ChatGPT 订阅登录 — 点岛" Width="1040" Height="780" MinWidth="780" MinHeight="560"
         WindowStartupLocation="CenterScreen" Background="#202022" Foreground="#F5F5F7"
         FontFamily="{x:Static ui:OverlayTypography.Text}" FontSize="12">
   <Window.Resources>

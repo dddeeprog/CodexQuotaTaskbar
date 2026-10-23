@@ -74,7 +74,7 @@ public partial class QuotaCapsuleWindow : Window
         LostMouseCapture += (_, _) => ResetDragState();
         MouseRightButtonUp += (_, _) => ContextInvoked?.Invoke(this, EventArgs.Empty);
         SystemParameters.StaticPropertyChanged += OnSystemParametersChanged;
-        Closed += (_, _) => SystemParameters.StaticPropertyChanged -= OnSystemParametersChanged;
+        Closed += (_, _) => { SystemParameters.StaticPropertyChanged -= OnSystemParametersChanged; companion?.Dispose(); };
         ApplySystemAppearance();
     }
 
@@ -89,6 +89,18 @@ public partial class QuotaCapsuleWindow : Window
         ApplySystemAppearance();
     }
     internal ScreenRect PhysicalBounds => physicalBounds;
+    internal ScreenRect AlignmentBounds
+    {
+        get
+        {
+            var scale = physicalBounds.Width / LayoutWidth;
+            return physicalBounds with
+            {
+                Left = physicalBounds.Left + (int)Math.Round(GlassBorder.Margin.Left * scale),
+                Right = physicalBounds.Right - (int)Math.Round(GlassBorder.Margin.Right * scale),
+            };
+        }
+    }
     internal bool IsUserDragging => userDragging;
     internal event EventHandler? PrimaryInvoked;
     internal event EventHandler? ContextInvoked;
@@ -104,6 +116,7 @@ public partial class QuotaCapsuleWindow : Window
     {
         var previous = sessionsSnapshot;
         sessionsSnapshot = snapshot;
+        companion?.Apply(snapshot);
         Render();
         if (IsUnifiedPanel) RenderPanelSessions(previous);
     }
@@ -137,7 +150,7 @@ public partial class QuotaCapsuleWindow : Window
         var activeSessions = sessionsSnapshot.ActiveCount;
         var rowSummary = string.Join("，", projection.Rows.Select(row => $"{row.Label} {row.Text}"));
         AutomationProperties.SetName(this,
-            $"Codex 额度，{rowSummary}，待授权 {sessionsSnapshot.WaitingCount}，进行中 {sessionsSnapshot.RunningCount}，已完成 {sessionsSnapshot.CompletedCount}，{projection.StatusText}");
+            $"点岛，{rowSummary}，待授权 {sessionsSnapshot.WaitingCount}，进行中 {sessionsSnapshot.RunningCount}，已完成 {sessionsSnapshot.CompletedCount}，{projection.StatusText}");
         ApplySystemAppearance();
     }
 
@@ -180,7 +193,7 @@ public partial class QuotaCapsuleWindow : Window
         SessionBadgeScale.ScaleY = 1;
         if (nextTotal > 0)
         {
-            SessionBadge.Visibility = Visibility.Visible;
+            SessionBadge.Visibility = CompanionReady ? Visibility.Collapsed : Visibility.Visible;
             if (previousTotal == 0 && SystemParameters.ClientAreaAnimation)
             {
                 var duration = TimeSpan.FromMilliseconds(BadgeAnimationMilliseconds);
@@ -315,7 +328,8 @@ public partial class QuotaCapsuleWindow : Window
 
     private void OnMouseLeftButtonDown(object sender, MouseButtonEventArgs eventArgs)
     {
-        if (!QuotaHeader.IsMouseOver || SessionToggle.IsMouseOver || classicResetSource?.IsMouseOver == true || eventArgs.ChangedButton != MouseButton.Left || !WindowInteropPolicy.TryGetCursorPosition(out dragOriginX, out dragOriginY))
+        companionPointerDown = CompanionReady && companion!.IsMouseOver;
+        if ((!companionPointerDown && (!QuotaHeader.IsMouseOver || SessionToggle.IsMouseOver || classicResetSource?.IsMouseOver == true)) || eventArgs.ChangedButton != MouseButton.Left || !WindowInteropPolicy.TryGetCursorPosition(out dragOriginX, out dragOriginY))
         {
             return;
         }
@@ -329,6 +343,7 @@ public partial class QuotaCapsuleWindow : Window
 
     private void OnMouseMove(object sender, System.Windows.Input.MouseEventArgs eventArgs)
     {
+        if (companion is not null) companion.Gaze(eventArgs.GetPosition(companion));
         if (!pointerDown || eventArgs.LeftButton != MouseButtonState.Pressed
             || !WindowInteropPolicy.TryGetCursorPosition(out var cursorX, out var cursorY))
         {
@@ -364,8 +379,10 @@ public partial class QuotaCapsuleWindow : Window
         eventArgs.Handled = true;
         if (invokePrimary)
         {
-            PrimaryInvoked?.Invoke(this, EventArgs.Empty);
+            if (companionPointerDown) { companion?.Tap(); CompanionInvoked?.Invoke(this, EventArgs.Empty); }
+            else PrimaryInvoked?.Invoke(this, EventArgs.Empty);
         }
+        companionPointerDown = false;
     }
 
     private void ResetDragState()

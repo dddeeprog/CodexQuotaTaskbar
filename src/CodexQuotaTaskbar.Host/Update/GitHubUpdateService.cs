@@ -41,7 +41,8 @@ internal sealed class GitHubUpdateService : IDisposable
             throw new InvalidDataException("GitHub Release 响应异常。 ");
         }
 
-        var release = GitHubReleaseParser.Parse(json);
+        var release = GitHubReleaseParser.Parse(json)
+            ?? throw new InvalidDataException("发行信息缺少有效的 Windows x64 更新包或 SHA-256 校验信息。");
         return release is { Version: var version } && version > ProductVersion.Value ? release : null;
     }
 

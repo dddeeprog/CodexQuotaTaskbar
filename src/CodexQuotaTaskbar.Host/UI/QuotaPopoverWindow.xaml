@@ -2,10 +2,10 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="clr-namespace:CodexQuotaTaskbar.Host.UI"
-        Title="Codex 额度详情" Width="328" SizeToContent="Height" MaxHeight="520"
+        Title="点岛 · 额度详情" Width="360" SizeToContent="Height" MaxHeight="552"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True"
-        FontFamily="{x:Static ui:OverlayTypography.Interface}" UseLayoutRounding="True" TextOptions.TextFormattingMode="Ideal" TextOptions.TextRenderingMode="Grayscale">
+        FontFamily="{x:Static ui:OverlayTypography.Interface}" UseLayoutRounding="True" TextOptions.TextFormattingMode="Ideal" TextOptions.TextRenderingMode="Grayscale" Typography.NumeralAlignment="Tabular">
   <Window.Resources>
     <Style x:Key="SectionTitle" TargetType="TextBlock">
       <Setter Property="FontSize" Value="12"/>
@@ -24,7 +24,7 @@
       <Setter Property="BorderThickness" Value="0"/><Setter Property="FontSize" Value="16"/>
       <Setter Property="Cursor" Value="Hand"/>
       <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
-        <Border x:Name="ButtonChrome" Background="{TemplateBinding Background}" CornerRadius="15">
+        <Border x:Name="ButtonChrome" Background="{TemplateBinding Background}" CornerRadius="13">
           <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-1,0,1"/>
         </Border>
         <ControlTemplate.Triggers>
@@ -53,13 +53,14 @@
       </ControlTemplate></Setter.Value></Setter>
     </Style>
   </Window.Resources>
-  <Grid x:Name="PopoverShell" RenderTransformOrigin="0.5,0.5">
+  <Grid x:Name="PopoverShell" Margin="16" RenderTransformOrigin="0.5,0.5">
     <Grid.RenderTransform>
       <TransformGroup>
         <ScaleTransform x:Name="PopoverScale" ScaleX="1" ScaleY="1"/>
         <TranslateTransform x:Name="PopoverTranslate"/>
       </TransformGroup>
     </Grid.RenderTransform>
+    <Border x:Name="SurfaceShadow" CornerRadius="16" Background="Transparent" BorderBrush="#50000000" BorderThickness="1" IsHitTestVisible="False"><Border.Effect><DropShadowEffect BlurRadius="10" ShadowDepth="1" Opacity="0.2"/></Border.Effect></Border>
     <Border x:Name="BackdropLayer" CornerRadius="16" Background="#011D1D1F"/>
     <Border x:Name="GlassBorder" CornerRadius="16"
             Background="{x:Static ui:OverlayGlassMaterial.Surface}"
@@ -69,12 +70,15 @@
       <Grid>
         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
         <StackPanel VerticalAlignment="Center">
-          <TextBlock x:Name="TitleText" Text="Codex 额度" Foreground="#FAFFFFFF" FontFamily="{x:Static ui:OverlayTypography.Interface}" FontSize="15" FontWeight="Medium" />
+          <TextBlock x:Name="TitleText" Text="点岛" Foreground="#FAFFFFFF" FontFamily="{x:Static ui:OverlayTypography.Interface}" FontSize="15" FontWeight="Medium" />
 
         </StackPanel>
-        <Button x:Name="CloseButton" Grid.Column="1" Content="×" Style="{StaticResource CircleButton}" AutomationProperties.Name="关闭" />
+        <StackPanel Grid.Column="1" Orientation="Horizontal">
+          <Button x:Name="DotChatButton" Content="Dot 聊天" Style="{StaticResource GlassButton}" Height="28" Padding="8,0" Margin="0,0,8,0" Background="Transparent" AutomationProperties.Name="打开 Dot 聊天"/>
+          <Button x:Name="CloseButton" Content="×" Style="{StaticResource CircleButton}" AutomationProperties.Name="关闭" />
+        </StackPanel>
       </Grid>
-      <ScrollViewer Grid.Row="1" Margin="0,12,0,0" MaxHeight="400" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
+      <ScrollViewer x:Name="DetailsScroller" Grid.Row="1" Margin="0,12,0,0" MaxHeight="400" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
         <StackPanel>
           <Border x:Name="AccountSectionDivider" BorderBrush="#60FFFFFF" BorderThickness="0,0,0,1" SnapsToDevicePixels="True" Padding="0,0,0,12">
           <StackPanel x:Name="AccountSection" AutomationProperties.Name="账户与订阅">
@@ -88,7 +92,7 @@
               <TextBlock Grid.Row="1" Text="订阅有效至" Tag="secondary" FontSize="12" VerticalAlignment="Center" Margin="0,0,12,0"/>
               <TextBlock x:Name="ExpiryText" Grid.Row="1" Grid.Column="1" Text="正在读取…" Tag="secondary" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" AutomationProperties.Name="会员到期时间"/>
               <TextBlock Grid.Row="2" Text="额外点数" Tag="secondary" FontSize="12" VerticalAlignment="Center"/>
-              <TextBlock x:Name="ExtraCreditsText" Grid.Row="2" Grid.Column="1" Text="—" Tag="secondary" FontSize="13" HorizontalAlignment="Right" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" AutomationProperties.Name="额外点数数量"/>
+              <TextBlock x:Name="ExtraCreditsText" Grid.Row="2" Grid.Column="1" Text="—" Tag="secondary" FontSize="13" MinWidth="96" TextAlignment="Right" HorizontalAlignment="Right" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" AutomationProperties.Name="额外点数数量"/>
               <Border x:Name="AccountDividerOne" Visibility="Collapsed"/>
               <Border x:Name="AccountDividerTwo" Visibility="Collapsed"/>
             </Grid>

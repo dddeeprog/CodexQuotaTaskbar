@@ -5,12 +5,20 @@ namespace CodexQuotaTaskbar.Host.Tests.Lifetime;
 public sealed class HostOptionsTests
 {
     [Fact]
+    public void Realtime_Dot_requires_explicit_startup_or_saved_opt_in()
+    {
+        Assert.False(HostOptions.Parse([]).DotRealtime);
+        Assert.True(HostOptions.Parse(["--dot-realtime"]).DotRealtime);
+    }
+
+    [Fact]
     public void Normal_mode_uses_live_provider()
     {
         var options = HostOptions.Parse([]);
 
         Assert.False(options.Demo);
         Assert.False(options.SubscriptionLogin);
+        Assert.True(options.SoftwareRendering);
         Assert.Null(options.ExitAfter);
     }
 
@@ -21,6 +29,14 @@ public sealed class HostOptionsTests
 
         Assert.True(options.Demo);
         Assert.Equal(TimeSpan.FromSeconds(8), options.ExitAfter);
+    }
+
+    [Fact]
+    public void Hardware_rendering_can_be_restored_without_changing_the_saved_settings()
+    {
+        Assert.False(HostOptions.Parse(["--hardware-rendering"]).SoftwareRendering);
+        Assert.True(HostOptions.Parse(["--software-rendering"]).SoftwareRendering);
+        Assert.True(HostOptions.Parse(["--hardware-rendering", "--software-rendering"]).SoftwareRendering);
     }
 
     [Fact]

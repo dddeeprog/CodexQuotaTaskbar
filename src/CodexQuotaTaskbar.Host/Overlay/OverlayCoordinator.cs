@@ -3,6 +3,7 @@ using CodexQuotaTaskbar.Core.Overlay;
 using CodexQuotaTaskbar.Core.Quota;
 using CodexQuotaTaskbar.Core.Sessions;
 using CodexQuotaTaskbar.Host.Platform;
+using CodexQuotaTaskbar.Host.Lifetime;
 using CodexQuotaTaskbar.Host.Resets;
 using CodexQuotaTaskbar.Host.UI;
 using Microsoft.Win32;
@@ -13,13 +14,15 @@ internal sealed class OverlayCoordinator : IDisposable
 {
     private const double CapsuleWidth = QuotaCapsuleWindow.WindowWidth;
     private const double CapsuleHeight = QuotaCapsuleWindow.WindowHeight;
-    private const double PopoverWidth = 328;
+    private const double PopoverWidth = 360;
     private const double CapsuleFarMargin = 0;
     private const double CapsuleEdgeGap = -4;
     private readonly TaskbarTopologySource topology = new();
     private readonly Dictionary<string, QuotaCapsuleWindow> windows = new(StringComparer.Ordinal);
     private readonly Dictionary<string, SessionStackWindow> sessionWindows = new(StringComparer.Ordinal);
     private bool unifiedPanel;
+    private bool companionEnabled;
+    private bool companionReduced;
     private readonly Dictionary<string, ScreenRect> userPositions = new(StringComparer.Ordinal);
     private readonly DispatcherTimer timer;
     private bool showAllTaskbars;
@@ -30,6 +33,8 @@ internal sealed class OverlayCoordinator : IDisposable
     private ResetFeedSnapshot resetFeed = ResetFeedSnapshot.Loading;
     private QuotaPopoverWindow? popover;
     private QuotaCapsuleWindow? popoverOwner;
+    private string? dotOwnerId;
+    internal event Action<DotAnchor>? DotAnchorChanged;
 
     internal OverlayCoordinator(bool showAllTaskbars, int materialTransparency = 0, bool unifiedPanel = false)
     {
@@ -44,6 +49,7 @@ internal sealed class OverlayCoordinator : IDisposable
 
     internal event EventHandler? RefreshRequested;
     internal event EventHandler? OpenCodexRequested;
+    internal event EventHandler? OpenDotChatRequested;
     internal event EventHandler? OpenSubscriptionLoginRequested;
     internal event EventHandler? ContextRequested;
     internal event Action<string>? OpenSessionRequested;
@@ -60,6 +66,18 @@ internal sealed class OverlayCoordinator : IDisposable
         if (showAllTaskbars == value) return;
         showAllTaskbars = value;
         Reconcile();
+    }
+
+    internal void SetCompanion(bool enabled, bool reduced)
+    {
+        companionEnabled = enabled;
+        companionReduced = reduced;
+        foreach (var window in windows.Values) window.SetCompanion(enabled, reduced);
+    }
+
+    internal void ToggleCompanionTour()
+    {
+        foreach (var window in windows.Values) window.ToggleCompanionTour();
     }
 
     internal void SetUnifiedPanel(bool value)
@@ -138,6 +156,7 @@ internal sealed class OverlayCoordinator : IDisposable
             {
                 window = CreateWindow(anchor.MonitorId);
                 windows.Add(anchor.MonitorId, window);
+                if (anchor.IsPrimary || dotOwnerId is null) dotOwnerId = anchor.MonitorId;
                 window.Apply(snapshot);
                 window.ApplySessions(sessions);
                 window.Show();
@@ -181,13 +200,31 @@ internal sealed class OverlayCoordinator : IDisposable
             }
             UpdatePanelPlacement(window, placementAnchor);
         }
+        PublishDotAnchor();
+    }
+
+    private void PublishDotAnchor()
+    {
+        var owner = windows.GetValueOrDefault(dotOwnerId ?? "") ?? windows.Values.FirstOrDefault();
+        if (owner is null) return;
+        var point = owner.CompanionAnchor;
+        var work = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point((int)point.X, (int)point.Y)).WorkingArea;
+        var dpi = NativeMethods.GetDpiForWindow(new System.Windows.Interop.WindowInteropHelper(owner).Handle);
+        DotAnchorChanged?.Invoke(new((int)point.X, (int)point.Y, GroupBounds(owner).Bottom, work.Left, work.Top,
+            work.Right, work.Bottom, dpi, owner.IsVisible && !sessionLocked && popover is null, materialTransparency));
     }
 
     private QuotaCapsuleWindow CreateWindow(string monitorId)
     {
         var window = new QuotaCapsuleWindow(monitorId, unifiedPanel);
         window.SetMaterialTransparency(materialTransparency);
+        window.SetCompanion(companionEnabled, companionReduced);
         window.PrimaryInvoked += (_, _) => TogglePopover(window);
+        window.CompanionInvoked += (_, _) =>
+        {
+            dotOwnerId = window.MonitorId; popover?.RequestClose(); PublishDotAnchor();
+            OpenDotChatRequested?.Invoke(window, EventArgs.Empty);
+        };
         window.ContextInvoked += (_, _) => ContextRequested?.Invoke(window, EventArgs.Empty);
         window.UserMoveRequested += requested => OnWindowMoveRequested(window, requested);
         window.OpenSessionRequested += threadId => OpenSessionRequested?.Invoke(threadId);
@@ -198,9 +235,11 @@ internal sealed class OverlayCoordinator : IDisposable
 
     private void OnWindowMoveRequested(QuotaCapsuleWindow window, ScreenRect requested)
     {
+        dotOwnerId = window.MonitorId;
         UpdatePanelPlacement(window, requestedOwner: requested);
         // Persist the position that was actually applied, not the off-screen pointer request.
         userPositions[window.MonitorId] = window.PhysicalBounds;
+        PublishDotAnchor();
         if (popover is null || !ReferenceEquals(popoverOwner, window))
         {
             return;
@@ -294,6 +333,7 @@ internal sealed class OverlayCoordinator : IDisposable
         details.OpenResetSourceRequested += uri => OpenResetSourceRequested?.Invoke(uri);
         details.RefreshRequested += (_, _) => RefreshRequested?.Invoke(this, EventArgs.Empty);
         details.OpenCodexRequested += (_, _) => OpenCodexRequested?.Invoke(this, EventArgs.Empty);
+        details.OpenDotChatRequested += (_, _) => OpenDotChatRequested?.Invoke(this, EventArgs.Empty);
         details.OpenSubscriptionLoginRequested += (_, _) => OpenSubscriptionLoginRequested?.Invoke(this, EventArgs.Empty);
         details.Closed += (_, _) =>
         {
@@ -315,12 +355,16 @@ internal sealed class OverlayCoordinator : IDisposable
         var dpi = anchor?.Dpi ?? 96;
         var scale = dpi / 96d;
         var width = checked((int)Math.Round(PopoverWidth * scale));
-        var heightDip = Math.Max(240, details.ActualHeight);
-        var height = checked((int)Math.Round(heightDip * scale));
         var obstruction = GroupBounds(owner);
+        if (anchor is not null)
+            details.FitAvailableHeight(PopoverPlacementCalculator.AvailableHeightDip(anchor, obstruction, 8));
+        var heightDip = Math.Max(1, details.ActualHeight);
+        var height = checked((int)Math.Round(heightDip * scale));
+        var alignment = owner.AlignmentBounds;
+        var left = alignment.Left + (alignment.Width - width) / 2;
         return anchor is null
-            ? new ScreenRect(obstruction.Right - width, obstruction.Top - height, obstruction.Right, obstruction.Top)
-            : PopoverPlacementCalculator.Calculate(anchor, obstruction, PopoverWidth, heightDip, 8);
+            ? new ScreenRect(left, obstruction.Top - height, left + width, obstruction.Top)
+            : PopoverPlacementCalculator.Calculate(anchor, obstruction, PopoverWidth, heightDip, 8, alignment);
     }
 
     internal static ScreenRect Union(ScreenRect first, ScreenRect second) => new(

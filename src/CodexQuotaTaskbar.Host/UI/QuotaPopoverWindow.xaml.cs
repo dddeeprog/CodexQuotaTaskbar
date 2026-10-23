@@ -43,6 +43,7 @@ public partial class QuotaPopoverWindow : Window
         CloseButton.Click += (_, _) => RequestClose();
         RefreshButton.Click += (_, _) => RefreshRequested?.Invoke(this, EventArgs.Empty);
         OpenCodexButton.Click += (_, _) => OpenCodexRequested?.Invoke(this, EventArgs.Empty);
+        DotChatButton.Click += (_, _) => { RequestClose(); OpenDotChatRequested?.Invoke(this, EventArgs.Empty); };
         ResetSiteButton.Click += (_, _) => OpenResetSourceRequested?.Invoke(CodexResetFeedClient.SiteUri);
         SubscriptionLoginButton.Click += (_, _) =>
         {
@@ -71,6 +72,7 @@ public partial class QuotaPopoverWindow : Window
 
     internal event EventHandler? RefreshRequested;
     internal event EventHandler? OpenCodexRequested;
+    internal event EventHandler? OpenDotChatRequested;
     internal event EventHandler? OpenSubscriptionLoginRequested;
     internal event Action<Uri>? OpenResetSourceRequested;
 
@@ -82,14 +84,24 @@ public partial class QuotaPopoverWindow : Window
         foreach (var announcement in snapshot.Announcements.Take(3))
         {
             var entry = new StackPanel { Margin = new Thickness(0, 0, 0, 12) };
-            entry.Children.Add(new TextBlock
+            var heading = new TextBlock
             {
                 Text = $"{(announcement.IsObserved ? "社区观测 · " : string.Empty)}{ResetFeedPresentation.KindLabel(announcement.Kind)} · {announcement.AnnouncedAt.ToLocalTime():M月d日 HH:mm}",
                 FontFamily = OverlayTypography.Interface,
                 FontSize = 11,
                 FontWeight = FontWeights.Medium,
                 TextWrapping = TextWrapping.Wrap,
-            });
+            };
+            var originalHeading = heading.Text;
+            heading.SizeChanged += (_, e) =>
+            {
+                if (!e.WidthChanged || e.NewSize.Width <= 0) return;
+                var face = new Typeface(heading.FontFamily, heading.FontStyle, heading.FontWeight, heading.FontStretch);
+                heading.Text = OverlayTypography.BalanceHeading(originalHeading, e.NewSize.Width,
+                    text => new FormattedText(text, CultureInfo.CurrentUICulture, heading.FlowDirection,
+                        face, heading.FontSize, heading.Foreground, VisualTreeHelper.GetDpi(heading).PixelsPerDip).WidthIncludingTrailingWhitespace);
+            };
+            entry.Children.Add(heading);
             entry.Children.Add(new TextBlock
             {
                 Text = ResetFeedPresentation.AnnouncementText(announcement),
@@ -123,6 +135,38 @@ public partial class QuotaPopoverWindow : Window
         PopoverScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.97, 1, duration) { EasingFunction = easing });
         PopoverTranslate.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(offset.X, 0, duration) { EasingFunction = easing });
         PopoverTranslate.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(offset.Y, 0, duration) { EasingFunction = easing });
+        PlaySectionEntrance();
+    }
+
+    private void PlaySectionEntrance()
+    {
+        var groups = new FrameworkElement[] { AccountSection, QuotaSection, AnnouncementsSection };
+        for (var index = 0; index < groups.Length; index++)
+        {
+            var group = groups[index];
+            var slide = new TranslateTransform();
+            group.RenderTransform = slide;
+            var delay = TimeSpan.FromMilliseconds(index * 25);
+            var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+            DoubleAnimationUsingKeyFrames Entrance(double from, double to)
+            {
+                var animation = new DoubleAnimationUsingKeyFrames { FillBehavior = FillBehavior.Stop };
+                animation.KeyFrames.Add(new DiscreteDoubleKeyFrame(from, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+                animation.KeyFrames.Add(new DiscreteDoubleKeyFrame(from, KeyTime.FromTimeSpan(delay)));
+                animation.KeyFrames.Add(new EasingDoubleKeyFrame(to, KeyTime.FromTimeSpan(delay + TimeSpan.FromMilliseconds(150)), ease));
+                return animation;
+            }
+            group.BeginAnimation(OpacityProperty, Entrance(0.7, 1));
+            slide.BeginAnimation(TranslateTransform.YProperty, Entrance(3, 0));
+        }
+    }
+
+    internal void FitAvailableHeight(double availableDip)
+    {
+        var chromeHeight = Math.Max(0, ActualHeight - DetailsScroller.ActualHeight);
+        MaxHeight = Math.Clamp(availableDip, 1, 552);
+        DetailsScroller.MaxHeight = Math.Clamp(MaxHeight - chromeHeight, 0, 400);
+        UpdateLayout();
     }
 
     internal void RequestClose()
@@ -208,6 +252,8 @@ public partial class QuotaPopoverWindow : Window
                 Foreground = System.Windows.Media.Brushes.White,
                 FontFamily = OverlayTypography.Interface,
                 FontSize = 20,
+                Width = 62,
+                TextAlignment = TextAlignment.Right,
                 FontWeight = FontWeights.Normal,
                 VerticalAlignment = VerticalAlignment.Center,
             };
@@ -309,6 +355,7 @@ public partial class QuotaPopoverWindow : Window
 
     private void ApplySystemAppearance()
     {
+        SurfaceShadow.Visibility = SystemParameters.HighContrast ? Visibility.Hidden : Visibility.Visible;
         var opaque = CapsuleThemePolicy.Resolve(SystemParameters.HighContrast, SystemParameters.IsGlassEnabled) == CapsuleSurfaceMode.OpaqueSystem;
         GlassBorder.Background = opaque ? System.Windows.SystemColors.WindowBrush : OverlayGlassMaterial.WithTransparency(normalGlassBackground, materialTransparency);
         GlassBorder.BorderBrush = SystemParameters.HighContrast ? System.Windows.SystemColors.ActiveBorderBrush : OverlayGlassMaterial.Border;

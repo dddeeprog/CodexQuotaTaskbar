@@ -22,6 +22,10 @@ $script:ExpectedSensitiveAccessAllowances = @(
     'artifacts/host-publish/Debug/CodexQuotaTaskbar.exe|chatgpt[.]com/backend-api'
     'artifacts/host-publish/Release/CodexQuotaTaskbar.exe|auth.json'
     'artifacts/host-publish/Release/CodexQuotaTaskbar.exe|chatgpt[.]com/backend-api'
+    'artifacts/installer-publish/Debug/CodexQuotaTaskbar.exe|auth.json'
+    'artifacts/installer-publish/Debug/CodexQuotaTaskbar.exe|chatgpt[.]com/backend-api'
+    'artifacts/installer-publish/Release/CodexQuotaTaskbar.exe|auth.json'
+    'artifacts/installer-publish/Release/CodexQuotaTaskbar.exe|chatgpt[.]com/backend-api'
     'artifacts/releases/CodexQuotaTaskbar-win-x64.zip!/CodexQuotaTaskbar.exe|auth.json'
     'artifacts/releases/CodexQuotaTaskbar-win-x64.zip!/CodexQuotaTaskbar.exe|chatgpt[.]com/backend-api'
 )

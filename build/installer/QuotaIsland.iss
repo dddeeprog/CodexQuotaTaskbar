@@ -10,14 +10,15 @@
 
 [Setup]
 AppId={{ADC74E3C-B465-4C0A-9D0D-3D428A2AE5F7}
-AppName=Codex 额度岛
+AppName=点岛
 AppVersion={#AppVersion}
 AppPublisher=CodexQuotaTaskbar contributors
 AppPublisherURL=https://github.com/dddeeprog/CodexQuotaTaskbar
 AppSupportURL=https://github.com/dddeeprog/CodexQuotaTaskbar/issues
 AppUpdatesURL=https://github.com/dddeeprog/CodexQuotaTaskbar/releases
 DefaultDirName={localappdata}\Programs\CodexQuotaTaskbar
-DefaultGroupName=Codex 额度岛
+DefaultGroupName=点岛
+UsePreviousGroup=no
 DisableProgramGroupPage=no
 AllowNoIcons=yes
 DisableDirPage=no
@@ -39,7 +40,7 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 Uninstallable=yes
-UninstallDisplayName=Codex 额度岛
+UninstallDisplayName=点岛
 
 [Languages]
 Name: "chinesesimplified"; MessagesFile: "ChineseSimplified.isl"
@@ -53,12 +54,12 @@ Source: "{#RepoRoot}\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#RepoRoot}\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\Codex 额度岛"; Filename: "{app}\CodexQuotaTaskbar.exe"; WorkingDir: "{app}"
-Name: "{group}\卸载 Codex 额度岛"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\Codex 额度岛"; Filename: "{app}\CodexQuotaTaskbar.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{group}\点岛"; Filename: "{app}\CodexQuotaTaskbar.exe"; WorkingDir: "{app}"
+Name: "{group}\卸载 点岛"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\点岛"; Filename: "{app}\CodexQuotaTaskbar.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\CodexQuotaTaskbar.exe"; Description: "启动 Codex 额度岛"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\CodexQuotaTaskbar.exe"; Description: "启动 点岛"; Flags: nowait postinstall skipifsilent
 
 [Code]
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);

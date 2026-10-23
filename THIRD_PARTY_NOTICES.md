@@ -1,5 +1,14 @@
 # Third-Party Notices
 
+## Grok Ball
+
+- Upstream: https://github.com/tycoding/grok-ball
+- Pinned source commit: `de368ce3acdc5a70e871ee46ebbe8f60b11d3d6a`.
+- `src/grok-ball.js` is retained unchanged under `Assets/Companion/grok-ball.js` as a development/test reference, not executed or embedded in production.
+- `Assets/Companion/poses.json` derives the original 32 normalized configurations, keyframes and 25 eye contours from that source. `CompanionPoseEngine.cs` and `CompanionBallVisual.cs` adapt the pose math, spherical eye projection and bounded particle effects to native WPF. This port is not pixel-identical to the SVG implementation.
+- Copyright (c) 2026 tycoding. MIT License; full text retained and embedded at `Assets/Companion/LICENSE.txt`.
+- The integration wrapper is part of this GPL-3.0 application. Grok Ball is not affiliated with xAI / Grok.
+
 ## Inno Setup installer and Simplified Chinese translation
 
 - Installer engine: Inno Setup, https://jrsoftware.org/ (build-time tool; not bundled as a compiler).
@@ -17,7 +26,7 @@
 ## Microsoft.Web.WebView2
 
 - Package: https://www.nuget.org/packages/Microsoft.Web.WebView2/1.0.4258.31
-- Version: `1.0.4258.31`; used only in the visible subscription login window.
+- Version: `1.0.4258.31`; used in the subscription login window and the optional Dot message bridge. The companion's expressions are native WPF and do not start WebView2.
 - The Microsoft Edge WebView2 Runtime is distributed separately under Microsoft's terms.
 
 ```text

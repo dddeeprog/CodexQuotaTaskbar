@@ -1,0 +1,59 @@
+<Window x:Class="CodexQuotaTaskbar.Host.UI.DotChatWindow"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:ui="clr-namespace:CodexQuotaTaskbar.Host.UI"
+ Title="Dot 消息 · 点岛" Width="320" SizeToContent="Height"
+ WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True" Background="Transparent"
+ ShowActivated="False" ShowInTaskbar="False" Topmost="True"
+ Foreground="#F4F4F7" FontFamily="{x:Static ui:OverlayTypography.Interface}" FontSize="13"
+ UseLayoutRounding="True" SnapsToDevicePixels="True">
+ <!-- Native bubble anchored to the existing white ball. The browser is a hidden login-only host. -->
+ <Window.Resources>
+  <Style TargetType="Button">
+   <Setter Property="Foreground" Value="#F4F4F7"/><Setter Property="Background" Value="Transparent"/>
+   <Setter Property="Padding" Value="8,5"/><Setter Property="MinHeight" Value="28"/>
+   <Setter Property="BorderThickness" Value="0"/><Setter Property="Cursor" Value="Hand"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+    <Border x:Name="ButtonSurface" Background="{TemplateBinding Background}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+     <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"/>
+    </Border><ControlTemplate.Triggers>
+     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ButtonSurface" Property="Background" Value="#15FFFFFF"/></Trigger>
+     <Trigger Property="IsPressed" Value="True"><Setter TargetName="ButtonSurface" Property="Background" Value="#25FFFFFF"/></Trigger>
+     <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="ButtonSurface" Property="BorderBrush" Value="White"/><Setter TargetName="ButtonSurface" Property="BorderThickness" Value="1"/></Trigger>
+     <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger>
+    </ControlTemplate.Triggers>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
+ </Window.Resources>
+ <Grid Margin="8" x:Name="Shell">
+  <Border x:Name="BackdropLayer" CornerRadius="16" Background="#011D1D1F"/>
+  <Border x:Name="GlassBorder" CornerRadius="16" Background="{x:Static ui:OverlayGlassMaterial.Surface}"
+   BorderBrush="{x:Static ui:OverlayGlassMaterial.Border}" BorderThickness="0.5">
+   <Border.Effect><DropShadowEffect Color="Black" BlurRadius="10" ShadowDepth="2" Opacity="0.2"/></Border.Effect>
+   <StackPanel Margin="12,8,12,12">
+    <DockPanel>
+     <Button x:Name="CloseButton" DockPanel.Dock="Right" Width="28" Padding="0" AutomationProperties.Name="收起 Dot 气泡，继续接收">
+      <Path Width="8" Height="8" Data="M0,0 L8,8 M8,0 L0,8" Stroke="#DADADD" StrokeThickness="1.3"/>
+     </Button>
+     <Button x:Name="PageButton" DockPanel.Dock="Right" Content="网页登录" FontSize="11" AutomationProperties.Name="打开官方 Dot 网页进行登录或验证"/>
+     <TextBlock Text="Dot" FontWeight="Medium" VerticalAlignment="Center" FontSize="12"/>
+    </DockPanel>
+    <Button x:Name="MessageButton" HorizontalContentAlignment="Stretch" Padding="0,4,0,0" AutomationProperties.Name="点击 Dot 消息回复">
+     <ScrollViewer x:Name="MessageScroller" Focusable="False" MaxHeight="112" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
+      <TextBlock x:Name="MessageText" Text="正在连接 Dot…" TextWrapping="Wrap" LineHeight="20"/>
+     </ScrollViewer>
+    </Button>
+    <TextBlock x:Name="StatusText" Text="点击回复" Foreground="#C5C5CA" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0" AutomationProperties.LiveSetting="Polite"/>
+    <StackPanel x:Name="Composer" Visibility="Collapsed" Margin="0,10,0,0">
+     <Border CornerRadius="9" Background="#18000000" BorderBrush="#40FFFFFF" BorderThickness="1" Padding="9,7">
+      <TextBox x:Name="Input" MinHeight="40" MaxHeight="100" AcceptsReturn="True" TextWrapping="Wrap" MaxLength="8000" VerticalScrollBarVisibility="Auto" Background="Transparent" BorderThickness="0" Foreground="#F4F4F7" CaretBrush="White" AutomationProperties.Name="回复 Dot"/>
+     </Border>
+     <DockPanel Margin="0,8,0,0">
+      <Button x:Name="SendButton" Content="发送" DockPanel.Dock="Right" HorizontalContentAlignment="Center" MinWidth="54" Background="#20FFFFFF" IsEnabled="False" AutomationProperties.Name="发送回复给 Dot"/>
+      <TextBlock Text="Enter 发送，Shift+Enter 换行" Foreground="#C5C5CA" FontSize="11" VerticalAlignment="Center"/>
+     </DockPanel>
+    </StackPanel>
+   </StackPanel>
+  </Border>
+ </Grid>
+</Window>

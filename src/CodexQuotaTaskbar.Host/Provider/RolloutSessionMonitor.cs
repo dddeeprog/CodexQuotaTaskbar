@@ -38,7 +38,10 @@ internal sealed class RolloutSessionMonitor
     {
         await RefreshTitleIndexAsync(cancellationToken).ConfigureAwait(false);
         var sessions = new List<CodexSessionSnapshot>();
-        foreach (var metadata in EnumerateRecentRollouts())
+        var recent = EnumerateRecentRollouts();
+        var recentIds = recent.Select(value => value.Id).ToHashSet(StringComparer.Ordinal);
+        foreach (var staleId in tracked.Keys.Where(id => !recentIds.Contains(id)).ToArray()) tracked.Remove(staleId);
+        foreach (var metadata in recent)
         {
             if (!tracked.TryGetValue(metadata.Id, out var value) || !string.Equals(value.Path, metadata.Path, StringComparison.OrdinalIgnoreCase))
             {
@@ -69,7 +72,8 @@ internal sealed class RolloutSessionMonitor
                 continue;
             }
 
-            sessions.Add(new CodexSessionSnapshot(metadata.Id, value.Title, state, value.Activity.UpdatedAt));
+            sessions.Add(new CodexSessionSnapshot(metadata.Id, value.Title, state, value.Activity.UpdatedAt)
+                { Activity = value.Activity.Activity });
         }
         return CodexSessionsSnapshot.Create(sessions, now);
     }
@@ -264,11 +268,13 @@ internal sealed class RolloutSessionMonitor
             var initialTailScan = session.Position == 0 && info.Length > InitialScanBytes;
             var start = initialTailScan ? info.Length - InitialScanBytes : session.Position;
             stream.Seek(start, SeekOrigin.Begin);
-            using var reader = new StreamReader(stream, new UTF8Encoding(false, true), start == 0, 16_384, leaveOpen: true);
             if (initialTailScan)
             {
-                _ = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
+                // The tail can start in a multi-megabyte tool output. Skip its remainder without
+                // allocating a giant string/ArrayPool buffer that stays resident after startup.
+                await SkipPartialLineAsync(stream, cancellationToken).ConfigureAwait(false);
             }
+            using var reader = new StreamReader(stream, new UTF8Encoding(false, true), start == 0, 16_384, leaveOpen: true);
             while (await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
             {
                 session.Activity.ApplyLine(line);
@@ -277,6 +283,19 @@ internal sealed class RolloutSessionMonitor
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or DecoderFallbackException)
         {
+        }
+    }
+
+    private static async Task SkipPartialLineAsync(FileStream stream, CancellationToken cancellationToken)
+    {
+        var buffer = new byte[16_384];
+        int read;
+        while ((read = await stream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false)) > 0)
+        {
+            var newline = Array.IndexOf(buffer, (byte)'\n', 0, read);
+            if (newline < 0) continue;
+            stream.Seek(newline + 1 - read, SeekOrigin.Current);
+            return;
         }
     }
 

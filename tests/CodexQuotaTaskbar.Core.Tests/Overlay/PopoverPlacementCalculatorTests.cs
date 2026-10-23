@@ -5,6 +5,35 @@ namespace CodexQuotaTaskbar.Core.Tests.Overlay;
 public sealed class PopoverPlacementCalculatorTests
 {
     [Theory]
+    [InlineData(96)]
+    [InlineData(108)]
+    [InlineData(144)]
+    public void Tall_details_stay_centered_and_shrink_instead_of_opening_sideways(int dpi)
+    {
+        var anchor = new TaskbarAnchor("main", new(0, 0, 1920, 1080), new(0, 1040, 1920, 1080), TaskbarEdge.Bottom, dpi, true, true);
+        var group = new ScreenRect(600, 400, 1000, 700);
+        var island = new ScreenRect(660, 400, 930, 480); // not the group/window center
+        var result = PopoverPlacementCalculator.Calculate(anchor, group, 360, 552, 8, island);
+        Assert.InRange(Math.Abs((result.Left + result.Right) / 2d - (island.Left + island.Right) / 2d), 0, 0.5);
+        Assert.True(result.Bottom < group.Top);
+        Assert.True(result.Height < 552 * dpi / 96d);
+        Assert.InRange(result.Top, 0, 1040);
+        Assert.Equal(PopoverPlacementCalculator.AvailableHeightDip(anchor, group, 8) * dpi / 96d, result.Height, 5);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1620)]
+    public void Centering_yields_only_to_the_screen_edge(int left)
+    {
+        var anchor = new TaskbarAnchor("main", new(0, 0, 1920, 1080), new(0, 1040, 1920, 1080), TaskbarEdge.Bottom, 96, true, true);
+        var island = new ScreenRect(left, 100, left + 280, 180);
+        var result = PopoverPlacementCalculator.Calculate(anchor, island, 360, 552, 8, island);
+        Assert.Equal(left == 0 ? 0 : 1560, result.Left);
+        Assert.True(result.Top > island.Bottom);
+    }
+
+    [Theory]
     [InlineData(TaskbarEdge.Top, 96)]
     [InlineData(TaskbarEdge.Left, 96)]
     [InlineData(TaskbarEdge.Right, 96)]

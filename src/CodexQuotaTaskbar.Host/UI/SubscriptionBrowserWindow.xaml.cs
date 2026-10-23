@@ -98,7 +98,7 @@ public partial class SubscriptionBrowserWindow : Window
             {
                 if (clearing) return;
                 ReadButton.IsEnabled = !busy && !browserFailed && args.IsSuccess && BrowserSubscriptionProtocol.IsChatGptOrigin(core.Source);
-                if (!args.IsSuccess) StatusText.Text = "网页未能加载，请检查网络后重新加载。额度岛仍可正常使用。";
+                if (!args.IsSuccess) StatusText.Text = "网页未能加载，请检查网络后重新加载。点岛仍可正常使用。";
             };
             core.WebMessageReceived += OnWebMessage;
             core.NewWindowRequested += OnNewWindow;
@@ -108,7 +108,7 @@ public partial class SubscriptionBrowserWindow : Window
                 browserFailed = true;
                 CancelRead();
                 HomeButton.IsEnabled = ReloadButton.IsEnabled = false;
-                StatusText.Text = "浏览器遇到问题，请关闭此窗口后重新打开。额度岛不受影响。";
+                StatusText.Text = "浏览器遇到问题，请关闭此窗口后重新打开。点岛不受影响。";
             };
             ClearButton.IsEnabled = true;
             HomeButton.IsEnabled = ReloadButton.IsEnabled = true;
@@ -125,7 +125,7 @@ public partial class SubscriptionBrowserWindow : Window
         }
         catch (Exception exception) when (exception is InvalidOperationException or System.Runtime.InteropServices.COMException or IOException or UnauthorizedAccessException or ArgumentException)
         {
-            if (!closed) StatusText.Text = "浏览器暂时无法启动，请关闭此窗口后重试。额度岛仍可正常使用。";
+            if (!closed) StatusText.Text = "浏览器暂时无法启动，请关闭此窗口后重试。点岛仍可正常使用。";
         }
         return false;
     }
@@ -297,7 +297,7 @@ public partial class SubscriptionBrowserWindow : Window
             browserFailed = true;
             CancelRead();
             HomeButton.IsEnabled = ReloadButton.IsEnabled = false;
-            StatusText.Text = "浏览器暂时无法导航，请关闭此窗口后重新打开。额度岛不受影响。";
+            StatusText.Text = "浏览器暂时无法导航，请关闭此窗口后重新打开。点岛不受影响。";
         }
     }
 }

@@ -56,6 +56,18 @@ internal sealed class TaskbarTopologySource
             return false;
         }
 
+        // Show Desktop makes the shell's monitor-sized surface foreground. It is
+        // not a fullscreen application; otherwise Reconcile hides our overlays.
+        var shell = NativeMethods.GetShellWindow();
+        var foregroundClass = new StringBuilder(64);
+        _ = NativeMethods.GetClassName(foreground, foregroundClass, foregroundClass.Capacity);
+        _ = NativeMethods.GetWindowThreadProcessId(foreground, out var foregroundProcess);
+        _ = NativeMethods.GetWindowThreadProcessId(shell, out var shellProcess);
+        if (IsDesktopSurface(foreground, shell, foregroundProcess, shellProcess, foregroundClass.ToString()))
+        {
+            return false;
+        }
+
         var monitor = NativeMethods.MonitorFromWindow(foreground, 2);
         var info = new NativeMethods.MonitorInfoEx { Size = Marshal.SizeOf<NativeMethods.MonitorInfoEx>(), Device = string.Empty };
         if (monitor == nint.Zero || !NativeMethods.GetMonitorInfo(monitor, ref info)
@@ -77,6 +89,16 @@ internal sealed class TaskbarTopologySource
     }
 
     private static ScreenRect ToScreenRect(NativeMethods.Rect rect) => new(rect.Left, rect.Top, rect.Right, rect.Bottom);
+
+    internal static bool IsDesktopSurface(nint window, nint shellWindow, uint processId, uint shellProcessId, string windowClass)
+    {
+        if (window == nint.Zero || shellWindow == nint.Zero) return false;
+        if (window == shellWindow) return true;
+        // Explorer can move the desktop view into WorkerW (e.g. after wallpaper
+        // changes). Do not exempt every Explorer window or trust class names alone.
+        return shellProcessId != 0 && processId == shellProcessId
+            && windowClass is "Progman" or "WorkerW" or "SHELLDLL_DefView";
+    }
 
     private static TaskbarEdge ClassifyEdge(ScreenRect taskbar, ScreenRect monitor)
     {

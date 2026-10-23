@@ -2,7 +2,7 @@ namespace CodexQuotaTaskbar.Core.Overlay;
 
 public static class PopoverPlacementCalculator
 {
-    public static ScreenRect Calculate(TaskbarAnchor anchor, ScreenRect capsule, double widthDip, double heightDip, double gapDip)
+    public static ScreenRect Calculate(TaskbarAnchor anchor, ScreenRect capsule, double widthDip, double heightDip, double gapDip, ScreenRect? alignment = null)
     {
         ArgumentNullException.ThrowIfNull(anchor);
         var scale = anchor.Dpi / 96d;
@@ -13,22 +13,11 @@ public static class PopoverPlacementCalculator
         var work = AvailableBounds(anchor);
         var above = capsule.Top - work.Top;
         var below = work.Bottom - capsule.Bottom;
-        var leftSpace = capsule.Left - work.Left;
-        var rightSpace = work.Right - capsule.Right;
-
-        var direction = ChooseDirection(above, below, leftSpace, rightSpace, width, height, gap);
-        var left = direction switch
-        {
-            PlacementDirection.Left => capsule.Left - gap - width,
-            PlacementDirection.Right => capsule.Right + gap,
-            _ => capsule.Left + (capsule.Width - width) / 2,
-        };
-        var top = direction switch
-        {
-            PlacementDirection.Above => capsule.Top - gap - height,
-            PlacementDirection.Below => capsule.Bottom + gap,
-            _ => capsule.Top + (capsule.Height - height) / 2,
-        };
+        width = Math.Min(width, work.Width);
+        height = Math.Min(height, Math.Max(1, Math.Min(work.Height, Math.Max(above, below) - gap)));
+        var centeredOn = alignment ?? capsule;
+        var left = centeredOn.Left + (centeredOn.Width - width) / 2;
+        var top = above >= below ? capsule.Top - gap - height : capsule.Bottom + gap;
 
         left = Math.Clamp(left, work.Left, work.Right - width);
         top = Math.Clamp(top, work.Top, work.Bottom - height);
@@ -44,32 +33,11 @@ public static class PopoverPlacementCalculator
         _ => anchor.MonitorBounds,
     };
 
-    private static PlacementDirection ChooseDirection(int above, int below, int left, int right, int width, int height, int gap)
+    public static double AvailableHeightDip(TaskbarAnchor anchor, ScreenRect obstruction, double gapDip)
     {
-        if (Math.Max(above, below) >= height + gap)
-        {
-            return above >= below ? PlacementDirection.Above : PlacementDirection.Below;
-        }
-        if (Math.Max(left, right) >= width + gap)
-        {
-            return left >= right ? PlacementDirection.Left : PlacementDirection.Right;
-        }
-
-        var candidates = new[]
-        {
-            (PlacementDirection.Above, above),
-            (PlacementDirection.Below, below),
-            (PlacementDirection.Left, left),
-            (PlacementDirection.Right, right),
-        };
-        return candidates.MaxBy(candidate => candidate.Item2).Item1;
-    }
-
-    private enum PlacementDirection
-    {
-        Above,
-        Below,
-        Left,
-        Right,
+        var work = AvailableBounds(anchor);
+        var scale = anchor.Dpi / 96d;
+        return Math.Max(1, Math.Min(work.Height, Math.Max(obstruction.Top - work.Top, work.Bottom - obstruction.Bottom)
+            - Math.Round(gapDip * scale))) / scale;
     }
 }

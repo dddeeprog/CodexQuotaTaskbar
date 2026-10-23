@@ -13,7 +13,15 @@ public sealed record CodexSessionSnapshot(
     string Id,
     string Title,
     CodexSessionState State,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt)
+{
+    public CodexSessionActivity Activity { get; init; }
+}
+
+public enum CodexSessionActivity
+{
+    Unknown, Thinking, Tool, Output, Searching, Network, Stopped, Error, Restricted,
+}
 
 public sealed record CodexSessionsSnapshot(IReadOnlyList<CodexSessionSnapshot> Sessions, DateTimeOffset CapturedAt)
 {

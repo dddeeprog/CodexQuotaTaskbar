@@ -12,6 +12,7 @@ internal sealed class RolloutActivityTracker
     internal CodexSessionState State { get; private set; } = CodexSessionState.Idle;
     internal DateTimeOffset UpdatedAt { get; private set; } = DateTimeOffset.MinValue;
     internal string? TitleHint { get; private set; }
+    internal CodexSessionActivity Activity { get; private set; }
 
     internal void ApplyLine(string line)
     {
@@ -71,6 +72,7 @@ internal sealed class RolloutActivityTracker
                 }
                 break;
             case "task_started":
+                Activity = CodexSessionActivity.Unknown;
                 failedTurnId = null;
                 pendingInputCallId = null;
                 Set(CodexSessionState.Running, timestamp);
@@ -82,10 +84,12 @@ internal sealed class RolloutActivityTracker
                 break;
             case "exec_command_begin":
             case "patch_apply_begin":
+                Activity = CodexSessionActivity.Tool;
                 pendingInputCallId = null;
                 Set(CodexSessionState.Running, timestamp);
                 break;
             case "turn_aborted":
+                Activity = CodexSessionActivity.Stopped;
                 failedTurnId = turnId;
                 pendingInputCallId = null;
                 Set(CodexSessionState.Failed, timestamp);
@@ -93,6 +97,12 @@ internal sealed class RolloutActivityTracker
             case "task_complete":
                 pendingInputCallId = null;
                 Set(turnId is not null && turnId == failedTurnId ? CodexSessionState.Failed : CodexSessionState.Review, timestamp);
+                break;
+            case "agent_reasoning":
+                if (State == CodexSessionState.Running) Activity = CodexSessionActivity.Thinking;
+                break;
+            case "agent_message":
+                if (State == CodexSessionState.Running) Activity = CodexSessionActivity.Output;
                 break;
         }
     }
@@ -102,11 +112,13 @@ internal sealed class RolloutActivityTracker
         if (payloadType is "custom_tool_call" or "function_call")
         {
             var name = ReadString(payload, "name");
-            if (name?.EndsWith("request_user_input", StringComparison.OrdinalIgnoreCase) == true)
+            if (name?.EndsWith("request_user_input", StringComparison.OrdinalIgnoreCase) == true
+                || name?.EndsWith("request_user_input_async", StringComparison.OrdinalIgnoreCase) == true)
             {
                 pendingInputCallId = ReadString(payload, "call_id") ?? ReadString(payload, "id");
                 Set(CodexSessionState.Waiting, timestamp);
             }
+            else if (State == CodexSessionState.Running) Activity = CodexSessionActivity.Tool;
             return;
         }
 
@@ -134,7 +146,12 @@ internal sealed class RolloutActivityTracker
         || line.Contains("exec_command_begin", StringComparison.Ordinal)
         || line.Contains("patch_apply_begin", StringComparison.Ordinal)
         || line.Contains("request_user_input", StringComparison.OrdinalIgnoreCase)
-        || line.Contains("tool_call_output", StringComparison.Ordinal);
+        || line.Contains("\"agent_reasoning\"", StringComparison.Ordinal)
+        || line.Contains("\"agent_message\"", StringComparison.Ordinal)
+        || line.Contains("\"function_call\"", StringComparison.Ordinal)
+        || line.Contains("\"custom_tool_call\"", StringComparison.Ordinal)
+        || line.Contains("tool_call_output", StringComparison.Ordinal)
+        || line.Contains("\"function_call_output\"", StringComparison.Ordinal);
 
     private static DateTimeOffset ReadTimestamp(JsonElement root) =>
         root.TryGetProperty("timestamp", out var node)

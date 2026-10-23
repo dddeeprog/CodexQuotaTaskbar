@@ -128,6 +128,50 @@ public sealed class RolloutSessionMonitorTests : IDisposable
         Assert.Equal(20, snapshot.Sessions.Select(session => session.Id).Distinct(StringComparer.Ordinal).Count());
     }
 
+    [Fact]
+    public async Task Cache_evicts_rollouts_outside_the_recent_twenty_and_preserves_dismissal_on_return()
+    {
+        var sessionsRoot = Path.Combine(root, "sessions");
+        Directory.CreateDirectory(sessionsRoot);
+        var now = DateTimeOffset.UtcNow;
+        var monitor = new RolloutSessionMonitor(now.AddMinutes(-1), root);
+        var paths = new List<string>();
+        for (var i = 0; i < 22; i++)
+        {
+            var id = $"00000000-0000-0000-0000-{i:000000000000}";
+            var path = Path.Combine(sessionsRoot, $"rollout-{id}.jsonl");
+            paths.Add(path);
+            await File.WriteAllTextAsync(path, SessionMeta("C:\\Work\\Task", false) + "\n" + Event(now.ToString("O"), "task_started", "turn") + "\n");
+            File.SetLastWriteTimeUtc(path, now.AddSeconds(i).UtcDateTime);
+            await monitor.RefreshFromDiskAsync(now.AddSeconds(i), CancellationToken.None);
+            if (i == 0) monitor.Dismiss(id);
+        }
+        var cache = (System.Collections.IDictionary)typeof(RolloutSessionMonitor)
+            .GetField("tracked", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(monitor)!;
+        Assert.Equal(20, cache.Count);
+        Assert.False(cache.Contains("00000000-0000-0000-0000-000000000000"));
+        File.SetLastWriteTimeUtc(paths[0], now.AddMinutes(1).UtcDateTime);
+        var snapshot = await monitor.RefreshFromDiskAsync(now.AddMinutes(1), CancellationToken.None);
+        Assert.DoesNotContain(snapshot.Sessions, s => s.Id == "00000000-0000-0000-0000-000000000000");
+        Assert.Equal(20, cache.Count);
+    }
+
+    [Fact]
+    public async Task Tail_skip_does_not_lose_event_after_a_large_multibyte_partial_line()
+    {
+        var sessionsRoot = Path.Combine(root, "sessions");
+        Directory.CreateDirectory(sessionsRoot);
+        var now = DateTimeOffset.UtcNow;
+        var path = Path.Combine(sessionsRoot, "rollout-00000000-0000-0000-0000-000000000001.jsonl");
+        await File.WriteAllTextAsync(path, SessionMeta("C:\\Work\\Task", false) + "\n" + new string('中', 2 * 1024 * 1024)
+            + "\r\n" + Event(now.ToString("O"), "task_started", "turn") + "\n");
+        var monitor = new RolloutSessionMonitor(now.AddMinutes(-1), root);
+        var snapshot = await monitor.RefreshFromDiskAsync(now, CancellationToken.None);
+        Assert.Equal(CodexSessionState.Running, Assert.Single(snapshot.Sessions).State);
+        await File.AppendAllTextAsync(path, Event(now.AddSeconds(1).ToString("O"), "exec_approval_request", "turn") + "\n");
+        Assert.Equal(CodexSessionState.Waiting, Assert.Single((await monitor.RefreshFromDiskAsync(now.AddSeconds(1), CancellationToken.None)).Sessions).State);
+    }
+
     private static string Event(string timestamp, string type, string turnId) =>
         JsonSerializer.Serialize(new { timestamp, type = "event_msg", payload = new { type, turn_id = turnId } });
 

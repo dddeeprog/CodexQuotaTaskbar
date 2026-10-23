@@ -283,8 +283,9 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
 
     private void SetSessions(CodexSessionsSnapshot snapshot)
     {
+        var changed = !CurrentSessions.Sessions.SequenceEqual(snapshot.Sessions);
         CurrentSessions = snapshot;
-        SessionsChanged?.Invoke(this, snapshot);
+        if (changed) SessionsChanged?.Invoke(this, snapshot);
     }
 
     public async ValueTask DisposeAsync()
