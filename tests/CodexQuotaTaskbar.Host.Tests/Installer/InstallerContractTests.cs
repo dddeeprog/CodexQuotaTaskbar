@@ -21,7 +21,15 @@ public sealed class InstallerContractTests
     public void Payload_is_explicit_and_does_not_include_profiles_or_wildcards()
     {
         var files = Script.Split("[Files]")[1].Split("[Icons]")[0];
-        Assert.Equal(3, files.Split('\n').Count(line => line.StartsWith("Source:", StringComparison.Ordinal)));
+        var sources = System.Text.RegularExpressions.Regex.Matches(files, "(?m)^Source: \"([^\"]+)\"")
+            .Select(match => match.Groups[1].Value).OrderBy(path => path, StringComparer.Ordinal).ToArray();
+        Assert.Equal(new[]
+        {
+            "{#PublishDir}\\CodexQuotaTaskbar.exe", "{#RepoRoot}\\LICENSE", "{#RepoRoot}\\THIRD_PARTY_NOTICES.md",
+            "{#RepoRoot}\\src\\CodexQuotaTaskbar.Host\\Assets\\Licenses\\ThirdPartyLicenses.zip",
+            "{#RepoRoot}\\src\\CodexQuotaTaskbar.Host\\Assets\\Licenses\\Live2DCubismCore.ComponentTerms.zh-CN.txt",
+            "{#RepoRoot}\\src\\CodexQuotaTaskbar.Host\\Assets\\Licenses\\Live2DCubismCore.ProprietaryAgreement.en.txt",
+        }.OrderBy(path => path, StringComparer.Ordinal), sources);
         Assert.Contains("CodexQuotaTaskbar.exe", files);
         Assert.Contains("LICENSE", files);
         Assert.Contains("THIRD_PARTY_NOTICES.md", files);

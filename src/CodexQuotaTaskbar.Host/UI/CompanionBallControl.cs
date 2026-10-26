@@ -27,6 +27,11 @@ internal sealed class CompanionBallControl : Grid, IDisposable
     private CompanionBallVisual? visual;
     private bool disposed;
     private bool reduced;
+    private bool typingEnabled;
+    private bool externalAppearance;
+    private bool resetNoticeActive;
+    private bool observePointer = true;
+    private string? externalFailure;
     private bool ready;
     private bool failed;
     private int count = -1;
@@ -49,18 +54,47 @@ internal sealed class CompanionBallControl : Grid, IDisposable
 
     internal bool Ready => ready && !failed;
     internal CompanionBallVisual? Visual => visual;
+    internal bool ResetNoticeActive => resetNoticeActive;
+    internal bool CanAnimateTyping => Ready && IsLoaded && IsVisible && !reduced && SystemParameters.ClientAreaAnimation;
     internal event EventHandler? AvailabilityChanged;
+    internal event Action<System.Windows.Point>? GazeChanged;
+    internal void SetPointerObservationAllowed(bool allowed) => observePointer = allowed;
+    internal void SetExternalFailure(string? reason) { externalFailure = reason; Render(); }
+    internal void SetResetNoticeActive(bool active)
+    {
+        if (disposed || resetNoticeActive == active) return;
+        resetNoticeActive = active;
+        visual?.SetResetNoticeActive(active);
+    }
+    internal void SetExternalAppearance(bool active)
+    {
+        if (externalAppearance == active) return;
+        externalAppearance = active;
+        if (visual is not null) visual.Visibility = active ? Visibility.Collapsed : Visibility.Visible;
+        if (!active) countBadge.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        Render();
+    }
     internal void SetReducedMotion(bool value) { reduced = value; Render(); }
     internal void Apply(CodexSessionsSnapshot value) { director.Apply(value, DateTimeOffset.UtcNow); Render(); }
     internal void Tap() { director.Interact(DateTimeOffset.UtcNow, true); Render(); }
     internal void Hover() { director.Interact(DateTimeOffset.UtcNow, false); Render(); }
     internal void ToggleTour() { director.ToggleTour(DateTimeOffset.UtcNow); Render(); }
+    internal void SetTypingInteraction(bool enabled)
+    {
+        typingEnabled = enabled;
+        visual?.SetTypingInteraction(enabled && CanAnimateTyping);
+    }
+    internal void KeyboardActivity(CompanionInputEvent value)
+    {
+        if (value.Kind == CompanionInputKind.Reset || typingEnabled && CanAnimateTyping) visual?.Input(value);
+    }
 
     internal void Gaze(System.Windows.Point point)
     {
-        if (!Ready || reduced || !SystemParameters.ClientAreaAnimation) return;
+        if (!observePointer || !Ready || reduced || !SystemParameters.ClientAreaAnimation) return;
         var direction = NormalizeGaze(point);
-        visual?.Gaze(direction.X, direction.Y);
+        if (!externalAppearance) visual?.Gaze(direction.X, direction.Y);
+        GazeChanged?.Invoke(direction);
     }
 
     internal static System.Windows.Point NormalizeGaze(System.Windows.Point point)
@@ -78,13 +112,17 @@ internal sealed class CompanionBallControl : Grid, IDisposable
     private void OnTick(object? sender, EventArgs e)
     {
         // Reuse the existing 5 Hz clock so eyes also follow the cursor outside the capsule.
-        if (!disposed && Ready && IsLoaded && IsVisible && !reduced && SystemParameters.ClientAreaAnimation
+        if (!disposed && observePointer && Ready && IsLoaded && IsVisible && !reduced && SystemParameters.ClientAreaAnimation
             && PresentationSource.FromVisual(this) is not null
             && WindowInteropPolicy.TryGetCursorPosition(out var x, out var y))
             Gaze(PointFromScreen(new System.Windows.Point(x, y)));
         Render();
     }
-    private void OnUnloaded(object sender, RoutedEventArgs e) => timer.Stop();
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        timer.Stop();
+        visual?.SetTypingInteraction(false);
+    }
     private void OnVisibility(object sender, DependencyPropertyChangedEventArgs e)
     {
         Render();
@@ -98,6 +136,7 @@ internal sealed class CompanionBallControl : Grid, IDisposable
             try
             {
                 visual = new CompanionBallVisual();
+                visual.SetResetNoticeActive(resetNoticeActive);
                 visual.Presented += OnPresented;
                 Children.Insert(0, visual);
                 ready = true;
@@ -112,13 +151,20 @@ internal sealed class CompanionBallControl : Grid, IDisposable
     private void Render()
     {
         if (disposed || !Ready) return;
+        if (externalAppearance)
+        {
+            visual?.SetTypingInteraction(false);
+            countBadge.Visibility = Visibility.Collapsed;
+            return;
+        }
         var frame = director.Evaluate(DateTimeOffset.UtcNow);
         var minimizeMotion = reduced || !SystemParameters.ClientAreaAnimation;
         diagnosticFrame = frame;
         visual?.SetState(frame.Emotion, !minimizeMotion);
+        visual?.SetTypingInteraction(typingEnabled && CanAnimateTyping);
         ObservePresentation("selected");
         AutomationProperties.SetName(this, frame.Label);
-        ToolTip = frame.Label;
+        ToolTip = externalFailure ?? frame.Label;
         if (count != frame.Count)
         {
             number.Text = frame.Count > 99 ? "99+" : frame.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -158,6 +204,7 @@ internal sealed class CompanionBallControl : Grid, IDisposable
     {
         if (disposed) return;
         disposed = true;
+        resetNoticeActive = false;
         timer.Stop();
         timer.Tick -= OnTick;
         Loaded -= OnLoaded;

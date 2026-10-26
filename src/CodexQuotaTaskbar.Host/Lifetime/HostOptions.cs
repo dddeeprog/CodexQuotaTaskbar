@@ -1,6 +1,6 @@
 namespace CodexQuotaTaskbar.Host.Lifetime;
 
-internal sealed record HostOptions(bool Demo, TimeSpan? ExitAfter, bool SubscriptionLogin = false, bool SoftwareRendering = true, bool DotRealtime = false)
+internal sealed record HostOptions(bool Demo, TimeSpan? ExitAfter, bool SubscriptionLogin = false, bool SoftwareRendering = true, bool DotRealtime = false, string? DemoDataRoot = null)
 {
     internal static HostOptions Parse(IReadOnlyList<string> arguments)
     {
@@ -8,6 +8,7 @@ internal sealed record HostOptions(bool Demo, TimeSpan? ExitAfter, bool Subscrip
         var dotRealtime = false;
         var subscriptionLogin = false;
         var softwareRendering = true;
+        string? demoDataRoot = null;
         TimeSpan? exitAfter = null;
         for (var index = 0; index < arguments.Count; index++)
         {
@@ -18,6 +19,10 @@ internal sealed record HostOptions(bool Demo, TimeSpan? ExitAfter, bool Subscrip
                     break;
                 case "--demo":
                     demo = true;
+                    break;
+                case "--demo-data-root" when index + 1 < arguments.Count:
+                    if (demoDataRoot is not null) throw new ArgumentException("--demo-data-root cannot be repeated.");
+                    demoDataRoot = DemoIntegrationContext.ValidateRootPath(arguments[++index]);
                     break;
                 case "--subscription-login":
                     subscriptionLogin = true;
@@ -40,6 +45,9 @@ internal sealed record HostOptions(bool Demo, TimeSpan? ExitAfter, bool Subscrip
             }
         }
 
-        return new HostOptions(demo, exitAfter, subscriptionLogin, softwareRendering, dotRealtime);
+        if (demoDataRoot is not null && (!demo || dotRealtime || subscriptionLogin
+            || exitAfter is null || exitAfter > TimeSpan.FromSeconds(60)))
+            throw new ArgumentException("Isolated demo requires --demo and an explicit exit within 60 seconds; live Dot/login is disabled.");
+        return new HostOptions(demo, exitAfter, subscriptionLogin, softwareRendering, dotRealtime, demoDataRoot);
     }
 }

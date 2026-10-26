@@ -9,6 +9,7 @@ using CodexQuotaTaskbar.Host.UI;
 namespace CodexQuotaTaskbar.Host.Tests.UI;
 
 // Offline regression tests: never call Start(), SendAsync(), or a real input API.
+[Collection("Native UI isolation")]
 public sealed class DotNativeEntryTests
 {
     [Theory]

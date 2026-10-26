@@ -86,6 +86,50 @@ public sealed class TrayMenuWindowTests
         Assert.Contains("OverlayTypography.Interface", (string?)window.Attribute("FontFamily"), StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("MenuAction", "Chrome")]
+    [InlineData("ChoiceAction", "ChoiceChrome")]
+    [InlineData("BinaryAction", "Chrome")]
+    public void Menu_button_templates_keep_neutral_focus_hover_selection_and_geometry(string key, string chromeName)
+    {
+        var xaml = XDocument.Load(Path.Combine(RepositoryPaths.Root, "src", "CodexQuotaTaskbar.Host", "UI", "TrayMenuWindow.xaml"));
+        XNamespace p = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement Style(string name) => Assert.Single(xaml.Descendants(p + "Style"), node => (string?)node.Attribute(x + "Key") == name);
+        string? Setter(XElement node, string property) => (string?)Assert.Single(node.Elements(p + "Setter"),
+            item => (string?)item.Attribute("Property") == property).Attribute("Value");
+        var basic = Style("MenuAction");
+        var style = Style(key);
+        var template = Assert.Single(style.Descendants(p + "ControlTemplate"));
+        var focus = Assert.Single(template.Descendants(p + "Trigger"), node => (string?)node.Attribute("Property") == "IsKeyboardFocused");
+        Assert.Equal("True", (string?)focus.Attribute("Value"));
+        var focusBorder = Assert.Single(focus.Elements(p + "Setter"), node => (string?)node.Attribute("Property") == "BorderBrush");
+        Assert.Equal(chromeName, (string?)focusBorder.Attribute("TargetName"));
+        Assert.Equal("{DynamicResource MenuChoiceBorderBrush}", (string?)focusBorder.Attribute("Value"));
+        var hover = Assert.Single(template.Descendants(p + "Trigger"), node => (string?)node.Attribute("Property") == "IsMouseOver");
+        Assert.Equal("True", (string?)hover.Attribute("Value"));
+        Assert.Equal("{DynamicResource MenuHoverBrush}", Setter(hover, "Background"));
+        var chrome = Assert.Single(template.Descendants(p + "Border"), node => (string?)node.Attribute(x + "Name") == chromeName);
+        Assert.Equal("1", key == "MenuAction" ? Setter(focus, "BorderThickness") : (string?)chrome.Attribute("BorderThickness"));
+        if (key != "MenuAction") Assert.Equal("{StaticResource MenuAction}", (string?)style.Attribute("BasedOn"));
+        if (key == "ChoiceAction")
+        {
+            var selected = Assert.Single(template.Descendants(p + "Trigger"), node => (string?)node.Attribute("Property") == "Tag"
+                && (string?)node.Attribute("Value") == "Selected");
+            Assert.Equal("{DynamicResource MenuSelectedBrush}", Setter(selected, "Background"));
+            Assert.Equal("{DynamicResource MenuChoiceBorderBrush}", Setter(selected, "BorderBrush"));
+        }
+        foreach (var (resource, color) in new[] { ("MenuHoverBrush", "#0EFFFFFF"), ("MenuSelectedBrush", "#22FFFFFF"), ("MenuChoiceBorderBrush", "#18FFFFFF") })
+            Assert.Equal(color, (string?)Assert.Single(xaml.Descendants(p + "SolidColorBrush"), node => (string?)node.Attribute(x + "Key") == resource).Attribute("Color"));
+        Assert.Equal("Transparent", Setter(basic, "Background"));
+        Assert.Equal("32", Setter(basic, "Height"));
+        Assert.Equal("10,0", Setter(basic, "Padding"));
+        Assert.Equal("13", Setter(basic, "FontSize"));
+        Assert.Equal("SemiBold", Setter(basic, "FontWeight"));
+        Assert.Equal("272", (string?)xaml.Root!.Attribute("Width"));
+        Assert.Equal("460", (string?)xaml.Root.Attribute("MaxHeight"));
+    }
+
     [Fact]
     public void Menu_uses_the_shared_opaque_surface_and_blurs_only_the_backdrop()
     {
@@ -132,15 +176,21 @@ public sealed class TrayMenuWindowTests
                         Assert.InRange(Assert.IsType<Border>(menu.FindName("GlassBorder")).ActualWidth, 251.5, 252.5); // subpixel DPI rounding
                         Assert.Null(menu.FindName("AppearancePopup"));
                         Assert.Null(menu.FindName("PreferencesPopup"));
-                        var open = section.Length == 0 ? null : Assert.IsType<Border>(menu.FindName(section + "Reveal"));
-                        if (open is not null) Assert.True(open.Height > 100);
+                        var open = section.Length == 0 ? null : Assert.IsType<Grid>(menu.FindName(section + "Root"));
+                        if (open is not null)
+                        {
+                            Assert.Equal(Visibility.Visible, open.Visibility);
+                            Assert.True(open.ActualHeight > 100);
+                            Assert.Equal(Enum.Parse<MenuSection>(section), menu.CurrentSection);
+                        }
                         foreach (var label in Descendants<Button>(content).SelectMany(button => Descendants<TextBlock>(button))
                             .Where(label => label.ActualWidth > 0 && label.Name != "StyleSummaryText"
+                                && !(section.Length > 0 && Assert.IsType<StackPanel>(menu.FindName("MenuItems")).IsAncestorOf(label))
                                 && !(section != "Appearance" && Assert.IsType<Grid>(menu.FindName("AppearanceRoot")).IsAncestorOf(label))
                                 && !(section != "Preferences" && Assert.IsType<Grid>(menu.FindName("PreferencesRoot")).IsAncestorOf(label))))
                         {
                             Assert.Equal(OverlayTypography.Interface, label.FontFamily);
-                            Assert.Equal(FontWeights.Normal, label.FontWeight);
+                            Assert.Equal(FontWeights.SemiBold, label.FontWeight);
                             Assert.InRange(label.FontSize, 12, 13);
                             var fullText = new FormattedText(label.Text, CultureInfo.CurrentUICulture, label.FlowDirection,
                                 new Typeface(label.FontFamily, label.FontStyle, label.FontWeight, label.FontStretch),
@@ -213,17 +263,20 @@ public sealed class TrayMenuWindowTests
                 Pump();
                 var mainHandle = new System.Windows.Interop.WindowInteropHelper(menu).Handle;
                 Assert.True(CodexQuotaTaskbar.Host.Platform.NativeMethods.GetWindowRect(mainHandle, out var before));
-                Assert.InRange(Math.Abs((before.Left + before.Right) / 2d - (island.Left + island.Width / 2d)), 0, 1);
+                Assert.False(new Rectangle(before.Left, before.Top, before.Right - before.Left, before.Bottom - before.Top).IntersectsWith(island));
                 foreach (var name in new[] { "Appearance", "Preferences" })
                 {
                     Assert.IsType<Button>(menu.FindName(name + "Button")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                     Pump();
-                    var reveal = Assert.IsType<Border>(menu.FindName(name + "Reveal"));
+                    var page = Assert.IsType<Grid>(menu.FindName(name + "Root"));
                     Assert.True(menu.IsVisible);
-                    Assert.True(reveal.IsHitTestVisible);
-                    var other = Assert.IsType<Border>(menu.FindName((name == "Appearance" ? "Preferences" : "Appearance") + "Reveal"));
-                    Assert.False(other.IsHitTestVisible);
-                    Assert.Same(PresentationSource.FromVisual(menu), PresentationSource.FromVisual(reveal));
+                    Assert.Equal(Visibility.Visible, page.Visibility);
+                    Assert.True(page.IsHitTestVisible);
+                    Assert.True(page.ActualHeight > 100);
+                    var other = Assert.IsType<Grid>(menu.FindName((name == "Appearance" ? "Preferences" : "Appearance") + "Root"));
+                    Assert.Equal(Visibility.Collapsed, other.Visibility);
+                    Assert.Equal(272, menu.Width);
+                    Assert.Same(PresentationSource.FromVisual(menu), PresentationSource.FromVisual(page));
                     Assert.True(CodexQuotaTaskbar.Host.Platform.NativeMethods.GetWindowRect(mainHandle, out var bounds));
                     Assert.InRange(bounds.Left, work.Left, work.Right - 1);
                     Assert.InRange(bounds.Top, work.Top, work.Bottom - 1);
@@ -237,13 +290,15 @@ public sealed class TrayMenuWindowTests
                             PresentationSource.FromVisual(menu), 0, System.Windows.Input.Key.Left) { RoutedEvent = System.Windows.Input.Keyboard.PreviewKeyDownEvent };
                         Assert.IsType<Grid>(menu.FindName("AppearanceRoot")).RaiseEvent(key);
                         Assert.False(key.Handled);
-                        Assert.True(reveal.IsHitTestVisible);
+                        Assert.Equal(Visibility.Visible, page.Visibility);
+                        Assert.True(page.IsHitTestVisible);
                     }
-                    Assert.Equal(before.Left, bounds.Left);
+                    Assert.False(new Rectangle(bounds.Left, bounds.Top, bounds.Right - bounds.Left, bounds.Bottom - bounds.Top).IntersectsWith(island));
                 }
                 menu.Hide();
-                Assert.Equal(0, Assert.IsType<Border>(menu.FindName("AppearanceReveal")).Height);
-                Assert.Equal(0, Assert.IsType<Border>(menu.FindName("PreferencesReveal")).Height);
+                Assert.Equal(Visibility.Collapsed, Assert.IsType<Grid>(menu.FindName("AppearanceRoot")).Visibility);
+                Assert.Equal(Visibility.Collapsed, Assert.IsType<Grid>(menu.FindName("PreferencesRoot")).Visibility);
+                Assert.Equal(MenuSection.None, menu.CurrentSection);
                 using var controller = new CodexQuotaTaskbar.Host.Tray.TrayController(AppSettings.Default with { ShowTrayIcon = false });
                 var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
                 var icon = Assert.IsType<System.Windows.Forms.NotifyIcon>(controller.GetType().GetField("icon", flags)!.GetValue(controller));

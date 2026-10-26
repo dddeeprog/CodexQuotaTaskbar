@@ -54,6 +54,7 @@ public partial class QuotaCapsuleWindow : Window
         MonitorId = monitorId;
         InitializeComponent();
         IsUnifiedPanel = unifiedPanel;
+        InitializeExtensionMotion();
         if (!unifiedPanel) InitializeClassicLayout();
         normalLabelForeground = FirstLabel.Foreground;
         normalValueForeground = FirstValue.Foreground;
@@ -72,16 +73,34 @@ public partial class QuotaCapsuleWindow : Window
         AddHandler(Mouse.PreviewMouseMoveEvent, new System.Windows.Input.MouseEventHandler(OnMouseMove), true);
         AddHandler(Mouse.PreviewMouseUpEvent, new MouseButtonEventHandler(OnMouseLeftButtonUp), true);
         LostMouseCapture += (_, _) => ResetDragState();
-        MouseRightButtonUp += (_, _) => ContextInvoked?.Invoke(this, EventArgs.Empty);
+        MouseRightButtonUp += (_, _) =>
+        {
+            if (!DotTopExtensionVisible || dotTopContent?.IsMouseOver != true) ContextInvoked?.Invoke(this, EventArgs.Empty);
+        };
         SystemParameters.StaticPropertyChanged += OnSystemParametersChanged;
-        Closed += (_, _) => { SystemParameters.StaticPropertyChanged -= OnSystemParametersChanged; companion?.Dispose(); };
+        IsVisibleChanged += (_, _) =>
+        {
+            // Resize/Bongo cleanup can reenter rendering before this callback returns.
+            // Match the visibility gate before any native geometry mutation.
+            RefreshCompanionResetNotice();
+            if (!IsVisible) { FinishExtensionTransitions(); ClearBongoFrame(); }
+            RefreshCompanionResetNotice();
+        };
+        Closing += (_, _) =>
+        {
+            bongoWindowClosing = true;
+            RefreshCompanionResetNotice();
+            FinishExtensionTransitions();
+            RefreshCompanionResetNotice();
+        };
+        Closed += (_, _) => { CloseExtensionMotion(); SystemParameters.StaticPropertyChanged -= OnSystemParametersChanged; CloseBongoSurface(); companion?.Dispose(); };
         ApplySystemAppearance();
     }
 
     internal string MonitorId { get; }
     internal bool IsUnifiedPanel { get; }
     internal double LayoutWidth => IsUnifiedPanel ? WindowWidth : 306;
-    internal double LayoutBaseHeight => IsUnifiedPanel ? WindowHeight : 112;
+    internal double LayoutBaseHeight => (IsUnifiedPanel ? WindowHeight : 112) + BongoStageHeight;
     internal event Action<Uri>? OpenResetSourceRequested;
     internal void SetMaterialTransparency(int value)
     {
@@ -105,6 +124,7 @@ public partial class QuotaCapsuleWindow : Window
     internal event EventHandler? PrimaryInvoked;
     internal event EventHandler? ContextInvoked;
     internal event Action<ScreenRect>? UserMoveRequested;
+    internal event EventHandler? BoundsChanged;
 
     internal void Apply(QuotaSnapshot snapshot)
     {
@@ -309,6 +329,7 @@ public partial class QuotaCapsuleWindow : Window
         if (physicalBounds == bounds) return;
         physicalBounds = bounds;
         WindowInteropPolicy.Position(this, bounds);
+        BoundsChanged?.Invoke(this, EventArgs.Empty);
     }
 
     internal void MoveByUser(ScreenRect requested)
@@ -328,12 +349,16 @@ public partial class QuotaCapsuleWindow : Window
 
     private void OnMouseLeftButtonDown(object sender, MouseButtonEventArgs eventArgs)
     {
-        companionPointerDown = CompanionReady && companion!.IsMouseOver;
+        companionPointerDown = BongoHasFrame && bongoSurface?.IsModelStageMouseOver == true
+            || CompanionReady && companion!.IsMouseOver;
         if ((!companionPointerDown && (!QuotaHeader.IsMouseOver || SessionToggle.IsMouseOver || classicResetSource?.IsMouseOver == true)) || eventArgs.ChangedButton != MouseButton.Left || !WindowInteropPolicy.TryGetCursorPosition(out dragOriginX, out dragOriginY))
         {
             return;
         }
 
+        // A drag owns placement from this point; do not let changing extension
+        // geometry race its captured physical origin. Other clicks never settle it.
+        FinishExtensionTransitions();
         dragOriginBounds = physicalBounds;
         pointerDown = true;
         userDragging = false;
@@ -406,7 +431,11 @@ public partial class QuotaCapsuleWindow : Window
         };
     }
 
-    private void OnSystemParametersChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e) => ApplySystemAppearance();
+    private void OnSystemParametersChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        ApplySystemAppearance();
+        if (!SystemParameters.ClientAreaAnimation) FinishExtensionTransitions();
+    }
 
     private void ApplySystemAppearance()
     {
@@ -421,6 +450,7 @@ public partial class QuotaCapsuleWindow : Window
             SessionBadge.Background = System.Windows.SystemColors.ControlBrush;
             SessionBadge.BorderBrush = System.Windows.SystemColors.ActiveBorderBrush;
             ApplyPanelSessionAppearance(true);
+            ApplyResetScheduleAppearance(true);
             ApplyClassicAppearance(System.Windows.SystemColors.WindowTextBrush);
             return;
         }
@@ -434,6 +464,7 @@ public partial class QuotaCapsuleWindow : Window
         SessionBadge.Background = OverlayGlassMaterial.WithTransparency(normalBadgeBackground, materialTransparency);
         SessionBadge.BorderBrush = normalBadgeBorderBrush;
         ApplyPanelSessionAppearance(false);
+        ApplyResetScheduleAppearance(false);
         ApplyClassicAppearance(normalLabelForeground);
     }
 

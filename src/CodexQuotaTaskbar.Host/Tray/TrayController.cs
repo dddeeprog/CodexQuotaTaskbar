@@ -1,6 +1,9 @@
 using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
+using System.Windows.Interop;
+using CodexQuotaTaskbar.Core.Overlay;
+using CodexQuotaTaskbar.Host.Platform;
 using CodexQuotaTaskbar.Host.Settings;
 using CodexQuotaTaskbar.Host.UI;
 
@@ -14,12 +17,21 @@ internal sealed class TrayController : IDisposable
     private readonly Stream trayIconStream;
     private AppSettings settings;
     private readonly Action<string, string, ToolTipIcon> hiddenUpdateResult;
+    private readonly bool restrictedDemo;
+    private readonly Action<bool> setAutostart;
+    private QuotaCapsuleWindow? menuIsland;
+    private Func<QuotaCapsuleWindow, IReadOnlyList<ScreenRect>>? contextAvoidanceProvider;
 
-    internal TrayController(AppSettings settings, Action<string, string, ToolTipIcon>? hiddenUpdateResult = null)
+    internal TrayController(AppSettings settings, Action<string, string, ToolTipIcon>? hiddenUpdateResult = null,
+        bool restrictedDemo = false, Action<bool>? setAutostart = null)
     {
         this.settings = settings;
+        this.restrictedDemo = restrictedDemo;
+        this.setAutostart = setAutostart ?? AutostartService.SetEnabled;
         this.hiddenUpdateResult = hiddenUpdateResult ?? ShowHiddenUpdateResult;
-        menu = new TrayMenuWindow(settings);
+        menu = new TrayMenuWindow(settings, activateOnShow: !restrictedDemo);
+        menu.PlacementBoundsChanged += bounds => MenuBoundsChanged?.Invoke(bounds);
+        menu.IsVisibleChanged += (_, _) => { if (!menu.IsVisible) DetachMenuIsland(); };
         menu.RefreshRequested += (_, _) => RefreshRequested?.Invoke(this, EventArgs.Empty);
         menu.CheckUpdatesRequested += (_, _) => CheckUpdatesRequested?.Invoke(this, EventArgs.Empty);
         menu.OpenCodexRequested += (_, _) => OpenCodexRequested?.Invoke(this, EventArgs.Empty);
@@ -28,6 +40,7 @@ internal sealed class TrayController : IDisposable
         menu.SettingsChangeRequested += (_, value) => ChangeRequested(value);
         menu.MaterialTransparencyPreviewRequested += (_, value) => MaterialTransparencyPreviewRequested?.Invoke(this, value);
         menu.CompanionPreviewRequested += (_, _) => CompanionPreviewRequested?.Invoke(this, EventArgs.Empty);
+        menu.CoreTermsRequested += (_, _) => CoreTermsRequested?.Invoke(this, EventArgs.Empty);
         menu.ExitRequested += (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty);
         trayIconStream = typeof(TrayController).Assembly.GetManifestResourceStream("CodexQuotaTaskbar.Host.Assets.QuotaIslandIcon.ico")
             ?? throw new InvalidOperationException("无法加载点岛应用图标。");
@@ -56,9 +69,19 @@ internal sealed class TrayController : IDisposable
     internal event EventHandler<AppSettings>? SettingsChanged;
     internal event EventHandler<int>? MaterialTransparencyPreviewRequested;
     internal event EventHandler? CompanionPreviewRequested;
+    internal event EventHandler? CoreTermsRequested;
     internal event EventHandler? ExitRequested;
+    internal event Action<ScreenRect?>? MenuBoundsChanged;
 
     internal AppSettings Settings => settings;
+
+    internal void SetCoreConsentStatus(Bongo.CoreConsentState state, bool termsReadable) => menu.ApplyCoreConsentStatus(state, termsReadable);
+
+    internal void EnableBongoAfterCoreConsent()
+    {
+        // Explicit use of the component does not enable keyboard/mouse observation.
+        if (!settings.EffectiveBongoCatVisible) Change(settings with { BongoCatVisible = true });
+    }
 
     internal void FlushPendingSettings() => menu.FlushMaterialTransparencyChange();
 
@@ -74,9 +97,55 @@ internal sealed class TrayController : IDisposable
 
     internal void ShowContextMenu(QuotaCapsuleWindow? island = null)
     {
-        var bounds = island?.AlignmentBounds;
-        menu.ShowAt(Cursor.Position, 8, bounds is { } body
-            ? new Rectangle(body.Left, body.Top, body.Width, body.Height) : null);
+        DetachMenuIsland();
+        if ((!menu.IsVisible || menu.IsPopupClosing) && island is not null)
+        {
+            menuIsland = island;
+            island.BoundsChanged += OnMenuIslandBoundsChanged;
+            island.IsVisibleChanged += OnMenuIslandVisibilityChanged;
+            island.Closed += OnMenuIslandClosed;
+        }
+        var bounds = island?.VisibleSurfaceBounds;
+        var dpi = island is null ? 96u : NativeMethods.GetDpiForWindow(new WindowInteropHelper(island).Handle);
+        menu.ShowAt(Cursor.Position, island is null ? 8 : 6, bounds is { } body
+            ? new Rectangle(body.Left, body.Top, body.Width, body.Height) : null, dpi,
+            island is null ? null : contextAvoidanceProvider?.Invoke(island));
+        if (!menu.IsVisible) DetachMenuIsland();
+    }
+
+    internal void CloseContextMenu()
+    {
+        menu.HidePopupImmediately();
+        DetachMenuIsland();
+    }
+
+    internal void SetContextAvoidanceProvider(Func<QuotaCapsuleWindow, IReadOnlyList<ScreenRect>> provider)
+    {
+        contextAvoidanceProvider = provider ?? throw new ArgumentNullException(nameof(provider));
+        OnMenuIslandBoundsChanged(menuIsland, EventArgs.Empty);
+    }
+
+    private void OnMenuIslandBoundsChanged(object? sender, EventArgs args)
+    {
+        if (menuIsland is not { } island || !menu.IsVisible) return;
+        var dpi = NativeMethods.GetDpiForWindow(new WindowInteropHelper(island).Handle);
+        menu.UpdateIslandAnchor(island.VisibleSurfaceBounds, dpi, contextAvoidanceProvider?.Invoke(island));
+    }
+
+    private void OnMenuIslandVisibilityChanged(object? sender, System.Windows.DependencyPropertyChangedEventArgs args)
+    {
+        if (menuIsland is { IsVisible: false }) CloseContextMenu();
+    }
+
+    private void OnMenuIslandClosed(object? sender, EventArgs args) => CloseContextMenu();
+
+    private void DetachMenuIsland()
+    {
+        if (menuIsland is not { } island) return;
+        island.BoundsChanged -= OnMenuIslandBoundsChanged;
+        island.IsVisibleChanged -= OnMenuIslandVisibilityChanged;
+        island.Closed -= OnMenuIslandClosed;
+        menuIsland = null;
     }
 
     internal void ShowLowQuotaNotification()
@@ -122,6 +191,11 @@ internal sealed class TrayController : IDisposable
 
     private void ChangeRequested(AppSettings requested)
     {
+        if (restrictedDemo && requested.StartWithWindows != settings.StartWithWindows)
+        {
+            menu.ApplySettings(settings);
+            return;
+        }
         if (requested.StartWithWindows == settings.StartWithWindows)
         {
             Change(requested);
@@ -130,7 +204,7 @@ internal sealed class TrayController : IDisposable
 
         try
         {
-            AutostartService.SetEnabled(requested.StartWithWindows);
+            setAutostart(requested.StartWithWindows);
             Change(requested);
         }
         catch (Exception exception) when (exception is UnauthorizedAccessException or InvalidOperationException)
@@ -145,6 +219,7 @@ internal sealed class TrayController : IDisposable
 
     public void Dispose()
     {
+        DetachMenuIsland();
         icon.Visible = false;
         icon.Dispose();
         trayIcon.Dispose();

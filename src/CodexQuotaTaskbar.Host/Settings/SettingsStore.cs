@@ -25,7 +25,7 @@ internal sealed class SettingsStore(string path)
             await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, true);
             var settings = await JsonSerializer.DeserializeAsync<AppSettings>(stream, JsonOptions, cancellationToken);
             return settings is { LowQuotaThreshold: >= 1 and <= 100 }
-                ? settings with { MaterialTransparencyPercent = settings.EffectiveMaterialTransparencyPercent }
+                ? Normalize(settings)
                 : AppSettings.Default;
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
@@ -45,7 +45,7 @@ internal sealed class SettingsStore(string path)
             var temporary = Path.Combine(directory, $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
             try
             {
-                var normalized = settings with { MaterialTransparencyPercent = settings.EffectiveMaterialTransparencyPercent };
+                var normalized = Normalize(settings);
                 await using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, true))
                 {
                     await JsonSerializer.SerializeAsync(stream, normalized, JsonOptions, cancellationToken);
@@ -68,4 +68,11 @@ internal sealed class SettingsStore(string path)
             saveGate.Release();
         }
     }
+
+    private static AppSettings Normalize(AppSettings settings) => settings with
+    {
+        MaterialTransparencyPercent = settings.EffectiveMaterialTransparencyPercent,
+        CompanionAppearance = settings.EffectiveCompanionAppearance,
+        BongoSizeDip = settings.EffectiveBongoSizeDip,
+    };
 }

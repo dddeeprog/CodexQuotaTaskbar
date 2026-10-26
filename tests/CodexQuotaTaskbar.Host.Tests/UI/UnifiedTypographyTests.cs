@@ -298,13 +298,13 @@ public sealed class UnifiedTypographyTests
                     Layout(window, dpi);
                     var credits = Named<TextBlock>(window, "ExtraCreditsText");
                     Assert.Equal(expected[index], credits.Text);
-                    AssertRenderedText(credits, dpi, 13, FontWeights.Normal, true);
+                    AssertRenderedText(credits, dpi, 13, FontWeights.SemiBold, true);
                     var percentages = VisualDescendants<TextBlock>(Named<StackPanel>(window, "RowsPanel"))
                         .Where(text => text.Text == "100%").ToArray();
                     Assert.Equal(2, percentages.Length);
-                    Assert.All(percentages, text => AssertRenderedText(text, dpi, 20, FontWeights.Normal, true));
+                    Assert.All(percentages, text => AssertRenderedText(text, dpi, 20, FontWeights.SemiBold, true));
                 }
-                AssertRenderedText(Named<TextBlock>(window, "TitleText"), dpi, 15, FontWeights.Medium, true);
+                AssertRenderedText(Named<TextBlock>(window, "TitleText"), dpi, 15, FontWeights.SemiBold, true);
                 var close = Named<Button>(window, "CloseButton");
                 Assert.Equal(OverlayTypography.Interface, close.FontFamily);
                 var symbol = Assert.Single(VisualDescendants<TextBlock>(close));

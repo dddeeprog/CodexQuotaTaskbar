@@ -6,7 +6,6 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using CodexQuotaTaskbar.Core.Overlay;
 using CodexQuotaTaskbar.Core.Quota;
-using CodexQuotaTaskbar.Host.Resets;
 using FrostedBlur = BlurredBackground.WPF.BlurredBackground;
 
 namespace CodexQuotaTaskbar.Host.UI;
@@ -15,6 +14,7 @@ public partial class QuotaPopoverWindow : Window
 {
     internal const int EntranceAnimationMilliseconds = 220;
     internal const int ExitAnimationMilliseconds = 130;
+    internal double PlacementSurfaceInsetDip => PopoverShell.Margin.Left;
     internal const string GlassCaptureTargetName = "BackdropLayer";
     internal const double GlassBlurRadius = OverlayGlassMaterial.BlurRadius;
     internal const double GlassMerging = OverlayGlassMaterial.Merging;
@@ -44,7 +44,7 @@ public partial class QuotaPopoverWindow : Window
         RefreshButton.Click += (_, _) => RefreshRequested?.Invoke(this, EventArgs.Empty);
         OpenCodexButton.Click += (_, _) => OpenCodexRequested?.Invoke(this, EventArgs.Empty);
         DotChatButton.Click += (_, _) => { RequestClose(); OpenDotChatRequested?.Invoke(this, EventArgs.Empty); };
-        ResetSiteButton.Click += (_, _) => OpenResetSourceRequested?.Invoke(CodexResetFeedClient.SiteUri);
+        AddShortcutButton.Click += (_, _) => OpenAddShortcutDialog();
         SubscriptionLoginButton.Click += (_, _) =>
         {
             RequestClose();
@@ -53,9 +53,12 @@ public partial class QuotaPopoverWindow : Window
         Activated += (_, _) => activationEstablished = true;
         Deactivated += (_, _) =>
         {
-            if (activationEstablished)
+            if (activationEstablished && !HasOpenShortcutInteraction)
             {
-                Dispatcher.BeginInvoke(RequestClose);
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    if (!HasOpenShortcutInteraction) RequestClose();
+                }));
             }
         };
         KeyDown += (_, eventArgs) =>
@@ -74,47 +77,6 @@ public partial class QuotaPopoverWindow : Window
     internal event EventHandler? OpenCodexRequested;
     internal event EventHandler? OpenDotChatRequested;
     internal event EventHandler? OpenSubscriptionLoginRequested;
-    internal event Action<Uri>? OpenResetSourceRequested;
-
-    internal void ApplyResets(ResetFeedSnapshot snapshot)
-    {
-        ResetFeedStatusText.Text = ResetFeedPresentation.Status(snapshot);
-        ResetFeedStatusText.Visibility = string.IsNullOrEmpty(ResetFeedStatusText.Text) ? Visibility.Collapsed : Visibility.Visible;
-        ResetAnnouncementsPanel.Children.Clear();
-        foreach (var announcement in snapshot.Announcements.Take(3))
-        {
-            var entry = new StackPanel { Margin = new Thickness(0, 0, 0, 12) };
-            var heading = new TextBlock
-            {
-                Text = $"{(announcement.IsObserved ? "社区观测 · " : string.Empty)}{ResetFeedPresentation.KindLabel(announcement.Kind)} · {announcement.AnnouncedAt.ToLocalTime():M月d日 HH:mm}",
-                FontFamily = OverlayTypography.Interface,
-                FontSize = 11,
-                FontWeight = FontWeights.Medium,
-                TextWrapping = TextWrapping.Wrap,
-            };
-            var originalHeading = heading.Text;
-            heading.SizeChanged += (_, e) =>
-            {
-                if (!e.WidthChanged || e.NewSize.Width <= 0) return;
-                var face = new Typeface(heading.FontFamily, heading.FontStyle, heading.FontWeight, heading.FontStretch);
-                heading.Text = OverlayTypography.BalanceHeading(originalHeading, e.NewSize.Width,
-                    text => new FormattedText(text, CultureInfo.CurrentUICulture, heading.FlowDirection,
-                        face, heading.FontSize, heading.Foreground, VisualTreeHelper.GetDpi(heading).PixelsPerDip).WidthIncludingTrailingWhitespace);
-            };
-            entry.Children.Add(heading);
-            entry.Children.Add(new TextBlock
-            {
-                Text = ResetFeedPresentation.AnnouncementText(announcement),
-                FontFamily = OverlayTypography.Interface,
-                FontSize = 11,
-                TextWrapping = TextWrapping.Wrap,
-                Tag = "secondary",
-                Margin = new Thickness(0, 4, 0, 6),
-            });
-            ResetAnnouncementsPanel.Children.Add(entry);
-        }
-        ApplySystemAppearance();
-    }
 
     internal void PlayEntrance((double X, double Y) offset)
     {
@@ -243,7 +205,7 @@ public partial class QuotaPopoverWindow : Window
                 Foreground = System.Windows.Media.Brushes.White,
                 FontFamily = OverlayTypography.Interface,
                 FontSize = 13,
-                FontWeight = FontWeights.Medium,
+                FontWeight = FontWeights.SemiBold,
                 VerticalAlignment = VerticalAlignment.Center,
             });
             var value = new TextBlock
@@ -254,7 +216,7 @@ public partial class QuotaPopoverWindow : Window
                 FontSize = 20,
                 Width = 62,
                 TextAlignment = TextAlignment.Right,
-                FontWeight = FontWeights.Normal,
+                FontWeight = FontWeights.SemiBold,
                 VerticalAlignment = VerticalAlignment.Center,
             };
             Grid.SetColumn(value, 1);
@@ -362,7 +324,7 @@ public partial class QuotaPopoverWindow : Window
         BackdropLayer.Background = opaque ? System.Windows.SystemColors.WindowBrush : normalBackdropBackground;
         SetBlurEnabled(!opaque);
         TitleText.Foreground = opaque ? System.Windows.SystemColors.WindowTextBrush : System.Windows.Media.Brushes.White;
-        foreach (var title in new[] { AccountSectionTitle, QuotaSectionTitle, AnnouncementsSectionTitle })
+        foreach (var title in new[] { AccountSectionTitle, QuotaSectionTitle, ShortcutsSectionTitle })
             title.Foreground = opaque ? System.Windows.SystemColors.WindowTextBrush : System.Windows.Media.Brushes.White;
         AccountSectionDivider.BorderBrush = QuotaSectionDivider.BorderBrush = opaque
             ? System.Windows.SystemColors.ActiveBorderBrush
@@ -379,7 +341,7 @@ public partial class QuotaPopoverWindow : Window
                 : Equals(text.Tag, "secondary") ? new SolidColorBrush(System.Windows.Media.Color.FromRgb(174, 174, 178))
                 : System.Windows.Media.Brushes.White;
         }
-        foreach (var text in FindTextBlocks(RowsPanel).Concat(FindResetElements<TextBlock>(ResetSection)))
+        foreach (var text in FindTextBlocks(RowsPanel).Concat(FindResetElements<TextBlock>(ShortcutsSection)))
         {
             text.Foreground = opaque
                 ? System.Windows.SystemColors.WindowTextBrush
@@ -390,11 +352,7 @@ public partial class QuotaPopoverWindow : Window
         CloseButton.Background = RefreshButton.Background = opaque ? System.Windows.SystemColors.ControlBrush : new SolidColorBrush(System.Windows.Media.Color.FromArgb(20, 255, 255, 255));
         SubscriptionLoginButton.Foreground = opaque ? System.Windows.SystemColors.WindowTextBrush : new SolidColorBrush(System.Windows.Media.Color.FromRgb(194, 194, 198));
         SubscriptionLoginButton.Background = System.Windows.Media.Brushes.Transparent;
-        foreach (var button in FindResetElements<System.Windows.Controls.Button>(ResetSection))
-        {
-            button.Foreground = opaque ? System.Windows.SystemColors.WindowTextBrush : new SolidColorBrush(System.Windows.Media.Color.FromRgb(194, 194, 198));
-            button.Background = System.Windows.Media.Brushes.Transparent;
-        }
+        ApplyShortcutAppearance(opaque);
         OpenCodexButton.Foreground = opaque ? System.Windows.SystemColors.HighlightTextBrush : new SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 17, 19));
         OpenCodexButton.Background = opaque ? System.Windows.SystemColors.HighlightBrush : new SolidColorBrush(System.Windows.Media.Color.FromRgb(242, 242, 244));
     }

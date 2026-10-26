@@ -13,10 +13,12 @@ internal sealed record CompanionDiagnosticEntry(long Sequence, DateTimeOffset Ut
 // Narrow, bounded transition records: never serialize labels, task snapshots, messages or cursor coordinates.
 internal sealed class CompanionDiagnostics
 {
-    internal static readonly CompanionDiagnostics Local = new(
+    private static CompanionDiagnostics local = new(
         string.Equals(Path.GetFileName(Environment.ProcessPath), "CodexQuotaTaskbar.exe", StringComparison.OrdinalIgnoreCase)
             ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "CodexQuotaTaskbar", "Diagnostics", $"companion-{Environment.ProcessId}.json") : null);
+    internal static CompanionDiagnostics Local => Volatile.Read(ref local);
+    internal static void ConfigureDemo(string? path) => Interlocked.Exchange(ref local, new CompanionDiagnostics(path));
     private readonly string? path;
     private readonly int capacity;
     private readonly object gate = new();

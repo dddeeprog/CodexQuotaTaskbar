@@ -63,7 +63,7 @@
             Background="{x:Static ui:OverlayGlassMaterial.Surface}"
             BorderBrush="{x:Static ui:OverlayGlassMaterial.Border}" BorderThickness="0">
       <Grid>
-        <Grid.RowDefinitions><RowDefinition Height="48"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+        <Grid.RowDefinitions><RowDefinition Height="48"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
         <Grid x:Name="QuotaHeader" Margin="14,0,10,0">
           <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
         <Grid x:Name="FirstRow" Grid.Column="0" Margin="0,0,8,0" VerticalAlignment="Center">
@@ -150,6 +150,18 @@
               <StackPanel x:Name="PanelSessionsList"/>
             </ScrollViewer>
           </Border>
+        </Grid>
+        <Grid x:Name="ResetScheduleReveal" Grid.Row="2" Height="0" VerticalAlignment="Top" Visibility="Collapsed">
+        <Border x:Name="ResetScheduleRow" Height="26" VerticalAlignment="Top" Margin="12,0,12,0" BorderBrush="Transparent" BorderThickness="0,1,0,0" Padding="4,0,4,8" Visibility="Collapsed">
+          <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <Border x:Name="ResetScheduleDivider" Grid.ColumnSpan="2" Height="1" VerticalAlignment="Top" Margin="-4,-1,-4,0" BorderBrush="#28FFFFFF" BorderThickness="0,1,0,0" IsHitTestVisible="False">
+              <Border.RenderTransform><TranslateTransform Y="-4"/></Border.RenderTransform>
+            </Border>
+            <TextBlock x:Name="ResetScheduleCountdown" FontSize="10" Foreground="#D8D8DC" VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
+            <TextBlock x:Name="ResetScheduleLocalTime" Grid.Column="1" FontSize="10" Foreground="#D8D8DC" VerticalAlignment="Center" TextWrapping="NoWrap"/>
+          </Grid>
+        </Border>
         </Grid>
       </Grid>
     </Border>

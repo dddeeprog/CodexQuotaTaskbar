@@ -28,12 +28,18 @@ public partial class App : System.Windows.Application
     private BrowserSubscriptionStore? browserStore;
     private CodexSubscriptionMetadataService? subscriptionService;
     private SubscriptionBrowserWindow? subscriptionBrowser;
-    private readonly DotChatProcess dotChat = new();
+    private readonly DotChatProcess dotChat = new(inline: true);
     private CodexResetFeedClient? resetFeedClient;
     private Task? resetFeedLoop;
     private Task resetRefreshTask = Task.CompletedTask;
+    private ResetScheduleClient? resetScheduleClient;
+    private Task? resetScheduleLoop;
+    private Task resetScheduleRefreshTask = Task.CompletedTask;
     private bool shuttingDown;
     private bool cleanupCompleted;
+    private DemoIntegrationContext? demoIntegration;
+    private Task? demoProofLoop;
+    private bool RestrictedDemo => demoIntegration is not null;
 
     protected override async void OnStartup(StartupEventArgs eventArgs)
     {
@@ -49,11 +55,16 @@ public partial class App : System.Windows.Application
             }
 
             var options = HostOptions.Parse(eventArgs.Args);
+            if (options.DemoDataRoot is { } proofRoot)
+            {
+                demoIntegration = DemoIntegrationContext.CreateOrOpen(proofRoot);
+                CompanionDiagnostics.ConfigureDemo(null);
+            }
             // Small always-on-top surfaces do not need a per-process GPU shader/compiler cache.
             // Keep an explicit hardware override for machines where software rendering costs more CPU.
             if (options.SoftwareRendering)
                 System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
-            singleInstance = new Mutex(true, "Local\\CodexQuotaTaskbar.Host", out var created);
+            singleInstance = new Mutex(true, demoIntegration?.MutexName ?? "Local\\CodexQuotaTaskbar.Host", out var created);
             if (!created)
             {
                 singleInstance.Dispose();
@@ -62,25 +73,43 @@ public partial class App : System.Windows.Application
                 return;
             }
 
-            settingsStore = SettingsStore.CreateDefault();
+            settingsStore = demoIntegration is null ? SettingsStore.CreateDefault() : new SettingsStore(demoIntegration.SettingsPath);
             var settings = await settingsStore.LoadAsync(lifetime.Token);
+            if (RestrictedDemo) settings = RestrictDemoSettings(settings);
+            await InitializeCoreConsentAsync();
+            dotChat.SetReplyAllowed(false);
             if (options.DotRealtime)
             {
                 settings = settings with { DotRealtime = true };
                 await settingsStore.SaveAsync(settings, lifetime.Token);
             }
             lowQuotaGate = new LowQuotaGate(settings.LowQuotaThreshold);
-            coordinator = new OverlayCoordinator(settings.ShowAllTaskbars, settings.EffectiveMaterialTransparencyPercent, settings.UnifiedPanel);
-            coordinator.SetCompanion(settings.CompanionBallEnabled, settings.ReduceCompanionMotion);
-            tray = new TrayController(settings);
+            coordinator = new OverlayCoordinator(settings.ShowAllTaskbars, settings.EffectiveMaterialTransparencyPercent, settings.UnifiedPanel,
+                CreateCorePermittedRuntime,
+                observePointer: !RestrictedDemo);
+            ApplyCorePresentation(settings);
+            coordinator.SetInlineDotMode(true);
+            coordinator.SetDotPresentationEnabled(settings.DotRealtime && !RestrictedDemo);
+            dotChat.SetReplyAllowed(coordinator.DotReplyAllowed);
+            coordinator.DotReplyAvailabilityChanged += dotChat.SetReplyAllowed;
+            dotChat.StateChanged += state => coordinator?.ApplyInlineDotState(state);
+            dotChat.OpenInlineRequested += (_, _) => coordinator?.OpenInlineDot();
+            coordinator.InlineDotActionRequested += action => _ = dotChat.SendInlineActionAsync(action);
+            tray = new TrayController(settings, restrictedDemo: RestrictedDemo);
+            tray.SetCoreConsentStatus(coreConsent?.State ?? Bongo.CoreConsentState.Undecided, coreTerms is not null);
+            tray.CoreTermsRequested += OnCoreTermsRequested;
+            tray.SetContextAvoidanceProvider(coordinator.GetMenuObstacles);
+            tray.MenuBoundsChanged += coordinator.SetMenuBounds;
+            coordinator.CloseContextRequested += (_, _) => tray?.CloseContextMenu();
             tray.MaterialTransparencyPreviewRequested += (_, value) => coordinator?.SetMaterialTransparency(value);
             tray.CompanionPreviewRequested += (_, _) => coordinator?.ToggleCompanionTour();
-            browserStore = new BrowserSubscriptionStore();
-            subscriptionService = new CodexSubscriptionMetadataService(browserStore: browserStore);
+            browserStore = options.Demo ? null : new BrowserSubscriptionStore();
+            subscriptionService = options.Demo ? null : new CodexSubscriptionMetadataService(browserStore: browserStore);
             provider = options.Demo ? new DemoQuotaProvider() : new CodexRateLimitProvider(settings.SubscriptionDetailsEnabled, subscriptionService);
             provider.SetSubscriptionDetailsEnabled(settings.SubscriptionDetailsEnabled);
             updateService = options.Demo ? null : new GitHubUpdateService();
             resetFeedClient = options.Demo ? null : new CodexResetFeedClient();
+            resetScheduleClient = options.Demo ? null : new ResetScheduleClient();
 
             coordinator.RefreshRequested += OnRefreshRequested;
             coordinator.OpenCodexRequested += OnOpenCodexRequested;
@@ -103,6 +132,8 @@ public partial class App : System.Windows.Application
             coordinator.Apply(provider.Current);
             coordinator.ApplySessions(provider.CurrentSessions);
             coordinator.Start();
+            StartTypingInteraction(options.Demo, settings);
+            if (RestrictedDemo) demoProofLoop = DemoProofLoopAsync(lifetime.Token);
             if (settings.DotRealtime && !options.Demo) StartDotReceiving();
             if (resetFeedClient is not null)
             {
@@ -112,6 +143,11 @@ public partial class App : System.Windows.Application
             {
                 coordinator.ApplyResets(ResetFeedSnapshot.Unavailable("演示模式不读取在线公告"));
             }
+            if (resetScheduleClient is not null)
+                resetScheduleLoop = ResetScheduleLoopAsync(lifetime.Token);
+            else
+                coordinator.ApplyResetSchedule(ResetScheduleSnapshot.Unavailable("演示模式不读取在线预告"));
+            StartWebShortcuts(options.Demo);
             if (options.SubscriptionLogin && !options.Demo)
             {
                 OnOpenSubscriptionLoginRequested(this, EventArgs.Empty);
@@ -129,13 +165,15 @@ public partial class App : System.Windows.Application
         }
         catch (Exception exception) when (exception is ArgumentException or IOException or UnauthorizedAccessException or InvalidOperationException or TimeoutException or System.ComponentModel.Win32Exception)
         {
-            System.Windows.MessageBox.Show(exception.Message, "点岛", MessageBoxButton.OK, MessageBoxImage.Error);
+            if (!RestrictedDemo)
+                System.Windows.MessageBox.Show(exception.Message, "点岛", MessageBoxButton.OK, MessageBoxImage.Error);
             await RequestShutdownAsync();
         }
     }
 
     private void OnOpenSubscriptionLoginRequested(object? sender, EventArgs eventArgs)
     {
+        if (RestrictedDemo) return;
         if (shuttingDown || browserStore is null || subscriptionService is null || provider is not CodexRateLimitProvider) return;
         if (dotChat.IsRunning)
         {
@@ -159,10 +197,12 @@ public partial class App : System.Windows.Application
 
     private void OnOpenDotChatRequested(object? sender, EventArgs eventArgs)
     {
+        if (RestrictedDemo) return;
         if (shuttingDown) return;
         if (sender is QuotaCapsuleWindow && tray?.Settings.DotRealtime != true) return;
         tray?.EnableDotRealtime();
         subscriptionBrowser?.Close();
+        if (coordinator is { } current) dotChat.SetReplyAllowed(current.DotReplyAllowed);
         try { dotChat.Show(); }
         catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
         {
@@ -172,6 +212,7 @@ public partial class App : System.Windows.Application
 
     private void StartDotReceiving()
     {
+        if (RestrictedDemo) return;
         subscriptionBrowser?.Close();
         try { dotChat.Start(); }
         catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
@@ -193,6 +234,7 @@ public partial class App : System.Windows.Application
 
     private async void OnCheckUpdatesRequested(object? sender, EventArgs eventArgs)
     {
+        if (RestrictedDemo) return;
         await CheckForUpdatesAsync(manual: true, lifetime.Token);
     }
 
@@ -342,15 +384,17 @@ public partial class App : System.Windows.Application
     {
         try
         {
-            await Task.WhenAll(provider?.RefreshAsync(lifetime.Token) ?? Task.CompletedTask, RefreshResetFeedAsync());
+            await Task.WhenAll(provider?.RefreshAsync(lifetime.Token) ?? Task.CompletedTask,
+                RefreshResetFeedAsync(), RefreshResetScheduleAsync());
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
         {
         }
     }
 
-    private static void OnOpenCodexRequested(object? sender, EventArgs eventArgs)
+    private void OnOpenCodexRequested(object? sender, EventArgs eventArgs)
     {
+        if (RestrictedDemo) return;
         try
         {
             CodexLauncher.OpenApp();
@@ -391,8 +435,9 @@ public partial class App : System.Windows.Application
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
     }
 
-    private static void OnOpenResetSourceRequested(Uri uri)
+    private void OnOpenResetSourceRequested(Uri uri)
     {
+        if (RestrictedDemo) return;
         // Only the fixed data-source credit is navigable, never a remote post URL.
         if (!IsAllowedResetSource(uri)) return;
         try
@@ -408,8 +453,41 @@ public partial class App : System.Windows.Application
     internal static bool IsAllowedResetSource(Uri uri) =>
         uri.IsAbsoluteUri && string.Equals(uri.AbsoluteUri, CodexResetFeedClient.SiteUri.AbsoluteUri, StringComparison.Ordinal);
 
+    private async Task ResetScheduleLoopAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                await RefreshResetScheduleAsync();
+                await Task.Delay(ResetScheduleClient.PollInterval, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+    }
+
+    private Task RefreshResetScheduleAsync()
+    {
+        if (resetScheduleClient is null || shuttingDown) return Task.CompletedTask;
+        // These entry points run on the dispatcher; manual refresh joins the active poll.
+        if (resetScheduleRefreshTask.IsCompleted) resetScheduleRefreshTask = RefreshResetScheduleCoreAsync();
+        return resetScheduleRefreshTask;
+    }
+
+    private async Task RefreshResetScheduleCoreAsync()
+    {
+        try
+        {
+            var value = await resetScheduleClient!.FetchAsync(lifetime.Token);
+            if (!shuttingDown && !lifetime.IsCancellationRequested) coordinator?.ApplyResetSchedule(value);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+        catch (ObjectDisposedException) when (shuttingDown || lifetime.IsCancellationRequested) { }
+    }
+
     private void OnOpenSessionRequested(string threadId)
     {
+        if (RestrictedDemo) return;
         try
         {
             var openedSession = provider?.CurrentSessions.Sessions.FirstOrDefault(
@@ -431,10 +509,16 @@ public partial class App : System.Windows.Application
 
     private async void OnSettingsChanged(object? sender, AppSettings settings)
     {
+        if (RestrictedDemo) settings = RestrictDemoSettings(settings);
+        // Close the send gate before any asynchronous settings/backend work.
+        // Both companion presentations are notification-only; pending receipts keep polling.
+        dotChat.SetReplyAllowed(false);
         if (settings.DotRealtime) StartDotReceiving(); else dotChat.Dispose();
         if (!settings.SubscriptionDetailsEnabled) subscriptionBrowser?.Close();
         coordinator?.SetUnifiedPanel(settings.UnifiedPanel);
-        coordinator?.SetCompanion(settings.CompanionBallEnabled, settings.ReduceCompanionMotion);
+        ApplyCorePresentation(settings);
+        coordinator?.SetDotPresentationEnabled(settings.DotRealtime && !RestrictedDemo);
+        ApplyTypingInteraction(settings);
         coordinator?.SetShowAllTaskbars(settings.ShowAllTaskbars);
         coordinator?.SetMaterialTransparency(settings.EffectiveMaterialTransparencyPercent);
         var refreshSubscriptionDetails = provider?.SetSubscriptionDetailsEnabled(settings.SubscriptionDetailsEnabled) == true;
@@ -474,6 +558,11 @@ public partial class App : System.Windows.Application
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
         }
+        catch (Exception error) when (RestrictedDemo)
+        {
+            WriteDemoShutdownStage("exit-task-faulted", error);
+            throw;
+        }
     }
 
     private async Task RequestShutdownAsync()
@@ -484,13 +573,18 @@ public partial class App : System.Windows.Application
         }
 
         shuttingDown = true;
+        CloseCoreConsentWindow();
+        WriteDemoShutdownStage("request-start");
+        StopTypingInteraction();
         tray?.FlushPendingSettings();
         if (settingsStore is not null && tray is not null)
         {
             try
             {
                 // Preserve the final slider value even when Quit follows a drag immediately.
+                WriteDemoShutdownStage("settings-save-begin");
                 await settingsStore.SaveAsync(tray.Settings, CancellationToken.None);
+                WriteDemoShutdownStage("settings-save-end");
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
@@ -498,28 +592,50 @@ public partial class App : System.Windows.Application
             }
         }
         lifetime.Cancel();
+        WriteDemoShutdownStage("lifetime-cancelled");
         subscriptionBrowser?.Close();
         dotChat.Dispose();
+        WriteDemoShutdownStage("dot-disposed");
+        if (coordinator is not null) await coordinator.StopBongoAsync();
+        WriteDemoShutdownStage("bongo-stopped");
+        WriteDemoProof(finished: true);
+        WriteDemoShutdownStage("coordinator-dispose-begin");
         coordinator?.Dispose();
+        WriteDemoShutdownStage("coordinator-dispose-end");
         tray?.Dispose();
+        WriteDemoShutdownStage("tray-disposed");
         if (provider is not null)
         {
             await provider.DisposeAsync().ConfigureAwait(true);
         }
+        WriteDemoShutdownStage("provider-disposed");
         updateService?.Dispose();
         if (resetFeedLoop is not null) await resetFeedLoop;
         await resetRefreshTask;
         resetFeedClient?.Dispose();
+        if (resetScheduleLoop is not null) await resetScheduleLoop;
+        await resetScheduleRefreshTask;
+        resetScheduleClient?.Dispose();
+        WriteDemoShutdownStage("resets-stopped");
+        await StopWebShortcutsAsync();
+        WriteDemoShutdownStage("shortcuts-stopped");
+        if (demoProofLoop is not null) await demoProofLoop;
+        WriteDemoShutdownStage("demo-loop-stopped");
         singleInstance?.ReleaseMutex();
         singleInstance?.Dispose();
+        WriteDemoShutdownStage("mutex-released");
         cleanupCompleted = true;
+        WriteDemoShutdownStage("shutdown-call");
         Shutdown();
     }
 
     protected override void OnExit(ExitEventArgs eventArgs)
     {
+        WriteDemoShutdownStage("onexit-start");
         if (!cleanupCompleted)
         {
+            CloseCoreConsentWindow();
+            StopTypingInteraction();
             lifetime.Cancel();
             subscriptionBrowser?.Close();
             dotChat.Dispose();
@@ -531,9 +647,12 @@ public partial class App : System.Windows.Application
             }
             updateService?.Dispose();
             resetFeedClient?.Dispose();
+            resetScheduleClient?.Dispose();
+            DisposeWebShortcuts();
             singleInstance?.Dispose();
         }
         lifetime.Dispose();
+        WriteDemoShutdownStage("onexit-end");
         base.OnExit(eventArgs);
     }
 }

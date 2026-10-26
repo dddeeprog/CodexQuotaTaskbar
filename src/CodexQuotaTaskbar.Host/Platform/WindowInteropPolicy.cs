@@ -18,6 +18,29 @@ internal static class WindowInteropPolicy
         HwndSource.FromHwnd(handle)?.AddHook(NoActivateHook);
     }
 
+    // Only the user's explicit reply action may make an island accept keyboard focus.
+    // Returning to tasks restores the normal passive desktop-surface policy.
+    internal static void SetReplyActivation(Window window, bool interactive)
+    {
+        var handle = new WindowInteropHelper(window).Handle;
+        if (handle == nint.Zero) return;
+        var source = HwndSource.FromHwnd(handle);
+        source?.RemoveHook(NoActivateHook);
+        var style = NativeMethods.GetWindowLongPtr(handle, NativeMethods.GwlExStyle).ToInt64();
+        style = interactive ? style & ~NativeMethods.WsExNoActivate : style | NativeMethods.WsExNoActivate;
+        _ = NativeMethods.SetWindowLongPtr(handle, NativeMethods.GwlExStyle, new nint(style | NativeMethods.WsExToolWindow));
+        if (!interactive) source?.AddHook(NoActivateHook);
+    }
+
+    // Only used by the explicitly isolated demo: its layered proof surfaces
+    // must not intercept the user's mouse while exercising real composition.
+    internal static void AttachInputTransparent(Window window)
+    {
+        var handle = new WindowInteropHelper(window).Handle;
+        var style = NativeMethods.GetWindowLongPtr(handle, NativeMethods.GwlExStyle).ToInt64();
+        _ = NativeMethods.SetWindowLongPtr(handle, NativeMethods.GwlExStyle, new nint(style | 0x20));
+    }
+
     internal static void Position(Window window, ScreenRect rect)
     {
         var handle = new WindowInteropHelper(window).Handle;

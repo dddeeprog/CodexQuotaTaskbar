@@ -11,6 +11,7 @@ using CodexQuotaTaskbar.Core.Quota;
 using CodexQuotaTaskbar.Host.Resets;
 using CodexQuotaTaskbar.Host.Tests.TestSupport;
 using CodexQuotaTaskbar.Host.UI;
+using CodexQuotaTaskbar.Host.Shortcuts;
 
 namespace CodexQuotaTaskbar.Host.Tests.UI;
 
@@ -111,7 +112,7 @@ public sealed class ResetFeedWindowTests
     [InlineData("stale", 144, "缓存")]
     [InlineData("unavailable", 108, "暂不可用")]
     [InlineData("empty", 144, "暂无公告")]
-    public void Compact_island_keeps_quotas_but_leaves_reset_notices_in_details(string state, int dpi, string expected)
+    public void Compact_island_keeps_quotas_independent_of_the_historical_reset_feed(string state, int dpi, string expected)
     {
         RunInSta(() =>
         {
@@ -147,59 +148,63 @@ public sealed class ResetFeedWindowTests
     [Theory]
     [InlineData(108)]
     [InlineData(144)]
-    public void Details_show_three_announcements_without_post_links_and_scroll_to_source_credit(int dpi)
+    public void Details_show_icon_shortcuts_with_tooltips_navigation_delete_and_an_accessible_add_tile(int dpi)
     {
         RunInSta(() =>
         {
             var window = new QuotaPopoverWindow();
             try
             {
-                var feed = CreateFeed("banked");
+                var shortcuts = CreateShortcuts("available", 24);
                 window.Apply(CreateQuota());
-                window.ApplyResets(feed);
+                window.ApplyShortcuts(shortcuts);
                 window.Opacity = 1;
                 var content = Layout(window, dpi);
-                var announcements = Named<StackPanel>(window, "ResetAnnouncementsPanel");
-                Assert.Equal(3, announcements.Children.Count);
-                for (var index = 0; index < announcements.Children.Count; index++)
+                var grid = Named<WrapPanel>(window, "ShortcutsGrid");
+                var add = Named<Button>(window, "AddShortcutButton");
+                Assert.Same(add, grid.Children[grid.Children.Count - 1]);
+                var buttons = grid.Children.OfType<Button>().Where(button => !ReferenceEquals(button, add)).ToArray();
+                Assert.Equal(shortcuts.Items.Count, buttons.Length);
+                var opened = new List<Uri>();
+                var deleted = new List<string>();
+                window.OpenWebShortcutRequested += opened.Add;
+                window.DeleteWebShortcutRequested += deleted.Add;
+                var rowTops = new HashSet<double>();
+                for (var index = 0; index < buttons.Length; index++)
                 {
-                    var entry = Assert.IsType<StackPanel>(announcements.Children[index]);
-                    var body = Assert.IsType<TextBlock>(entry.Children[1]);
-                    Assert.Equal(ResetFeedPresentation.AnnouncementText(feed.Announcements[index]), body.Text);
-                    Assert.DoesNotContain("以下为原文", body.Text);
-                    Assert.Equal(TextWrapping.Wrap, body.TextWrapping);
-                    Assert.Equal(TextTrimming.None, body.TextTrimming);
-                    var measured = new FormattedText(body.Text, CultureInfo.CurrentUICulture,
-                        body.FlowDirection, new Typeface(body.FontFamily, body.FontStyle,
-                            body.FontWeight, body.FontStretch), body.FontSize, body.Foreground, dpi / 96d)
-                    {
-                        MaxTextWidth = body.ActualWidth,
-                    };
-                    Assert.True(measured.Height <= body.ActualHeight + 0.5,
-                        $"Chinese announcement {index} was vertically clipped at {dpi} DPI.");
-                    Assert.True(measured.WidthIncludingTrailingWhitespace <= body.ActualWidth + 0.5,
-                        $"Chinese announcement {index} overflowed horizontally at {dpi} DPI.");
-                    var bodyBounds = body.TransformToAncestor(announcements).TransformBounds(new Rect(body.RenderSize));
-                    Assert.True(bodyBounds.Left >= 0 && bodyBounds.Right <= announcements.ActualWidth + 0.5);
+                    var button = buttons[index];
+                    var shortcut = shortcuts.Items[index];
+                    Assert.Equal(shortcut.Id, button.Tag);
+                    Assert.IsType<Border>(button.Content);
+                    var tooltip = Assert.IsType<string>(button.ToolTip);
+                    Assert.Contains(shortcut.Name, tooltip);
+                    Assert.Contains(shortcut.TargetUri.IdnHost, tooltip);
+                    Assert.DoesNotContain(Descendants<TextBlock>(button), text => text.Text == shortcut.Name
+                        || text.Text.Contains(shortcut.TargetUri.IdnHost, StringComparison.Ordinal));
+                    var bounds = button.TransformToAncestor(grid).TransformBounds(new Rect(button.RenderSize));
+                    Assert.True(bounds.Left >= 0 && bounds.Right <= grid.ActualWidth + 0.5,
+                        $"Shortcut {index} overflowed horizontally at {dpi} DPI.");
+                    rowTops.Add(Math.Round(bounds.Top, 2));
+                    button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    var menu = Assert.IsType<ContextMenu>(button.ContextMenu);
+                    var menuItems = menu.Items.OfType<MenuItem>().ToArray();
+                    Assert.Equal(new object[] { "更换图标…", "恢复自动图标", "删除" }, menuItems.Select(item => item.Header));
+                    Assert.Equal(4, menu.Items.Count);
+                    Assert.IsType<Separator>(menu.Items[2]);
+                    Assert.All(menuItems, item => Assert.Equal(shortcut.Id, item.Tag));
+                    var remove = Assert.Single(menuItems, item => Equals(item.Header, "删除"));
+                    remove.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
                 }
+                Assert.True(rowTops.Count > 1);
+                Assert.Equal(shortcuts.Items.Select(item => item.TargetUri), opened);
+                Assert.Equal(shortcuts.Items.Select(item => item.Id), deleted);
+                Assert.Equal(CodexResetFeedClient.SiteUri, opened[0]);
+                Assert.Contains("添加", Assert.IsType<string>(add.ToolTip));
+                Assert.Null(window.FindName("ResetSiteButton"));
                 var rows = Named<StackPanel>(window, "RowsPanel");
                 Assert.Equal(2, rows.Children.Count);
-                var section = Named<StackPanel>(window, "ResetSection");
-                AssertSuccessfulSectionStartsWithAnnouncements(window);
-                foreach (var text in Descendants<TextBlock>(section))
-                {
-                    AssertInterfaceFont(text);
-                }
-
-                var navigated = new List<Uri>();
-                window.OpenResetSourceRequested += navigated.Add;
-                Assert.Empty(Descendants<Button>(announcements));
-                Assert.DoesNotContain(Descendants<TextBlock>(announcements), text =>
-                    text.Text.Contains("https://", StringComparison.Ordinal));
-                var site = Named<Button>(window, "ResetSiteButton");
-                Assert.Equal("来源：Codex Resets ↗", site.Content);
-                site.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                Assert.Equal(CodexResetFeedClient.SiteUri, Assert.Single(navigated));
+                AssertSuccessfulShortcutsSection(window);
+                AssertInterfaceFont(Named<TextBlock>(window, "ShortcutsSectionTitle"));
 
                 var scroll = Assert.Single(Descendants<ScrollViewer>(content));
                 Assert.Equal(ScrollBarVisibility.Hidden, scroll.VerticalScrollBarVisibility);
@@ -224,8 +229,8 @@ public sealed class ResetFeedWindowTests
                 scroll.ScrollToEnd();
                 content.UpdateLayout();
                 Assert.InRange(scroll.VerticalOffset, scroll.ScrollableHeight - 0.5, scroll.ScrollableHeight + 0.5);
-                var sourceBounds = site.TransformToAncestor(scroll).TransformBounds(new Rect(site.RenderSize));
-                Assert.True(sourceBounds.Top >= 0 && sourceBounds.Bottom <= scroll.ActualHeight + 0.5);
+                var addBounds = add.TransformToAncestor(scroll).TransformBounds(new Rect(add.RenderSize));
+                Assert.True(addBounds.Top >= 0 && addBounds.Bottom <= scroll.ActualHeight + 0.5);
                 SaveProof(content, $"details-bottom-{dpi}", dpi);
             }
             finally
@@ -236,15 +241,13 @@ public sealed class ResetFeedWindowTests
     }
 
     [Theory]
-    [InlineData("loading", 108, "正在获取")]
-    [InlineData("loading", 144, "正在获取")]
-    [InlineData("empty", 108, "暂无重置公告")]
-    [InlineData("empty", 144, "暂无重置公告")]
-    [InlineData("unavailable", 108, "重试")]
-    [InlineData("unavailable", 144, "重试")]
-    [InlineData("stale", 108, "上次获取")]
-    [InlineData("stale", 144, "上次获取")]
-    public void Details_status_only_occupies_space_when_needed_and_collapses_after_recovery(string state, int dpi, string expected)
+    [InlineData("loading", 108, "正在读取")]
+    [InlineData("loading", 144, "正在读取")]
+    [InlineData("unavailable", 108, "暂不可用")]
+    [InlineData("unavailable", 144, "暂不可用")]
+    [InlineData("retained", 108, "未能更新")]
+    [InlineData("retained", 144, "未能更新")]
+    public void Details_keep_shortcuts_on_load_failures_and_recover_without_a_reserved_status_row(string state, int dpi, string expected)
     {
         RunInSta(() =>
         {
@@ -252,24 +255,26 @@ public sealed class ResetFeedWindowTests
             try
             {
                 window.Apply(CreateQuota());
-                var status = Named<TextBlock>(window, "ResetFeedStatusText");
-                var section = Named<StackPanel>(window, "ResetSection");
-                var announcements = Named<StackPanel>(window, "ResetAnnouncementsPanel");
-                // Repeat so a later failure/loading state can reappear after being collapsed.
+                var status = Named<TextBlock>(window, "ShortcutsStatusText");
+                var section = Named<StackPanel>(window, "ShortcutsSection");
+                var grid = Named<WrapPanel>(window, "ShortcutsGrid");
+                // Repeat to cover failure and recovery after a successful display.
                 for (var transition = 0; transition < 2; transition++)
                 {
-                    window.ApplyResets(CreateFeed(state));
+                    var shortcuts = CreateShortcuts(state);
+                    window.ApplyShortcuts(shortcuts);
                     Layout(window, dpi);
                     Assert.Equal(Visibility.Visible, status.Visibility);
                     Assert.Contains(expected, status.Text, StringComparison.Ordinal);
                     Assert.True(status.DesiredSize.Height > 0);
-                    Assert.True(announcements.TransformToAncestor(section).Transform(new Point()).Y > 0);
+                    Assert.True(grid.TransformToAncestor(section).Transform(new Point()).Y > 0);
                     AssertInterfaceFont(status);
+                    Assert.Equal(shortcuts.Items.Count + 1, grid.Children.Count);
 
-                    window.ApplyResets(CreateFeed("banked"));
+                    window.ApplyShortcuts(CreateShortcuts("available"));
                     var content = Layout(window, dpi);
-                    AssertSuccessfulSectionStartsWithAnnouncements(window);
-                    Assert.Equal(3, announcements.Children.Count);
+                    AssertSuccessfulShortcutsSection(window);
+                    Assert.Equal(4, grid.Children.Count);
                     var scroll = Assert.Single(Descendants<ScrollViewer>(content));
                     Assert.Equal(ScrollBarVisibility.Hidden, scroll.VerticalScrollBarVisibility);
                     Assert.Equal(Visibility.Collapsed, scroll.ComputedVerticalScrollBarVisibility);
@@ -279,6 +284,27 @@ public sealed class ResetFeedWindowTests
             {
                 window.Close();
             }
+        });
+    }
+
+    [Theory]
+    [InlineData(108)]
+    [InlineData(144)]
+    public void Empty_shortcuts_keep_only_the_add_icon_without_restoring_a_deleted_default(int dpi)
+    {
+        RunInSta(() =>
+        {
+            var window = new QuotaPopoverWindow();
+            try
+            {
+                window.Apply(CreateQuota());
+                window.ApplyShortcuts(new WebShortcutsSnapshot([]));
+                Layout(window, dpi);
+                var grid = Named<WrapPanel>(window, "ShortcutsGrid");
+                Assert.Same(Named<Button>(window, "AddShortcutButton"), Assert.Single(grid.Children.Cast<UIElement>()));
+                AssertSuccessfulShortcutsSection(window);
+            }
+            finally { window.Close(); }
         });
     }
 
@@ -328,6 +354,16 @@ public sealed class ResetFeedWindowTests
         return new(announcements, now, state == "stale", state == "stale" ? "offline" : null);
     }
 
+    private static WebShortcutsSnapshot CreateShortcuts(string state, int count = 3)
+    {
+        if (state == "loading") return new([], null, true);
+        if (state == "unavailable") return new([], "offline");
+        var items = Enumerable.Range(0, count).Select(index => index == 0
+            ? new WebShortcut("reset", "重置公告", CodexResetFeedClient.SiteUri)
+            : new WebShortcut($"test-{index}", $"测试网站 {index}", new Uri($"https://site-{index}.example/"))).ToArray();
+        return new(items, state == "retained" ? "offline" : null);
+    }
+
     private static FrameworkElement Layout(Window window, int dpi, double? fixedHeight = null)
     {
         var content = (FrameworkElement)window.Content;
@@ -351,7 +387,7 @@ public sealed class ResetFeedWindowTests
     [Theory]
     [InlineData(108)]
     [InlineData(144)]
-    public void Details_group_account_quota_and_announcements_with_clear_boundaries(int dpi)
+    public void Details_group_account_quota_and_shortcuts_with_clear_boundaries(int dpi)
     {
         RunInSta(() =>
         {
@@ -359,22 +395,24 @@ public sealed class ResetFeedWindowTests
             try
             {
                 window.Apply(CreateQuota());
-                window.ApplyResets(CreateFeed("banked"));
+                window.ApplyShortcuts(CreateShortcuts("available"));
                 var content = Layout(window, dpi);
                 var scroll = Assert.Single(Descendants<ScrollViewer>(content));
                 var account = Named<StackPanel>(window, "AccountSection");
                 var quota = Named<StackPanel>(window, "QuotaSection");
-                var announcements = Named<StackPanel>(window, "AnnouncementsSection");
+                var shortcuts = Named<StackPanel>(window, "ShortcutsSection");
+                var shortcutsGroup = Named<StackPanel>(window, "AnnouncementsSection");
                 Assert.Same(account, Named<Border>(window, "AccountSummaryBorder").Parent);
                 Assert.Same(account, Named<Button>(window, "SubscriptionLoginButton").Parent);
                 Assert.Same(quota, Named<StackPanel>(window, "RowsPanel").Parent);
-                Assert.Same(announcements, Named<StackPanel>(window, "ResetSection").Parent);
+                Assert.Same(shortcuts, Named<WrapPanel>(window, "ShortcutsGrid").Parent);
+                Assert.Same(shortcutsGroup, shortcuts.Parent);
                 var previousBottom = 0d;
                 foreach (var (group, name, label) in new[]
                 {
                     (account, "AccountSectionTitle", "账户与订阅"),
                     (quota, "QuotaSectionTitle", "额度"),
-                    (announcements, "AnnouncementsSectionTitle", "重置公告"),
+                    (shortcutsGroup, "ShortcutsSectionTitle", "常用网站"),
                 })
                 {
                     var title = Named<TextBlock>(window, name);
@@ -440,16 +478,12 @@ public sealed class ResetFeedWindowTests
     private static T Named<T>(Window window, string name) where T : FrameworkElement =>
         Assert.IsType<T>(window.FindName(name));
 
-    private static void AssertSuccessfulSectionStartsWithAnnouncements(QuotaPopoverWindow window)
+    private static void AssertSuccessfulShortcutsSection(QuotaPopoverWindow window)
     {
-        var section = Named<StackPanel>(window, "ResetSection");
-        var status = Named<TextBlock>(window, "ResetFeedStatusText");
-        var announcements = Named<StackPanel>(window, "ResetAnnouncementsPanel");
-        Assert.Equal(string.Empty, status.Text);
+        var section = Named<StackPanel>(window, "ShortcutsSection");
+        var status = Named<TextBlock>(window, "ShortcutsStatusText");
         Assert.Equal(Visibility.Collapsed, status.Visibility);
         Assert.Equal(0, status.DesiredSize.Height);
-        Assert.Equal(0, status.DesiredSize.Width);
-        Assert.Equal(0, announcements.TransformToAncestor(section).Transform(new Point()).Y, 3);
         Assert.DoesNotContain(Descendants<TextBlock>(section), text =>
             text.Text == "公共重置公告"
             || text.Text.Contains("公告不代表个人额度已到账", StringComparison.Ordinal)

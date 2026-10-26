@@ -5,11 +5,11 @@
         Title="点岛 · 额度详情" Width="360" SizeToContent="Height" MaxHeight="552"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True"
-        FontFamily="{x:Static ui:OverlayTypography.Interface}" UseLayoutRounding="True" TextOptions.TextFormattingMode="Ideal" TextOptions.TextRenderingMode="Grayscale" Typography.NumeralAlignment="Tabular">
+        FontFamily="{x:Static ui:OverlayTypography.Interface}" FontWeight="SemiBold" UseLayoutRounding="True" TextOptions.TextFormattingMode="Ideal" TextOptions.TextRenderingMode="Grayscale" Typography.NumeralAlignment="Tabular">
   <Window.Resources>
     <Style x:Key="SectionTitle" TargetType="TextBlock">
       <Setter Property="FontSize" Value="12"/>
-      <Setter Property="FontWeight" Value="Medium"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
       <Setter Property="Foreground" Value="#F0F0F2"/>
       <Setter Property="Margin" Value="0,0,0,8"/>
     </Style>
@@ -19,6 +19,7 @@
       </ControlTemplate></Setter.Value></Setter>
     </Style>
     <Style x:Key="CircleButton" TargetType="Button">
+      <Setter Property="FontWeight" Value="Normal"/>
       <Setter Property="Width" Value="26"/><Setter Property="Height" Value="26"/>
       <Setter Property="Foreground" Value="#C8FFFFFF"/><Setter Property="Background" Value="#18FFFFFF"/>
       <Setter Property="BorderThickness" Value="0"/><Setter Property="FontSize" Value="16"/>
@@ -38,7 +39,7 @@
       <Setter Property="Foreground" Value="White"/><Setter Property="Background" Value="#18FFFFFF"/>
       <Setter Property="BorderBrush" Value="#24FFFFFF"/><Setter Property="BorderThickness" Value="0"/>
       <Setter Property="FontFamily" Value="{x:Static ui:OverlayTypography.Interface}"/><Setter Property="FontSize" Value="12.5"/>
-      <Setter Property="FontWeight" Value="Normal"/><Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="FontWeight" Value="SemiBold"/><Setter Property="Cursor" Value="Hand"/>
       <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
         <Grid>
           <Border x:Name="ButtonChrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="9"/>
@@ -49,6 +50,27 @@
           <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="HoverChrome" Property="Opacity" Value="1"/></Trigger>
           <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="HoverChrome" Property="Opacity" Value="1"/></Trigger>
           <Trigger Property="IsPressed" Value="True"><Setter TargetName="ButtonChrome" Property="Opacity" Value="0.72"/></Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate></Setter.Value></Setter>
+    </Style>
+    <Style x:Key="ShortcutButton" TargetType="Button" BasedOn="{StaticResource GlassButton}">
+      <Setter Property="Width" Value="52"/><Setter Property="Height" Value="52"/>
+      <Setter Property="Padding" Value="0"/><Setter Property="Margin" Value="0,0,6,6"/>
+      <Setter Property="Background" Value="#14FFFFFF"/><Setter Property="BorderBrush" Value="#20FFFFFF"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="HorizontalContentAlignment" Value="Center"/><Setter Property="VerticalContentAlignment" Value="Center"/>
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+        <Grid>
+          <Border x:Name="ShortcutChrome" Background="{TemplateBinding Background}" CornerRadius="13"/>
+          <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          <Border x:Name="ShortcutOutline" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="13" IsHitTestVisible="False"/>
+          <Border x:Name="ShortcutHover" Background="#18FFFFFF" CornerRadius="13" Opacity="0" IsHitTestVisible="False"/>
+        </Grid>
+        <ControlTemplate.Triggers>
+          <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ShortcutHover" Property="Opacity" Value="1"/></Trigger>
+          <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="ShortcutHover" Property="Opacity" Value="1"/><Setter TargetName="ShortcutOutline" Property="BorderBrush" Value="#B0FFFFFF"/></Trigger>
+          <Trigger Property="IsPressed" Value="True"><Setter TargetName="ShortcutHover" Property="Opacity" Value="0.6"/></Trigger>
+          <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.4"/></Trigger>
         </ControlTemplate.Triggers>
       </ControlTemplate></Setter.Value></Setter>
     </Style>
@@ -70,7 +92,7 @@
       <Grid>
         <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
         <StackPanel VerticalAlignment="Center">
-          <TextBlock x:Name="TitleText" Text="点岛" Foreground="#FAFFFFFF" FontFamily="{x:Static ui:OverlayTypography.Interface}" FontSize="15" FontWeight="Medium" />
+          <TextBlock x:Name="TitleText" Text="点岛" Foreground="#FAFFFFFF" FontFamily="{x:Static ui:OverlayTypography.Interface}" FontSize="15" FontWeight="SemiBold" />
 
         </StackPanel>
         <StackPanel Grid.Column="1" Orientation="Horizontal">
@@ -88,7 +110,7 @@
               <Grid.RowDefinitions><RowDefinition Height="28"/><RowDefinition Height="28"/><RowDefinition Height="28"/></Grid.RowDefinitions>
               <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
               <TextBlock Text="订阅计划" Tag="secondary" FontSize="12" VerticalAlignment="Center"/>
-              <TextBlock x:Name="PlanText" Grid.Column="1" Text="未知" FontSize="13" FontWeight="Medium" HorizontalAlignment="Right" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" AutomationProperties.Name="订阅计划"/>
+              <TextBlock x:Name="PlanText" Grid.Column="1" Text="未知" FontSize="13" FontWeight="SemiBold" HorizontalAlignment="Right" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" AutomationProperties.Name="订阅计划"/>
               <TextBlock Grid.Row="1" Text="订阅有效至" Tag="secondary" FontSize="12" VerticalAlignment="Center" Margin="0,0,12,0"/>
               <TextBlock x:Name="ExpiryText" Grid.Row="1" Grid.Column="1" Text="正在读取…" Tag="secondary" FontSize="12" HorizontalAlignment="Right" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" AutomationProperties.Name="会员到期时间"/>
               <TextBlock Grid.Row="2" Text="额外点数" Tag="secondary" FontSize="12" VerticalAlignment="Center"/>
@@ -106,12 +128,13 @@
             <StackPanel x:Name="RowsPanel" />
           </StackPanel>
           </Border>
-          <StackPanel x:Name="AnnouncementsSection" Margin="0,16,0,0" AutomationProperties.Name="重置公告">
-          <TextBlock x:Name="AnnouncementsSectionTitle" Text="重置公告" Style="{StaticResource SectionTitle}"/>
-          <StackPanel x:Name="ResetSection">
-            <TextBlock x:Name="ResetFeedStatusText" Visibility="Collapsed" Tag="secondary" FontFamily="{x:Static ui:OverlayTypography.Interface}" FontSize="11" TextWrapping="Wrap" Foreground="#AEAEB2" Margin="0,0,0,10" />
-            <StackPanel x:Name="ResetAnnouncementsPanel" />
-            <Button x:Name="ResetSiteButton" Content="来源：Codex Resets ↗" Style="{StaticResource GlassButton}" Height="28" FontSize="11" Margin="0,0,0,0" HorizontalAlignment="Left" Padding="0" Background="Transparent" />
+          <StackPanel x:Name="AnnouncementsSection" Margin="0,16,0,0" AutomationProperties.Name="常用网站">
+          <TextBlock x:Name="ShortcutsSectionTitle" Text="常用网站" Style="{StaticResource SectionTitle}"/>
+          <StackPanel x:Name="ShortcutsSection">
+            <TextBlock x:Name="ShortcutsStatusText" Text="正在读取网站…" Tag="secondary" FontFamily="{x:Static ui:OverlayTypography.Interface}" FontSize="11" TextWrapping="Wrap" Foreground="#AEAEB2" Margin="0,0,0,8" />
+            <WrapPanel x:Name="ShortcutsGrid" HorizontalAlignment="Left">
+              <Button x:Name="AddShortcutButton" Content="+" Style="{StaticResource ShortcutButton}" FontSize="25" FontWeight="Light" Background="Transparent" BorderBrush="#38FFFFFF" ToolTip="添加网站" AutomationProperties.Name="添加网站"/>
+            </WrapPanel>
           </StackPanel>
           </StackPanel>
         </StackPanel>

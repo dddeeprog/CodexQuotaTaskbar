@@ -52,6 +52,9 @@ Name: "desktopicon"; Description: "创建桌面快捷方式"; Flags: unchecked
 Source: "{#PublishDir}\CodexQuotaTaskbar.exe"; DestDir: "{app}"
 Source: "{#RepoRoot}\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#RepoRoot}\THIRD_PARTY_NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#RepoRoot}\src\CodexQuotaTaskbar.Host\Assets\Licenses\ThirdPartyLicenses.zip"; DestDir: "{app}\Licenses"; Flags: ignoreversion
+Source: "{#RepoRoot}\src\CodexQuotaTaskbar.Host\Assets\Licenses\Live2DCubismCore.ComponentTerms.zh-CN.txt"; DestDir: "{app}\Licenses"; Flags: ignoreversion
+Source: "{#RepoRoot}\src\CodexQuotaTaskbar.Host\Assets\Licenses\Live2DCubismCore.ProprietaryAgreement.en.txt"; DestDir: "{app}\Licenses"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\点岛"; Filename: "{app}\CodexQuotaTaskbar.exe"; WorkingDir: "{app}"

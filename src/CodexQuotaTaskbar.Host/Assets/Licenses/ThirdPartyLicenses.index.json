@@ -1,0 +1,4285 @@
+{
+  "schemaVersion": 1,
+  "productVersion": "0.1.13-candidate",
+  "title": "DianDao third-party license and notice collection",
+  "scope": "License/notice texts for the reviewed Windows x64 product dependency graph, with separately labelled host build-time materials. Inclusion of a license does not assert that every Cargo.lock package is shipped.",
+  "nativeHelperSha256": "BDEFFD90F6AA3FF155273CE68A91BF49D789DDF381E5FC3EBF6996D275188C49",
+  "nativeGraph": {
+    "reviewedResolvedPackages": 159,
+    "targetCompiledGraphPackages": 138,
+    "hostBuildOnlyPackages": 21,
+    "wholeCargoLockPackagesNotAssumedDistributed": 339,
+    "classificationCaveat": "Target compile membership is conservative build evidence, not proof of final linker retention after optimization."
+  },
+  "nativePackages": [
+    {
+      "name": "adler2",
+      "version": "2.0.1",
+      "declaredLicense": "0BSD OR MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/adler2-2.0.1/LICENSE-0BSD",
+        "native/adler2-2.0.1/LICENSE-APACHE",
+        "native/adler2-2.0.1/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/oyvindln/adler2"
+    },
+    {
+      "name": "arboard",
+      "version": "3.6.1",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/arboard-3.6.1/LICENSE-APACHE.txt",
+        "native/arboard-3.6.1/LICENSE-MIT.txt"
+      ],
+      "repository": "https://github.com/1Password/arboard"
+    },
+    {
+      "name": "arrayvec",
+      "version": "0.7.8",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/arrayvec-0.7.8/LICENSE-APACHE",
+        "native/arrayvec-0.7.8/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/bluss/arrayvec"
+    },
+    {
+      "name": "atomic-write-file",
+      "version": "0.3.1",
+      "declaredLicense": "BSD-3-Clause",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/atomic-write-file-0.3.1/LICENSE.md"
+      ],
+      "repository": "https://github.com/andreacorbellini/rust-atomic-write-file"
+    },
+    {
+      "name": "auto-launch",
+      "version": "0.6.0",
+      "declaredLicense": "MIT",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/auto-launch-0.6.0/LICENSE"
+      ],
+      "repository": "https://github.com/zzzgydi/auto-launch.git"
+    },
+    {
+      "name": "autocfg",
+      "version": "1.5.1",
+      "declaredLicense": "Apache-2.0 OR MIT",
+      "scope": "host-build-or-proc-macro-only",
+      "compileRoles": [
+        "host-build-or-proc-macro"
+      ],
+      "licenseFiles": [
+        "native/autocfg-1.5.1/LICENSE-APACHE",
+        "native/autocfg-1.5.1/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/cuviper/autocfg"
+    },
+    {
+      "name": "bitflags",
+      "version": "1.3.2",
+      "declaredLicense": "MIT/Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/bitflags-1.3.2/LICENSE-APACHE",
+        "native/bitflags-1.3.2/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/bitflags/bitflags"
+    },
+    {
+      "name": "bitflags",
+      "version": "2.13.2",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/bitflags-2.13.2/LICENSE-APACHE",
+        "native/bitflags-2.13.2/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/bitflags/bitflags"
+    },
+    {
+      "name": "bongocat-audio",
+      "version": "2.3.1",
+      "declaredLicense": "Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/bongocat-audio-2.3.1/LICENSE"
+      ],
+      "repository": "https://github.com/ayangweb/BongoCat"
+    },
+    {
+      "name": "bongocat-config",
+      "version": "2.3.1",
+      "declaredLicense": "Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/bongocat-config-2.3.1/LICENSE"
+      ],
+      "repository": "https://github.com/ayangweb/BongoCat"
+    },
+    {
+      "name": "bongocat-input",
+      "version": "2.3.1",
+      "declaredLicense": "Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/bongocat-input-2.3.1/LICENSE"
+      ],
+      "repository": "https://github.com/ayangweb/BongoCat"
+    },
+    {
+      "name": "bongocat-live2d",
+      "version": "2.3.1",
+      "declaredLicense": "Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "host-build-or-proc-macro",
+        "target-build-script-run",
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/bongocat-live2d-2.3.1/LICENSE"
+      ],
+      "repository": "https://github.com/ayangweb/BongoCat"
+    },
+    {
+      "name": "bongocat-live2d-playback",
+      "version": "2.3.1",
+      "declaredLicense": "Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/bongocat-live2d-playback-2.3.1/LICENSE"
+      ],
+      "repository": "https://github.com/ayangweb/BongoCat"
+    },
+    {
+      "name": "bongocat-live2d-render",
+      "version": "2.3.1",
+      "declaredLicense": "Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/bongocat-live2d-render-2.3.1/LICENSE"
+      ],
+      "repository": "https://github.com/ayangweb/BongoCat"
+    },
+    {
+      "name": "bongocat-log",
+      "version": "2.3.1",
+      "declaredLicense": "Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/bongocat-log-2.3.1/LICENSE"
+      ],
+      "repository": "https://github.com/ayangweb/BongoCat"
+    },
+    {
+      "name": "bongocat-model",
+      "version": "2.3.1",
+      "declaredLicense": "Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/bongocat-model-2.3.1/LICENSE"
+      ],
+      "repository": "https://github.com/ayangweb/BongoCat"
+    },
+    {
+      "name": "bongocat-overlay",
+      "version": "2.3.1",
+      "declaredLicense": "Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "host-build-or-proc-macro",
+        "target-build-script-run",
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/bongocat-overlay-2.3.1/LICENSE"
+      ],
+      "repository": "https://github.com/ayangweb/BongoCat"
+    },
+    {
+      "name": "bongocat-platform",
+      "version": "2.3.1",
+      "declaredLicense": "Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "host-build-or-proc-macro",
+        "target-build-script-run",
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/bongocat-platform-2.3.1/LICENSE"
+      ],
+      "repository": "https://github.com/ayangweb/BongoCat"
+    },
+    {
+      "name": "bongocat-render",
+      "version": "2.3.1",
+      "declaredLicense": "Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/bongocat-render-2.3.1/LICENSE"
+      ],
+      "repository": "https://github.com/ayangweb/BongoCat"
+    },
+    {
+      "name": "bongocat-runtime",
+      "version": "2.3.1",
+      "declaredLicense": "Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/bongocat-runtime-2.3.1/LICENSE"
+      ],
+      "repository": "https://github.com/ayangweb/BongoCat"
+    },
+    {
+      "name": "bongocat-storage",
+      "version": "2.3.1",
+      "declaredLicense": "Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/bongocat-storage-2.3.1/LICENSE"
+      ],
+      "repository": "https://github.com/ayangweb/BongoCat"
+    },
+    {
+      "name": "bytemuck",
+      "version": "1.25.2",
+      "declaredLicense": "Zlib OR Apache-2.0 OR MIT",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/bytemuck-1.25.2/LICENSE-APACHE",
+        "native/bytemuck-1.25.2/LICENSE-MIT",
+        "native/bytemuck-1.25.2/LICENSE-ZLIB"
+      ],
+      "repository": "https://github.com/Lokathor/bytemuck"
+    },
+    {
+      "name": "byteorder-lite",
+      "version": "0.1.0",
+      "declaredLicense": "Unlicense OR MIT",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/byteorder-lite-0.1.0/LICENSE-MIT",
+        "native/byteorder-lite-0.1.0/UNLICENSE"
+      ],
+      "repository": "https://github.com/image-rs/byteorder-lite"
+    },
+    {
+      "name": "cfg-if",
+      "version": "1.0.5",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/cfg-if-1.0.5/LICENSE-APACHE",
+        "native/cfg-if-1.0.5/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/rust-lang/cfg-if"
+    },
+    {
+      "name": "chacha20",
+      "version": "0.10.2",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/chacha20-0.10.2/LICENSE-APACHE",
+        "native/chacha20-0.10.2/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/RustCrypto/stream-ciphers"
+    },
+    {
+      "name": "clipboard-win",
+      "version": "5.4.1",
+      "declaredLicense": "BSL-1.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native-supplement/clipboard-win-5.4.1/LICENSE-BSL-1.0.txt"
+      ],
+      "repository": "https://github.com/DoumanAsh/clipboard-win"
+    },
+    {
+      "name": "core_detect",
+      "version": "1.0.0",
+      "declaredLicense": "MIT/Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/core_detect-1.0.0/LICENSE-APACHE",
+        "native/core_detect-1.0.0/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/thomcc/core_detect"
+    },
+    {
+      "name": "cpal",
+      "version": "0.18.2",
+      "declaredLicense": "Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "host-build-or-proc-macro",
+        "target-build-script-run",
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/cpal-0.18.2/LICENSE"
+      ],
+      "repository": "https://github.com/RustAudio/cpal"
+    },
+    {
+      "name": "cpufeatures",
+      "version": "0.3.1",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/cpufeatures-0.3.1/LICENSE-APACHE",
+        "native/cpufeatures-0.3.1/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/RustCrypto/utils"
+    },
+    {
+      "name": "cqt-bongo-native-probe",
+      "version": "0.1.0",
+      "declaredLicense": null,
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "helper-bin"
+      ],
+      "licenseFiles": [],
+      "licenseStatus": "Local integration helper manifest lacks license metadata; upstream workspace Apache-2.0 notice is supplied but not a substitute for declaring local glue license."
+    },
+    {
+      "name": "crc32fast",
+      "version": "1.5.2",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "host-build-or-proc-macro",
+        "target-build-script-run",
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/crc32fast-1.5.2/LICENSE-APACHE",
+        "native/crc32fast-1.5.2/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/srijs/rust-crc32fast"
+    },
+    {
+      "name": "crossbeam-channel",
+      "version": "0.5.17",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/crossbeam-channel-0.5.17/LICENSE-APACHE",
+        "native/crossbeam-channel-0.5.17/LICENSE-MIT",
+        "native/crossbeam-channel-0.5.17/LICENSE-THIRD-PARTY"
+      ],
+      "repository": "https://github.com/crossbeam-rs/crossbeam"
+    },
+    {
+      "name": "crossbeam-utils",
+      "version": "0.8.23",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "host-build-or-proc-macro",
+        "target-build-script-run",
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/crossbeam-utils-0.8.23/LICENSE-APACHE",
+        "native/crossbeam-utils-0.8.23/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/crossbeam-rs/crossbeam"
+    },
+    {
+      "name": "dasp_sample",
+      "version": "0.11.0",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native-supplement/dasp_sample-0.11.0/LICENSE-APACHE-2.0-SELECTED.txt"
+      ],
+      "repository": "https://github.com/rustaudio/sample.git",
+      "selectedLicense": "Apache-2.0",
+      "licenseTextBasis": "Complete standard Apache-2.0 terms; not represented as a retrieved package-specific upstream license file. Archive SPDX is MIT OR Apache-2.0."
+    },
+    {
+      "name": "deranged",
+      "version": "0.5.8",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/deranged-0.5.8/LICENSE-Apache",
+        "native/deranged-0.5.8/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/jhpratt/deranged"
+    },
+    {
+      "name": "dirs",
+      "version": "7.0.0",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/dirs-7.0.0/LICENSE-APACHE",
+        "native/dirs-7.0.0/LICENSE-MIT"
+      ],
+      "repository": "https://codeberg.org/dirs/dirs-rs"
+    },
+    {
+      "name": "dirs-sys",
+      "version": "0.5.0",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/dirs-sys-0.5.0/LICENSE-APACHE",
+        "native/dirs-sys-0.5.0/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/dirs-dev/dirs-sys-rs"
+    },
+    {
+      "name": "displaydoc",
+      "version": "0.2.7",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "host-build-or-proc-macro-only",
+      "compileRoles": [
+        "host-build-or-proc-macro"
+      ],
+      "licenseFiles": [
+        "native/displaydoc-0.2.7/LICENSE-APACHE",
+        "native/displaydoc-0.2.7/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/yaahc/displaydoc"
+    },
+    {
+      "name": "dpi",
+      "version": "0.1.2",
+      "declaredLicense": "Apache-2.0 AND MIT",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/dpi-0.1.2/LICENSE",
+        "native/dpi-0.1.2/LICENSE-LIBM-MIT"
+      ],
+      "repository": "https://github.com/rust-windowing/winit"
+    },
+    {
+      "name": "dyn-clone",
+      "version": "1.0.20",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/dyn-clone-1.0.20/LICENSE-APACHE",
+        "native/dyn-clone-1.0.20/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/dtolnay/dyn-clone"
+    },
+    {
+      "name": "encoding_rs",
+      "version": "0.8.42",
+      "declaredLicense": "(Apache-2.0 OR MIT) AND BSD-3-Clause",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "host-build-or-proc-macro",
+        "target-build-script-run",
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/encoding_rs-0.8.42/LICENSE-APACHE",
+        "native/encoding_rs-0.8.42/LICENSE-MIT",
+        "native/encoding_rs-0.8.42/LICENSE-WHATWG"
+      ],
+      "repository": "https://github.com/hsivonen/encoding_rs"
+    },
+    {
+      "name": "error-code",
+      "version": "3.4.0",
+      "declaredLicense": "BSL-1.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/error-code-3.4.0/LICENSE"
+      ],
+      "repository": "https://github.com/DoumanAsh/error-code"
+    },
+    {
+      "name": "fdeflate",
+      "version": "0.3.7",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/fdeflate-0.3.7/LICENSE-APACHE",
+        "native/fdeflate-0.3.7/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/image-rs/fdeflate"
+    },
+    {
+      "name": "flate2",
+      "version": "1.1.10",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/flate2-1.1.10/LICENSE-APACHE",
+        "native/flate2-1.1.10/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/rust-lang/flate2-rs"
+    },
+    {
+      "name": "fnv",
+      "version": "1.0.7",
+      "declaredLicense": "Apache-2.0 / MIT",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/fnv-1.0.7/LICENSE-APACHE",
+        "native/fnv-1.0.7/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/servo/rust-fnv"
+    },
+    {
+      "name": "form_urlencoded",
+      "version": "1.2.2",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/form_urlencoded-1.2.2/LICENSE-APACHE",
+        "native/form_urlencoded-1.2.2/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/servo/rust-url"
+    },
+    {
+      "name": "getrandom",
+      "version": "0.4.3",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "host-build-or-proc-macro",
+        "target-build-script-run",
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/getrandom-0.4.3/LICENSE-APACHE",
+        "native/getrandom-0.4.3/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/rust-random/getrandom"
+    },
+    {
+      "name": "gilrs",
+      "version": "0.11.2",
+      "declaredLicense": "Apache-2.0/MIT",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "host-build-or-proc-macro",
+        "target-build-script-run",
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/gilrs-0.11.2/LICENSE-APACHE",
+        "native/gilrs-0.11.2/LICENSE-MIT"
+      ],
+      "repository": "https://gitlab.com/gilrs-project/gilrs"
+    },
+    {
+      "name": "gilrs-core",
+      "version": "0.6.8",
+      "declaredLicense": "Apache-2.0/MIT",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/gilrs-core-0.6.8/LICENSE-APACHE",
+        "native/gilrs-core-0.6.8/LICENSE-MIT"
+      ],
+      "repository": "https://gitlab.com/gilrs-project/gilrs"
+    },
+    {
+      "name": "global-hotkey",
+      "version": "0.8.0",
+      "declaredLicense": "Apache-2.0 OR MIT",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/global-hotkey-0.8.0/LICENSE-APACHE",
+        "native/global-hotkey-0.8.0/LICENSE-MIT",
+        "native/global-hotkey-0.8.0/LICENSE.spdx"
+      ],
+      "repository": "https://github.com/tauri-apps/global-hotkey"
+    },
+    {
+      "name": "icu_collections",
+      "version": "2.3.0",
+      "declaredLicense": "Unicode-3.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/icu_collections-2.3.0/LICENSE"
+      ],
+      "repository": "https://github.com/unicode-org/icu4x"
+    },
+    {
+      "name": "icu_locale_core",
+      "version": "2.3.0",
+      "declaredLicense": "Unicode-3.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/icu_locale_core-2.3.0/LICENSE"
+      ],
+      "repository": "https://github.com/unicode-org/icu4x"
+    },
+    {
+      "name": "icu_normalizer",
+      "version": "2.3.0",
+      "declaredLicense": "Unicode-3.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/icu_normalizer-2.3.0/LICENSE"
+      ],
+      "repository": "https://github.com/unicode-org/icu4x"
+    },
+    {
+      "name": "icu_normalizer_data",
+      "version": "2.3.0",
+      "declaredLicense": "Unicode-3.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "host-build-or-proc-macro",
+        "target-build-script-run",
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/icu_normalizer_data-2.3.0/LICENSE"
+      ],
+      "repository": "https://github.com/unicode-org/icu4x"
+    },
+    {
+      "name": "icu_properties",
+      "version": "2.3.0",
+      "declaredLicense": "Unicode-3.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/icu_properties-2.3.0/LICENSE"
+      ],
+      "repository": "https://github.com/unicode-org/icu4x"
+    },
+    {
+      "name": "icu_properties_data",
+      "version": "2.3.0",
+      "declaredLicense": "Unicode-3.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "host-build-or-proc-macro",
+        "target-build-script-run",
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/icu_properties_data-2.3.0/LICENSE"
+      ],
+      "repository": "https://github.com/unicode-org/icu4x"
+    },
+    {
+      "name": "icu_provider",
+      "version": "2.3.1",
+      "declaredLicense": "Unicode-3.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/icu_provider-2.3.1/LICENSE"
+      ],
+      "repository": "https://github.com/unicode-org/icu4x"
+    },
+    {
+      "name": "idna",
+      "version": "1.1.0",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/idna-1.1.0/LICENSE-APACHE",
+        "native/idna-1.1.0/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/servo/rust-url/"
+    },
+    {
+      "name": "idna_adapter",
+      "version": "1.2.2",
+      "declaredLicense": "Apache-2.0 OR MIT",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/idna_adapter-1.2.2/LICENSE-APACHE",
+        "native/idna_adapter-1.2.2/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/hsivonen/idna_adapter"
+    },
+    {
+      "name": "image",
+      "version": "0.25.10",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/image-0.25.10/LICENSE-APACHE",
+        "native/image-0.25.10/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/image-rs/image"
+    },
+    {
+      "name": "itoa",
+      "version": "1.0.18",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/itoa-1.0.18/LICENSE-APACHE",
+        "native/itoa-1.0.18/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/dtolnay/itoa"
+    },
+    {
+      "name": "keyboard-types",
+      "version": "0.7.0",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/keyboard-types-0.7.0/LICENSE-APACHE",
+        "native/keyboard-types-0.7.0/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/pyfisch/keyboard-types"
+    },
+    {
+      "name": "keyboard-types",
+      "version": "0.8.3",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/keyboard-types-0.8.3/LICENSE-APACHE",
+        "native/keyboard-types-0.8.3/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/rust-windowing/keyboard-types"
+    },
+    {
+      "name": "lazy_static",
+      "version": "1.5.1",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/lazy_static-1.5.1/LICENSE-APACHE",
+        "native/lazy_static-1.5.1/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/rust-lang-nursery/lazy-static.rs"
+    },
+    {
+      "name": "litemap",
+      "version": "0.8.3",
+      "declaredLicense": "Unicode-3.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/litemap-0.8.3/LICENSE"
+      ],
+      "repository": "https://github.com/unicode-org/icu4x"
+    },
+    {
+      "name": "log",
+      "version": "0.4.34",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/log-0.4.34/LICENSE-APACHE",
+        "native/log-0.4.34/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/rust-lang/log"
+    },
+    {
+      "name": "memchr",
+      "version": "2.8.3",
+      "declaredLicense": "Unlicense OR MIT",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/memchr-2.8.3/COPYING",
+        "native/memchr-2.8.3/LICENSE-MIT",
+        "native/memchr-2.8.3/UNLICENSE"
+      ],
+      "repository": "https://github.com/BurntSushi/memchr"
+    },
+    {
+      "name": "miniz_oxide",
+      "version": "0.8.9",
+      "declaredLicense": "MIT OR Zlib OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/miniz_oxide-0.8.9/LICENSE",
+        "native/miniz_oxide-0.8.9/LICENSE-APACHE.md",
+        "native/miniz_oxide-0.8.9/LICENSE-MIT.md",
+        "native/miniz_oxide-0.8.9/LICENSE-ZLIB.md"
+      ],
+      "repository": "https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide"
+    },
+    {
+      "name": "miniz_oxide",
+      "version": "0.9.1",
+      "declaredLicense": "MIT OR Zlib OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/miniz_oxide-0.9.1/LICENSE",
+        "native/miniz_oxide-0.9.1/LICENSE-APACHE.md",
+        "native/miniz_oxide-0.9.1/LICENSE-MIT.md",
+        "native/miniz_oxide-0.9.1/LICENSE-ZLIB.md"
+      ],
+      "repository": "https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide"
+    },
+    {
+      "name": "moxcms",
+      "version": "0.8.1",
+      "declaredLicense": "BSD-3-Clause OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/moxcms-0.8.1/LICENSE-APACHE.md",
+        "native/moxcms-0.8.1/LICENSE.md"
+      ],
+      "repository": "https://github.com/awxkee/moxcms.git"
+    },
+    {
+      "name": "muda",
+      "version": "0.21.2",
+      "declaredLicense": "Apache-2.0 OR MIT",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "host-build-or-proc-macro",
+        "target-build-script-run",
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/muda-0.21.2/LICENSE-APACHE",
+        "native/muda-0.21.2/LICENSE-MIT",
+        "native/muda-0.21.2/LICENSE.spdx"
+      ],
+      "repository": "https://github.com/tauri-apps/muda"
+    },
+    {
+      "name": "multiversion_no_op",
+      "version": "1.0.0",
+      "declaredLicense": "Apache-2.0 OR MIT",
+      "scope": "host-build-or-proc-macro-only",
+      "compileRoles": [
+        "host-build-or-proc-macro"
+      ],
+      "licenseFiles": [
+        "native/multiversion_no_op-1.0.0/LICENSE-APACHE",
+        "native/multiversion_no_op-1.0.0/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/hsivonen/multiversion_no_op"
+    },
+    {
+      "name": "normpath",
+      "version": "1.5.2",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/normpath-1.5.2/LICENSE-APACHE",
+        "native/normpath-1.5.2/LICENSE-MIT",
+        "native/normpath-1.5.2/LICENSE-THIRD-PARTY"
+      ],
+      "repository": "https://github.com/dylni/normpath"
+    },
+    {
+      "name": "num-bigint",
+      "version": "0.4.8",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/num-bigint-0.4.8/LICENSE-APACHE",
+        "native/num-bigint-0.4.8/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/rust-num/num-bigint"
+    },
+    {
+      "name": "num-conv",
+      "version": "0.2.2",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "host-build-or-proc-macro",
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/num-conv-0.2.2/LICENSE-Apache",
+        "native/num-conv-0.2.2/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/jhpratt/num-conv"
+    },
+    {
+      "name": "num-integer",
+      "version": "0.1.47",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/num-integer-0.1.47/LICENSE-APACHE",
+        "native/num-integer-0.1.47/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/rust-num/num-integer"
+    },
+    {
+      "name": "num-rational",
+      "version": "0.4.2",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/num-rational-0.4.2/LICENSE-APACHE",
+        "native/num-rational-0.4.2/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/rust-num/num-rational"
+    },
+    {
+      "name": "num-traits",
+      "version": "0.2.19",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "host-build-or-proc-macro",
+        "target-build-script-run",
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/num-traits-0.2.19/LICENSE-APACHE",
+        "native/num-traits-0.2.19/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/rust-num/num-traits"
+    },
+    {
+      "name": "once_cell",
+      "version": "1.21.4",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/once_cell-1.21.4/LICENSE-APACHE",
+        "native/once_cell-1.21.4/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/matklad/once_cell"
+    },
+    {
+      "name": "opener",
+      "version": "0.9.0",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/opener-0.9.0/LICENSE-APACHE",
+        "native/opener-0.9.0/LICENSE-MIT",
+        "native/opener-0.9.0/LICENSE-THIRD-PARTY"
+      ],
+      "repository": "https://github.com/Seeker14491/opener"
+    },
+    {
+      "name": "option-ext",
+      "version": "0.2.0",
+      "declaredLicense": "MPL-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/option-ext-0.2.0/LICENSE.txt"
+      ],
+      "repository": "https://github.com/soc/option-ext.git"
+    },
+    {
+      "name": "os_info",
+      "version": "3.15.0",
+      "declaredLicense": "MIT",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/os_info-3.15.0/LICENSE"
+      ],
+      "repository": "https://github.com/stanislav-tkach/os_info"
+    },
+    {
+      "name": "percent-encoding",
+      "version": "2.3.2",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/percent-encoding-2.3.2/LICENSE-APACHE",
+        "native/percent-encoding-2.3.2/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/servo/rust-url/"
+    },
+    {
+      "name": "png",
+      "version": "0.18.1",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/png-0.18.1/LICENSE-APACHE",
+        "native/png-0.18.1/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/image-rs/image-png"
+    },
+    {
+      "name": "potential_utf",
+      "version": "0.1.6",
+      "declaredLicense": "Unicode-3.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/potential_utf-0.1.6/LICENSE"
+      ],
+      "repository": "https://github.com/unicode-org/icu4x"
+    },
+    {
+      "name": "powerfmt",
+      "version": "0.2.1",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/powerfmt-0.2.1/LICENSE-Apache",
+        "native/powerfmt-0.2.1/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/jhpratt/powerfmt"
+    },
+    {
+      "name": "proc-macro2",
+      "version": "1.0.107",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "host-build-or-proc-macro-only",
+      "compileRoles": [
+        "host-build-or-proc-macro"
+      ],
+      "licenseFiles": [
+        "native/proc-macro2-1.0.107/LICENSE-APACHE",
+        "native/proc-macro2-1.0.107/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/dtolnay/proc-macro2"
+    },
+    {
+      "name": "pxfm",
+      "version": "0.1.30",
+      "declaredLicense": "BSD-3-Clause OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/pxfm-0.1.30/LICENSE-APACHE.md",
+        "native/pxfm-0.1.30/LICENSE.md"
+      ],
+      "repository": "https://github.com/awxkee/pxfm"
+    },
+    {
+      "name": "quote",
+      "version": "1.0.47",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "host-build-or-proc-macro-only",
+      "compileRoles": [
+        "host-build-or-proc-macro"
+      ],
+      "licenseFiles": [
+        "native/quote-1.0.47/LICENSE-APACHE",
+        "native/quote-1.0.47/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/dtolnay/quote"
+    },
+    {
+      "name": "rand",
+      "version": "0.10.3",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/rand-0.10.3/LICENSE-APACHE",
+        "native/rand-0.10.3/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/rust-random/rand"
+    },
+    {
+      "name": "rand_core",
+      "version": "0.10.1",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/rand_core-0.10.1/LICENSE-APACHE",
+        "native/rand_core-0.10.1/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/rust-random/rand_core"
+    },
+    {
+      "name": "raw-window-handle",
+      "version": "0.6.2",
+      "declaredLicense": "MIT OR Apache-2.0 OR Zlib",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/raw-window-handle-0.6.2/LICENSE-APACHE.md",
+        "native/raw-window-handle-0.6.2/LICENSE-MIT.md",
+        "native/raw-window-handle-0.6.2/LICENSE-ZLIB.md"
+      ],
+      "repository": "https://github.com/rust-windowing/raw-window-handle"
+    },
+    {
+      "name": "ref-cast",
+      "version": "1.0.27",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "host-build-or-proc-macro",
+        "target-build-script-run",
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/ref-cast-1.0.27/LICENSE-APACHE",
+        "native/ref-cast-1.0.27/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/dtolnay/ref-cast"
+    },
+    {
+      "name": "ref-cast-impl",
+      "version": "1.0.27",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "host-build-or-proc-macro-only",
+      "compileRoles": [
+        "host-build-or-proc-macro"
+      ],
+      "licenseFiles": [
+        "native/ref-cast-impl-1.0.27/LICENSE-APACHE",
+        "native/ref-cast-impl-1.0.27/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/dtolnay/ref-cast"
+    },
+    {
+      "name": "rfd",
+      "version": "0.17.2",
+      "declaredLicense": "MIT",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "host-build-or-proc-macro",
+        "target-build-script-run",
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/rfd-0.17.2/LICENSE"
+      ],
+      "repository": "https://github.com/PolyMeilex/rfd"
+    },
+    {
+      "name": "rodio",
+      "version": "0.23.0",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/rodio-0.23.0/LICENSE-APACHE",
+        "native/rodio-0.23.0/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/RustAudio/rodio"
+    },
+    {
+      "name": "rustversion",
+      "version": "1.0.23",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "host-build-or-proc-macro-only",
+      "compileRoles": [
+        "host-build-or-proc-macro"
+      ],
+      "licenseFiles": [
+        "native/rustversion-1.0.23/LICENSE-APACHE",
+        "native/rustversion-1.0.23/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/dtolnay/rustversion"
+    },
+    {
+      "name": "schemars",
+      "version": "1.2.2",
+      "declaredLicense": "MIT",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/schemars-1.2.2/LICENSE"
+      ],
+      "repository": "https://github.com/GREsau/schemars"
+    },
+    {
+      "name": "schemars_derive",
+      "version": "1.2.2",
+      "declaredLicense": "MIT",
+      "scope": "host-build-or-proc-macro-only",
+      "compileRoles": [
+        "host-build-or-proc-macro"
+      ],
+      "licenseFiles": [
+        "native/schemars_derive-1.2.2/LICENSE"
+      ],
+      "repository": "https://github.com/GREsau/schemars"
+    },
+    {
+      "name": "scopeguard",
+      "version": "1.2.0",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/scopeguard-1.2.0/LICENSE-APACHE",
+        "native/scopeguard-1.2.0/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/bluss/scopeguard"
+    },
+    {
+      "name": "serde",
+      "version": "1.0.229",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "host-build-or-proc-macro",
+        "target-build-script-run",
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/serde-1.0.229/LICENSE-APACHE",
+        "native/serde-1.0.229/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/serde-rs/serde"
+    },
+    {
+      "name": "serde_core",
+      "version": "1.0.229",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "host-build-or-proc-macro",
+        "target-build-script-run",
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/serde_core-1.0.229/LICENSE-APACHE",
+        "native/serde_core-1.0.229/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/serde-rs/serde"
+    },
+    {
+      "name": "serde_derive",
+      "version": "1.0.229",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "host-build-or-proc-macro-only",
+      "compileRoles": [
+        "host-build-or-proc-macro"
+      ],
+      "licenseFiles": [
+        "native/serde_derive-1.0.229/LICENSE-APACHE",
+        "native/serde_derive-1.0.229/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/serde-rs/serde"
+    },
+    {
+      "name": "serde_derive_internals",
+      "version": "0.30.0",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "host-build-or-proc-macro-only",
+      "compileRoles": [
+        "host-build-or-proc-macro"
+      ],
+      "licenseFiles": [
+        "native/serde_derive_internals-0.30.0/LICENSE-APACHE",
+        "native/serde_derive_internals-0.30.0/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/serde-rs/serde"
+    },
+    {
+      "name": "serde_json",
+      "version": "1.0.154",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "host-build-or-proc-macro",
+        "target-build-script-run",
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/serde_json-1.0.154/LICENSE-APACHE",
+        "native/serde_json-1.0.154/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/serde-rs/json"
+    },
+    {
+      "name": "simd-adler32",
+      "version": "0.3.10",
+      "declaredLicense": "MIT",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/simd-adler32-0.3.10/LICENSE.md"
+      ],
+      "repository": "https://github.com/mcountryman/simd-adler32"
+    },
+    {
+      "name": "simdutf8",
+      "version": "0.1.5",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/simdutf8-0.1.5/LICENSE-Apache",
+        "native/simdutf8-0.1.5/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/rusticstuff/simdutf8"
+    },
+    {
+      "name": "smallvec",
+      "version": "1.16.3",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/smallvec-1.16.3/LICENSE-APACHE",
+        "native/smallvec-1.16.3/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/servo/rust-smallvec"
+    },
+    {
+      "name": "stable_deref_trait",
+      "version": "1.2.1",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/stable_deref_trait-1.2.1/LICENSE-APACHE",
+        "native/stable_deref_trait-1.2.1/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/storyyeller/stable_deref_trait"
+    },
+    {
+      "name": "symphonia",
+      "version": "0.5.5",
+      "declaredLicense": "MPL-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native-supplement/symphonia-0.5.5-workspace/LICENSE-MPL-2.0.txt"
+      ],
+      "repository": "https://github.com/pdeljanov/Symphonia"
+    },
+    {
+      "name": "symphonia-bundle-flac",
+      "version": "0.5.5",
+      "declaredLicense": "MPL-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native-supplement/symphonia-0.5.5-workspace/LICENSE-MPL-2.0.txt"
+      ],
+      "repository": "https://github.com/pdeljanov/Symphonia"
+    },
+    {
+      "name": "symphonia-core",
+      "version": "0.5.5",
+      "declaredLicense": "MPL-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native-supplement/symphonia-0.5.5-workspace/LICENSE-MPL-2.0.txt"
+      ],
+      "repository": "https://github.com/pdeljanov/Symphonia"
+    },
+    {
+      "name": "symphonia-metadata",
+      "version": "0.5.5",
+      "declaredLicense": "MPL-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native-supplement/symphonia-0.5.5-workspace/LICENSE-MPL-2.0.txt"
+      ],
+      "repository": "https://github.com/pdeljanov/Symphonia"
+    },
+    {
+      "name": "symphonia-utils-xiph",
+      "version": "0.5.5",
+      "declaredLicense": "MPL-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native-supplement/symphonia-0.5.5-workspace/LICENSE-MPL-2.0.txt"
+      ],
+      "repository": "https://github.com/pdeljanov/Symphonia"
+    },
+    {
+      "name": "syn",
+      "version": "2.0.119",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "host-build-or-proc-macro-only",
+      "compileRoles": [
+        "host-build-or-proc-macro"
+      ],
+      "licenseFiles": [
+        "native/syn-2.0.119/LICENSE-APACHE",
+        "native/syn-2.0.119/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/dtolnay/syn"
+    },
+    {
+      "name": "syn",
+      "version": "3.0.8",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "host-build-or-proc-macro-only",
+      "compileRoles": [
+        "host-build-or-proc-macro"
+      ],
+      "licenseFiles": [
+        "native/syn-3.0.8/LICENSE-APACHE",
+        "native/syn-3.0.8/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/dtolnay/syn"
+    },
+    {
+      "name": "synstructure",
+      "version": "0.14.0",
+      "declaredLicense": "MIT",
+      "scope": "host-build-or-proc-macro-only",
+      "compileRoles": [
+        "host-build-or-proc-macro"
+      ],
+      "licenseFiles": [
+        "native/synstructure-0.14.0/LICENSE"
+      ],
+      "repository": "https://github.com/mystor/synstructure"
+    },
+    {
+      "name": "sys-locale",
+      "version": "0.3.2",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/sys-locale-0.3.2/LICENSE-APACHE",
+        "native/sys-locale-0.3.2/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/1Password/sys-locale"
+    },
+    {
+      "name": "thiserror",
+      "version": "2.0.21",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "host-build-or-proc-macro",
+        "target-build-script-run",
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/thiserror-2.0.21/LICENSE-APACHE",
+        "native/thiserror-2.0.21/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/dtolnay/thiserror"
+    },
+    {
+      "name": "thiserror-impl",
+      "version": "2.0.21",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "host-build-or-proc-macro-only",
+      "compileRoles": [
+        "host-build-or-proc-macro"
+      ],
+      "licenseFiles": [
+        "native/thiserror-impl-2.0.21/LICENSE-APACHE",
+        "native/thiserror-impl-2.0.21/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/dtolnay/thiserror"
+    },
+    {
+      "name": "time",
+      "version": "0.3.55",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/time-0.3.55/LICENSE-Apache",
+        "native/time-0.3.55/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/time-rs/time"
+    },
+    {
+      "name": "time-core",
+      "version": "0.1.9",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "host-build-or-proc-macro",
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/time-core-0.1.9/LICENSE-Apache",
+        "native/time-core-0.1.9/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/time-rs/time"
+    },
+    {
+      "name": "time-macros",
+      "version": "0.2.32",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "host-build-or-proc-macro-only",
+      "compileRoles": [
+        "host-build-or-proc-macro"
+      ],
+      "licenseFiles": [
+        "native/time-macros-0.2.32/LICENSE-Apache",
+        "native/time-macros-0.2.32/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/time-rs/time"
+    },
+    {
+      "name": "tinystr",
+      "version": "0.8.4",
+      "declaredLicense": "Unicode-3.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/tinystr-0.8.4/LICENSE"
+      ],
+      "repository": "https://github.com/unicode-org/icu4x"
+    },
+    {
+      "name": "tray-icon",
+      "version": "0.26.1",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "host-build-or-proc-macro",
+        "target-build-script-run",
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/tray-icon-0.26.1/LICENSE-APACHE",
+        "native/tray-icon-0.26.1/LICENSE-MIT",
+        "native/tray-icon-0.26.1/LICENSE.spdx"
+      ],
+      "repository": "https://github.com/tauri-apps/tray-icon"
+    },
+    {
+      "name": "unicode-ident",
+      "version": "1.0.27",
+      "declaredLicense": "(MIT OR Apache-2.0) AND Unicode-3.0",
+      "scope": "host-build-or-proc-macro-only",
+      "compileRoles": [
+        "host-build-or-proc-macro"
+      ],
+      "licenseFiles": [
+        "native/unicode-ident-1.0.27/LICENSE-APACHE",
+        "native/unicode-ident-1.0.27/LICENSE-MIT",
+        "native/unicode-ident-1.0.27/LICENSE-UNICODE"
+      ],
+      "repository": "https://github.com/dtolnay/unicode-ident"
+    },
+    {
+      "name": "unicode-segmentation",
+      "version": "1.13.3",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/unicode-segmentation-1.13.3/LICENSE-APACHE",
+        "native/unicode-segmentation-1.13.3/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/unicode-rs/unicode-segmentation"
+    },
+    {
+      "name": "url",
+      "version": "2.5.8",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/url-2.5.8/LICENSE-APACHE",
+        "native/url-2.5.8/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/servo/rust-url"
+    },
+    {
+      "name": "utf8_iter",
+      "version": "1.0.4",
+      "declaredLicense": "Apache-2.0 OR MIT",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/utf8_iter-1.0.4/LICENSE-APACHE",
+        "native/utf8_iter-1.0.4/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/hsivonen/utf8_iter"
+    },
+    {
+      "name": "uuid",
+      "version": "1.28.0",
+      "declaredLicense": "Apache-2.0 OR MIT",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/uuid-1.28.0/LICENSE-APACHE",
+        "native/uuid-1.28.0/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/uuid-rs/uuid"
+    },
+    {
+      "name": "vec_map",
+      "version": "0.8.2",
+      "declaredLicense": "MIT/Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/vec_map-0.8.2/LICENSE-APACHE",
+        "native/vec_map-0.8.2/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/contain-rs/vec-map"
+    },
+    {
+      "name": "windows",
+      "version": "0.62.2",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/windows-0.62.2/license-apache-2.0",
+        "native/windows-0.62.2/license-mit"
+      ],
+      "repository": "https://github.com/microsoft/windows-rs"
+    },
+    {
+      "name": "windows-collections",
+      "version": "0.3.2",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/windows-collections-0.3.2/license-apache-2.0",
+        "native/windows-collections-0.3.2/license-mit"
+      ],
+      "repository": "https://github.com/microsoft/windows-rs"
+    },
+    {
+      "name": "windows-core",
+      "version": "0.62.2",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/windows-core-0.62.2/license-apache-2.0",
+        "native/windows-core-0.62.2/license-mit"
+      ],
+      "repository": "https://github.com/microsoft/windows-rs"
+    },
+    {
+      "name": "windows-future",
+      "version": "0.3.2",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/windows-future-0.3.2/license-apache-2.0",
+        "native/windows-future-0.3.2/license-mit"
+      ],
+      "repository": "https://github.com/microsoft/windows-rs"
+    },
+    {
+      "name": "windows-implement",
+      "version": "0.60.2",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "host-build-or-proc-macro-only",
+      "compileRoles": [
+        "host-build-or-proc-macro"
+      ],
+      "licenseFiles": [
+        "native/windows-implement-0.60.2/license-apache-2.0",
+        "native/windows-implement-0.60.2/license-mit"
+      ],
+      "repository": "https://github.com/microsoft/windows-rs"
+    },
+    {
+      "name": "windows-interface",
+      "version": "0.59.3",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "host-build-or-proc-macro-only",
+      "compileRoles": [
+        "host-build-or-proc-macro"
+      ],
+      "licenseFiles": [
+        "native/windows-interface-0.59.3/license-apache-2.0",
+        "native/windows-interface-0.59.3/license-mit"
+      ],
+      "repository": "https://github.com/microsoft/windows-rs"
+    },
+    {
+      "name": "windows-link",
+      "version": "0.2.1",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/windows-link-0.2.1/license-apache-2.0",
+        "native/windows-link-0.2.1/license-mit"
+      ],
+      "repository": "https://github.com/microsoft/windows-rs"
+    },
+    {
+      "name": "windows-numerics",
+      "version": "0.3.1",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/windows-numerics-0.3.1/license-apache-2.0",
+        "native/windows-numerics-0.3.1/license-mit"
+      ],
+      "repository": "https://github.com/microsoft/windows-rs"
+    },
+    {
+      "name": "windows-registry",
+      "version": "0.6.1",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/windows-registry-0.6.1/license-apache-2.0",
+        "native/windows-registry-0.6.1/license-mit"
+      ],
+      "repository": "https://github.com/microsoft/windows-rs"
+    },
+    {
+      "name": "windows-result",
+      "version": "0.4.1",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/windows-result-0.4.1/license-apache-2.0",
+        "native/windows-result-0.4.1/license-mit"
+      ],
+      "repository": "https://github.com/microsoft/windows-rs"
+    },
+    {
+      "name": "windows-strings",
+      "version": "0.5.1",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/windows-strings-0.5.1/license-apache-2.0",
+        "native/windows-strings-0.5.1/license-mit"
+      ],
+      "repository": "https://github.com/microsoft/windows-rs"
+    },
+    {
+      "name": "windows-sys",
+      "version": "0.59.0",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/windows-sys-0.59.0/license-apache-2.0",
+        "native/windows-sys-0.59.0/license-mit"
+      ],
+      "repository": "https://github.com/microsoft/windows-rs"
+    },
+    {
+      "name": "windows-sys",
+      "version": "0.60.2",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/windows-sys-0.60.2/license-apache-2.0",
+        "native/windows-sys-0.60.2/license-mit"
+      ],
+      "repository": "https://github.com/microsoft/windows-rs"
+    },
+    {
+      "name": "windows-sys",
+      "version": "0.61.2",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/windows-sys-0.61.2/license-apache-2.0",
+        "native/windows-sys-0.61.2/license-mit"
+      ],
+      "repository": "https://github.com/microsoft/windows-rs"
+    },
+    {
+      "name": "windows-targets",
+      "version": "0.52.6",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/windows-targets-0.52.6/license-apache-2.0",
+        "native/windows-targets-0.52.6/license-mit"
+      ],
+      "repository": "https://github.com/microsoft/windows-rs"
+    },
+    {
+      "name": "windows-targets",
+      "version": "0.53.5",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/windows-targets-0.53.5/license-apache-2.0",
+        "native/windows-targets-0.53.5/license-mit"
+      ],
+      "repository": "https://github.com/microsoft/windows-rs"
+    },
+    {
+      "name": "windows-threading",
+      "version": "0.2.1",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/windows-threading-0.2.1/license-apache-2.0",
+        "native/windows-threading-0.2.1/license-mit"
+      ],
+      "repository": "https://github.com/microsoft/windows-rs"
+    },
+    {
+      "name": "windows_x86_64_msvc",
+      "version": "0.52.6",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "host-build-or-proc-macro",
+        "target-build-script-run",
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/windows_x86_64_msvc-0.52.6/license-apache-2.0",
+        "native/windows_x86_64_msvc-0.52.6/license-mit"
+      ],
+      "repository": "https://github.com/microsoft/windows-rs"
+    },
+    {
+      "name": "windows_x86_64_msvc",
+      "version": "0.53.1",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "host-build-or-proc-macro",
+        "target-build-script-run",
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/windows_x86_64_msvc-0.53.1/license-apache-2.0",
+        "native/windows_x86_64_msvc-0.53.1/license-mit"
+      ],
+      "repository": "https://github.com/microsoft/windows-rs"
+    },
+    {
+      "name": "writeable",
+      "version": "0.6.4",
+      "declaredLicense": "Unicode-3.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/writeable-0.6.4/LICENSE"
+      ],
+      "repository": "https://github.com/unicode-org/icu4x"
+    },
+    {
+      "name": "yoke",
+      "version": "0.8.3",
+      "declaredLicense": "Unicode-3.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/yoke-0.8.3/LICENSE"
+      ],
+      "repository": "https://github.com/unicode-org/icu4x"
+    },
+    {
+      "name": "yoke-derive",
+      "version": "0.8.4",
+      "declaredLicense": "Unicode-3.0",
+      "scope": "host-build-or-proc-macro-only",
+      "compileRoles": [
+        "host-build-or-proc-macro"
+      ],
+      "licenseFiles": [
+        "native/yoke-derive-0.8.4/LICENSE"
+      ],
+      "repository": "https://github.com/unicode-org/icu4x"
+    },
+    {
+      "name": "zerofrom",
+      "version": "0.1.8",
+      "declaredLicense": "Unicode-3.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/zerofrom-0.1.8/LICENSE"
+      ],
+      "repository": "https://github.com/unicode-org/icu4x"
+    },
+    {
+      "name": "zerofrom-derive",
+      "version": "0.1.8",
+      "declaredLicense": "Unicode-3.0",
+      "scope": "host-build-or-proc-macro-only",
+      "compileRoles": [
+        "host-build-or-proc-macro"
+      ],
+      "licenseFiles": [
+        "native/zerofrom-derive-0.1.8/LICENSE"
+      ],
+      "repository": "https://github.com/unicode-org/icu4x"
+    },
+    {
+      "name": "zerotrie",
+      "version": "0.2.5",
+      "declaredLicense": "Unicode-3.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/zerotrie-0.2.5/LICENSE"
+      ],
+      "repository": "https://github.com/unicode-org/icu4x"
+    },
+    {
+      "name": "zerovec",
+      "version": "0.11.8",
+      "declaredLicense": "Unicode-3.0",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/zerovec-0.11.8/LICENSE"
+      ],
+      "repository": "https://github.com/unicode-org/icu4x"
+    },
+    {
+      "name": "zerovec-derive",
+      "version": "0.11.6",
+      "declaredLicense": "Unicode-3.0",
+      "scope": "host-build-or-proc-macro-only",
+      "compileRoles": [
+        "host-build-or-proc-macro"
+      ],
+      "licenseFiles": [
+        "native/zerovec-derive-0.11.6/LICENSE"
+      ],
+      "repository": "https://github.com/unicode-org/icu4x"
+    },
+    {
+      "name": "zmij",
+      "version": "1.0.23",
+      "declaredLicense": "MIT",
+      "scope": "target-compiled-graph",
+      "compileRoles": [
+        "host-build-or-proc-macro",
+        "target-build-script-run",
+        "target-lib-compile"
+      ],
+      "licenseFiles": [
+        "native/zmij-1.0.23/LICENSE-MIT"
+      ],
+      "repository": "https://github.com/dtolnay/zmij"
+    }
+  ],
+  "managedRuntimeAndDirectPackages": [
+    {
+      "name": "BlurredBackground.WPF/1.1.0",
+      "role": "direct-product",
+      "declaredLicense": "BSD-3-Clause"
+    },
+    {
+      "name": "Microsoft.Web.WebView2/1.0.4258.31",
+      "role": "direct-product",
+      "declaredLicense": "package LICENSE.txt (Microsoft redistribution terms); do not infer MIT"
+    },
+    {
+      "name": "Microsoft.NETCore.App.Runtime.win-x64/10.0.11",
+      "role": "self-contained-runtime",
+      "declaredLicense": "MIT",
+      "repository": "https://github.com/dotnet/dotnet",
+      "repositoryCommit": "e2f47b0110ed922f21a1522da67279133ce28f32",
+      "thirdPartyNoticesPresent": true
+    },
+    {
+      "name": "Microsoft.WindowsDesktop.App.Runtime.win-x64/10.0.11",
+      "role": "self-contained-runtime",
+      "declaredLicense": "MIT",
+      "repository": "https://github.com/dotnet/dotnet",
+      "repositoryCommit": "e2f47b0110ed922f21a1522da67279133ce28f32",
+      "thirdPartyNoticesPresent": false
+    }
+  ],
+  "assetsAndAdaptedPatterns": [
+    {
+      "name": "Grok Ball derived companion",
+      "source": "https://github.com/tycoding/grok-ball",
+      "pin": "de368ce3acdc5a70e871ee46ebbe8f60b11d3d6a",
+      "license": "MIT",
+      "notice": "Copyright (c) 2026 tycoding",
+      "distributed": "poses.json and adapted native WPF pose/rendering logic",
+      "referenceOnly": "grok-ball.js not embedded/executed in production"
+    },
+    {
+      "name": "Noto Sans SC Regular and Medium",
+      "source": "https://github.com/notofonts/noto-cjk",
+      "pin": null,
+      "license": "OFL-1.1",
+      "exactSourceRevisionMissing": true,
+      "fontNameTableVersion": "Version 2.002;hotconv 1.0.116;makeotfexe 2.5.65601"
+    },
+    {
+      "name": "TaskbarWidgets adapted patterns",
+      "source": "https://github.com/pfcdev/TaskbarWidgets",
+      "pin": "517d655d54fae3974690b3f9461bbf6539c13a30",
+      "license": "MIT",
+      "notice": "Copyright (c) 2026 PFC",
+      "scope": "only retained lifecycle/atomic file-channel pattern description; separate probe not shipped"
+    },
+    {
+      "name": "QuotaTray adapted patterns",
+      "source": "https://github.com/ukr8b3g-cmyk/QuotaTray",
+      "pin": "be39c92432324307fe412a1611cc9000dcddfbda",
+      "license": "MIT",
+      "notice": "Copyright (c) 2026 QuantaTray contributors",
+      "scope": "official Codex stdio-process/JSONL lifecycle patterns only"
+    },
+    {
+      "name": "Point Island icon"
+    },
+    {
+      "name": "OpenAI Blossom service identifier",
+      "use": "Codex service identification only, not DianDao app identity",
+      "brandRules": "https://openai.com/brand/",
+      "license": "OpenAI brand-use terms, not inferred GPL/MIT; original PNG acquisition URL was not recorded."
+    }
+  ],
+  "mplSourceAvailability": [
+    {
+      "name": "option-ext",
+      "version": "0.2.0",
+      "license": "MPL-2.0",
+      "sourcePackageUrl": "https://crates.io/crates/option-ext/0.2.0",
+      "repository": "https://github.com/soc/option-ext.git",
+      "licenseFiles": [
+        "native/option-ext-0.2.0/LICENSE.txt"
+      ],
+      "sourceAvailability": "The versioned source package is identified at the public crates.io link; links were not downloaded again by this packaging step. Any downstream modifications to MPL-covered source must also be made available under MPL-2.0.",
+      "sourceIntegrityEvidence": "Version and repository are from the reviewed compiled dependency manifest. No package-archive checksum/source-content revalidation is claimed here."
+    },
+    {
+      "name": "symphonia",
+      "version": "0.5.5",
+      "license": "MPL-2.0",
+      "sourcePackageUrl": "https://crates.io/crates/symphonia/0.5.5",
+      "repository": "https://github.com/pdeljanov/Symphonia",
+      "licenseFiles": [
+        "native-supplement/symphonia-0.5.5-workspace/LICENSE-MPL-2.0.txt"
+      ],
+      "sourceAvailability": "The versioned source package is identified at the public crates.io link; links were not downloaded again by this packaging step. Any downstream modifications to MPL-covered source must also be made available under MPL-2.0.",
+      "archiveSha256": "5773A4C030A19D9BFAA090F49746FF35C75DFDDFA700DF7A5939D5E076A57039",
+      "archiveMatchedCargoLock": true,
+      "repositoryCommit": "6d533f26150953a882a6a111ebd13f0abf7129d5",
+      "pathInRepository": "symphonia",
+      "sourceIntegrityEvidence": "Cached archive and VCS metadata matched the locked upstream package in prior review; this does not assert a fresh byte-by-byte scan of all native compiled source."
+    },
+    {
+      "name": "symphonia-bundle-flac",
+      "version": "0.5.5",
+      "license": "MPL-2.0",
+      "sourcePackageUrl": "https://crates.io/crates/symphonia-bundle-flac/0.5.5",
+      "repository": "https://github.com/pdeljanov/Symphonia",
+      "licenseFiles": [
+        "native-supplement/symphonia-0.5.5-workspace/LICENSE-MPL-2.0.txt"
+      ],
+      "sourceAvailability": "The versioned source package is identified at the public crates.io link; links were not downloaded again by this packaging step. Any downstream modifications to MPL-covered source must also be made available under MPL-2.0.",
+      "archiveSha256": "C91565E180AEA25D9B80A910C546802526FFD0072D0B8974E3EBE59B686C9976",
+      "archiveMatchedCargoLock": true,
+      "repositoryCommit": "6d533f26150953a882a6a111ebd13f0abf7129d5",
+      "pathInRepository": "symphonia-bundle-flac",
+      "sourceIntegrityEvidence": "Cached archive and VCS metadata matched the locked upstream package in prior review; this does not assert a fresh byte-by-byte scan of all native compiled source."
+    },
+    {
+      "name": "symphonia-core",
+      "version": "0.5.5",
+      "license": "MPL-2.0",
+      "sourcePackageUrl": "https://crates.io/crates/symphonia-core/0.5.5",
+      "repository": "https://github.com/pdeljanov/Symphonia",
+      "licenseFiles": [
+        "native-supplement/symphonia-0.5.5-workspace/LICENSE-MPL-2.0.txt"
+      ],
+      "sourceAvailability": "The versioned source package is identified at the public crates.io link; links were not downloaded again by this packaging step. Any downstream modifications to MPL-covered source must also be made available under MPL-2.0.",
+      "archiveSha256": "EA00CC4F79B7F6BB7FF87EDDC065A1066F3A43FE1875979056672C9EF948C2AF",
+      "archiveMatchedCargoLock": true,
+      "repositoryCommit": "6d533f26150953a882a6a111ebd13f0abf7129d5",
+      "pathInRepository": "symphonia-core",
+      "sourceIntegrityEvidence": "Cached archive and VCS metadata matched the locked upstream package in prior review; this does not assert a fresh byte-by-byte scan of all native compiled source."
+    },
+    {
+      "name": "symphonia-metadata",
+      "version": "0.5.5",
+      "license": "MPL-2.0",
+      "sourcePackageUrl": "https://crates.io/crates/symphonia-metadata/0.5.5",
+      "repository": "https://github.com/pdeljanov/Symphonia",
+      "licenseFiles": [
+        "native-supplement/symphonia-0.5.5-workspace/LICENSE-MPL-2.0.txt"
+      ],
+      "sourceAvailability": "The versioned source package is identified at the public crates.io link; links were not downloaded again by this packaging step. Any downstream modifications to MPL-covered source must also be made available under MPL-2.0.",
+      "archiveSha256": "36306FF42B9FFE6E5AFC99D49E121E0BD62FE79B9DB7B9681D48E29FA19E6B16",
+      "archiveMatchedCargoLock": true,
+      "repositoryCommit": "6d533f26150953a882a6a111ebd13f0abf7129d5",
+      "pathInRepository": "symphonia-metadata",
+      "sourceIntegrityEvidence": "Cached archive and VCS metadata matched the locked upstream package in prior review; this does not assert a fresh byte-by-byte scan of all native compiled source."
+    },
+    {
+      "name": "symphonia-utils-xiph",
+      "version": "0.5.5",
+      "license": "MPL-2.0",
+      "sourcePackageUrl": "https://crates.io/crates/symphonia-utils-xiph/0.5.5",
+      "repository": "https://github.com/pdeljanov/Symphonia",
+      "licenseFiles": [
+        "native-supplement/symphonia-0.5.5-workspace/LICENSE-MPL-2.0.txt"
+      ],
+      "sourceAvailability": "The versioned source package is identified at the public crates.io link; links were not downloaded again by this packaging step. Any downstream modifications to MPL-covered source must also be made available under MPL-2.0.",
+      "archiveSha256": "EE27C85AB799A338446B68EEC77ABF42E1A6F1BB490656E121C6E27BFBAB9F16",
+      "archiveMatchedCargoLock": true,
+      "repositoryCommit": "6d533f26150953a882a6a111ebd13f0abf7129d5",
+      "pathInRepository": "symphonia-utils-xiph",
+      "sourceIntegrityEvidence": "Cached archive and VCS metadata matched the locked upstream package in prior review; this does not assert a fresh byte-by-byte scan of all native compiled source."
+    }
+  ],
+  "files": [
+    {
+      "path": "managed-assets/BlurredBackground.WPF-1.1.0-LICENSE.txt",
+      "bytes": 1530,
+      "sha256": "9381913CC2535778513C488A06B121A7B40123598EABB255D5CE5BD4CA9DD5F7",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "managed-assets/Grok-Ball-MIT.txt",
+      "bytes": 1065,
+      "sha256": "B8822EA9DA7704044227A433C4D3BE2CADFEF48307C690B1699ABB77604D3532",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "managed-assets/Microsoft.NETCore.App.Runtime.win-x64-10.0.11-LICENSE.txt",
+      "bytes": 1139,
+      "sha256": "D7A68596AB69B06F51CA278A6545148E4269A9381C26D597C13DF5D88E08CF5B",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "managed-assets/Microsoft.NETCore.App.Runtime.win-x64-10.0.11-THIRD-PARTY-NOTICES.txt",
+      "bytes": 78041,
+      "sha256": "6D15E10A101C6BFFF2AB4429ED061BF76C456FC4B23AD6B03E0D0F8377148A21",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "managed-assets/Microsoft.Web.WebView2-1.0.4258.31-LICENSE.txt",
+      "bytes": 1487,
+      "sha256": "0AF8F1B807512AAE39C2AC1AA4D0CAE65CABECB6FD554B8439A5162A0D6ECA55",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "managed-assets/Microsoft.Web.WebView2-1.0.4258.31-NOTICE.txt",
+      "bytes": 3894,
+      "sha256": "106423785C5B7EBA0A8E61D1837F2132E9C828E20AD530F565D981C1DF60DD90",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "managed-assets/Microsoft.WindowsDesktop.App.Runtime.win-x64-10.0.11-LICENSE.txt",
+      "bytes": 1137,
+      "sha256": "A89886665765362EB77E0F8E26602C924520041D1711B2EEDC136434FE4D01AB",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "managed-assets/Noto-Sans-SC-OFL-1.1.txt",
+      "bytes": 4301,
+      "sha256": "6A73F9541C2DE74158C0E7CF6B0A58EF774F5A780BF191F2D7EC9CC53EFE2BF2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "managed-assets/Product-GPL-3.0.txt",
+      "bytes": 35823,
+      "sha256": "230184F60BAE2FEAF244F10A8BAC053C8FF33A183BCC365B4D8B876D2B7F4809",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native-supplement/clipboard-win-5.4.1/LICENSE-BSL-1.0.txt",
+      "bytes": 1338,
+      "sha256": "C9BFF75738922193E67FA726FA225535870D2AA1059F91452C411736284AD566",
+      "origin": "https://github.com/DoumanAsh/clipboard-win/blob/3b27cf2bfd1adcfa6e0264eb51c1025ddaf0f342/LICENSE"
+    },
+    {
+      "path": "native-supplement/dasp_sample-0.11.0/LICENSE-APACHE-2.0-SELECTED.txt",
+      "bytes": 10860,
+      "sha256": "8ADA45CD9F843ACF64E4722AE262C622A2B3B3007C7310EF36AC1061A30F6ADB",
+      "origin": "selected Apache-2.0 full standard terms"
+    },
+    {
+      "path": "native-supplement/symphonia-0.5.5-workspace/LICENSE-MPL-2.0.txt",
+      "bytes": 16725,
+      "sha256": "C76F740D1521B9BED9CA7A04AD526C310493C62621B1341D623B431736533B30",
+      "origin": "https://github.com/pdeljanov/Symphonia/blob/6d533f26150953a882a6a111ebd13f0abf7129d5/LICENSE"
+    },
+    {
+      "path": "native/adler2-2.0.1/LICENSE-0BSD",
+      "bytes": 665,
+      "sha256": "861399F8C21C042B110517E76DC6B63A2B334276C8CF17412FC3C8908CA8DC17",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/adler2-2.0.1/LICENSE-APACHE",
+      "bytes": 10860,
+      "sha256": "8ADA45CD9F843ACF64E4722AE262C622A2B3B3007C7310EF36AC1061A30F6ADB",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/adler2-2.0.1/LICENSE-MIT",
+      "bytes": 1023,
+      "sha256": "23F18E03DC49DF91622FE2A76176497404E46CED8A715D9D2B67A7446571CCA3",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/arboard-3.6.1/LICENSE-APACHE.txt",
+      "bytes": 10174,
+      "sha256": "0D542E0C8804E39AA7F37EB00DA5A762149DC682D7829451287E11B938E94594",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/arboard-3.6.1/LICENSE-MIT.txt",
+      "bytes": 1081,
+      "sha256": "F35468024534E0F4F16BB94CD0E88C87FBD1314F919C2645A07D350FB77B40C0",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/arrayvec-0.7.8/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/arrayvec-0.7.8/LICENSE-MIT",
+      "bytes": 1071,
+      "sha256": "4DA95EC4ECB65B738D470B7D762894AD9C97DA93E6CBFB18B570FC2C96F4B871",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/atomic-write-file-0.3.1/LICENSE.md",
+      "bytes": 1447,
+      "sha256": "27A012F5BD681A8BC4574094C96FA3BF58F94BB59F7290E0C2F8265FCF7429F9",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/auto-launch-0.6.0/LICENSE",
+      "bytes": 1064,
+      "sha256": "E3DEE6D5B240791312CD89333A5CC62E6F65BE66BFF8AB6903DC9A67BBE84263",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/autocfg-1.5.1/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/autocfg-1.5.1/LICENSE-MIT",
+      "bytes": 1054,
+      "sha256": "27995D58AD5C1145C1A8CD86244CE844886958A35EB2B78C6B772748669999AC",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/bitflags-1.3.2/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/bitflags-1.3.2/LICENSE-MIT",
+      "bytes": 1071,
+      "sha256": "6485B8ED310D3F0340BF1AD1F47645069CE4069DCC6BB46C7D5C6FAF41DE1FDB",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/bitflags-2.13.2/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/bitflags-2.13.2/LICENSE-MIT",
+      "bytes": 1071,
+      "sha256": "6485B8ED310D3F0340BF1AD1F47645069CE4069DCC6BB46C7D5C6FAF41DE1FDB",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/bongocat-audio-2.3.1/LICENSE",
+      "bytes": 11164,
+      "sha256": "BD9F0C4905EF3F1A9CD174F58834B104D8121027A95238D8DD3B1861DFADADE1",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/bongocat-config-2.3.1/LICENSE",
+      "bytes": 11164,
+      "sha256": "BD9F0C4905EF3F1A9CD174F58834B104D8121027A95238D8DD3B1861DFADADE1",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/bongocat-input-2.3.1/LICENSE",
+      "bytes": 11164,
+      "sha256": "BD9F0C4905EF3F1A9CD174F58834B104D8121027A95238D8DD3B1861DFADADE1",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/bongocat-live2d-2.3.1/LICENSE",
+      "bytes": 11164,
+      "sha256": "BD9F0C4905EF3F1A9CD174F58834B104D8121027A95238D8DD3B1861DFADADE1",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/bongocat-live2d-playback-2.3.1/LICENSE",
+      "bytes": 11164,
+      "sha256": "BD9F0C4905EF3F1A9CD174F58834B104D8121027A95238D8DD3B1861DFADADE1",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/bongocat-live2d-render-2.3.1/LICENSE",
+      "bytes": 11164,
+      "sha256": "BD9F0C4905EF3F1A9CD174F58834B104D8121027A95238D8DD3B1861DFADADE1",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/bongocat-log-2.3.1/LICENSE",
+      "bytes": 11164,
+      "sha256": "BD9F0C4905EF3F1A9CD174F58834B104D8121027A95238D8DD3B1861DFADADE1",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/bongocat-model-2.3.1/LICENSE",
+      "bytes": 11164,
+      "sha256": "BD9F0C4905EF3F1A9CD174F58834B104D8121027A95238D8DD3B1861DFADADE1",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/bongocat-overlay-2.3.1/LICENSE",
+      "bytes": 11164,
+      "sha256": "BD9F0C4905EF3F1A9CD174F58834B104D8121027A95238D8DD3B1861DFADADE1",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/bongocat-platform-2.3.1/LICENSE",
+      "bytes": 11164,
+      "sha256": "BD9F0C4905EF3F1A9CD174F58834B104D8121027A95238D8DD3B1861DFADADE1",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/bongocat-render-2.3.1/LICENSE",
+      "bytes": 11164,
+      "sha256": "BD9F0C4905EF3F1A9CD174F58834B104D8121027A95238D8DD3B1861DFADADE1",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/bongocat-runtime-2.3.1/LICENSE",
+      "bytes": 11164,
+      "sha256": "BD9F0C4905EF3F1A9CD174F58834B104D8121027A95238D8DD3B1861DFADADE1",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/bongocat-storage-2.3.1/LICENSE",
+      "bytes": 11164,
+      "sha256": "BD9F0C4905EF3F1A9CD174F58834B104D8121027A95238D8DD3B1861DFADADE1",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/bytemuck-1.25.2/LICENSE-APACHE",
+      "bytes": 10398,
+      "sha256": "E3BA223BB1423F0AAD8C3DFCE0FE3148DB48926D41E6FBC3AFBBF5FF9E1C89CB",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/bytemuck-1.25.2/LICENSE-MIT",
+      "bytes": 1110,
+      "sha256": "9DF9BA60A11AF705F2E451B53762686E615D86F76B169CF075C3237730DBD7E2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/bytemuck-1.25.2/LICENSE-ZLIB",
+      "bytes": 851,
+      "sha256": "84B34DD7608F7FB9B17BD588A6BF392BF7DE504E2716F024A77D89F1B145A151",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/byteorder-lite-0.1.0/LICENSE-MIT",
+      "bytes": 1081,
+      "sha256": "0F96A83840E146E43C0EC96A22EC1F392E0680E6C1226E6F3BA87E0740AF850F",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/byteorder-lite-0.1.0/UNLICENSE",
+      "bytes": 1211,
+      "sha256": "7E12E5DF4BAE12CB21581BA157CED20E1986A0508DD10D0E8A4AB9A4CF94E85C",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/cfg-if-1.0.5/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/cfg-if-1.0.5/LICENSE-MIT",
+      "bytes": 1057,
+      "sha256": "378F5840B258E2779C39418F3F2D7B2BA96F1C7917DD6BE0713F88305DBDA397",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/chacha20-0.10.2/LICENSE-APACHE",
+      "bytes": 10849,
+      "sha256": "A9040321C3712D8FD0B09CF52B17445DE04A23A10165049AE187CD39E5C86BE5",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/chacha20-0.10.2/LICENSE-MIT",
+      "bytes": 1082,
+      "sha256": "B8C6939380A400F53E11923D50FCC4DD2FA1BA8339FD9D04CDA38A0251B6C9B0",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/core_detect-1.0.0/LICENSE-APACHE",
+      "bytes": 10846,
+      "sha256": "769F80B5BCB42ED0AF4E4D2FD74E1AC9BF843CB80C5A29219D1EF3544428A6BB",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/core_detect-1.0.0/LICENSE-MIT",
+      "bytes": 1076,
+      "sha256": "8569EBF6BF52937B961D9C9C934D8400A2BB6B09651A9AFACBB3FC18FE5C09B1",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/cpal-0.18.2/LICENSE",
+      "bytes": 11357,
+      "sha256": "C71D239DF91726FC519C6EB72D318EC65820627232B2F796219E87DCF35D0AB4",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/cpufeatures-0.3.1/LICENSE-APACHE",
+      "bytes": 10849,
+      "sha256": "A9040321C3712D8FD0B09CF52B17445DE04A23A10165049AE187CD39E5C86BE5",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/cpufeatures-0.3.1/LICENSE-MIT",
+      "bytes": 1082,
+      "sha256": "73B9DC2E79C7308998DD30296E073AEFAEFB944A68FB89AA412C23C0EDCABCAA",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/crc32fast-1.5.2/LICENSE-APACHE",
+      "bytes": 11358,
+      "sha256": "C6596EB7BE8581C18BE736C846FB9173B69ECCF6EF94C5135893EC56BD92BA08",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/crc32fast-1.5.2/LICENSE-MIT",
+      "bytes": 1097,
+      "sha256": "61D383B05B87D78F94D2937E2580CCE47226D17823C0430FBCAD09596537EFCF",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/crossbeam-channel-0.5.17/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/crossbeam-channel-0.5.17/LICENSE-MIT",
+      "bytes": 1099,
+      "sha256": "5734ED989DFCA1F625B40281EE9F4530F91B2411EC01CB748223E7EB87E201AB",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/crossbeam-channel-0.5.17/LICENSE-THIRD-PARTY",
+      "bytes": 33447,
+      "sha256": "B16DB96B93B1D7CF7BEA533F572091EC6BCA3234FBE0A83038BE772FF391A44C",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/crossbeam-utils-0.8.23/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/crossbeam-utils-0.8.23/LICENSE-MIT",
+      "bytes": 1099,
+      "sha256": "5734ED989DFCA1F625B40281EE9F4530F91B2411EC01CB748223E7EB87E201AB",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/deranged-0.5.8/LICENSE-Apache",
+      "bytes": 11349,
+      "sha256": "EDD65BDD88957A205C47D53FA499EED8865A70320F0F03F6391668CB304EA376",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/deranged-0.5.8/LICENSE-MIT",
+      "bytes": 1062,
+      "sha256": "231C837C45EB53F108FB48929E488965BC4FCC14E9EA21D35F50E6B99D98685B",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/dirs-7.0.0/LICENSE-APACHE",
+      "bytes": 9694,
+      "sha256": "D3174AD63E721D4C9DCCB8AD4320848992D314369BC46319720B5802C9153FE9",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/dirs-7.0.0/LICENSE-MIT",
+      "bytes": 1069,
+      "sha256": "6A2E0ADE09A7D5F816F11566FEE2B151B32235A7FAD52B41D49CCE96F833C1A9",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/dirs-sys-0.5.0/LICENSE-APACHE",
+      "bytes": 9694,
+      "sha256": "D3174AD63E721D4C9DCCB8AD4320848992D314369BC46319720B5802C9153FE9",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/dirs-sys-0.5.0/LICENSE-MIT",
+      "bytes": 1069,
+      "sha256": "6A2E0ADE09A7D5F816F11566FEE2B151B32235A7FAD52B41D49CCE96F833C1A9",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/displaydoc-0.2.7/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/displaydoc-0.2.7/LICENSE-MIT",
+      "bytes": 1023,
+      "sha256": "23F18E03DC49DF91622FE2A76176497404E46CED8A715D9D2B67A7446571CCA3",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/dpi-0.1.2/LICENSE",
+      "bytes": 11323,
+      "sha256": "6DC0E068DCF3A5BC8E054205B85B7720E1D49265BBC64BF515D2CF79197DF69A",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/dpi-0.1.2/LICENSE-LIBM-MIT",
+      "bytes": 2444,
+      "sha256": "9EFF396A99BAFD208E7126602420D6864F6066C08B84485A5B032320A9C01997",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/dyn-clone-1.0.20/LICENSE-APACHE",
+      "bytes": 9723,
+      "sha256": "62C7A1E35F56406896D7AA7CA52D0CC0D272AC022B5D2796E7D6905DB8A3636A",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/dyn-clone-1.0.20/LICENSE-MIT",
+      "bytes": 1023,
+      "sha256": "23F18E03DC49DF91622FE2A76176497404E46CED8A715D9D2B67A7446571CCA3",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/encoding_rs-0.8.42/LICENSE-APACHE",
+      "bytes": 11358,
+      "sha256": "CFC7749B96F63BD31C3C42B5C471BF756814053E847C10F3EB003417BC523D30",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/encoding_rs-0.8.42/LICENSE-MIT",
+      "bytes": 1053,
+      "sha256": "3FA4CA83DCC9237839B1BDEB2E6D16BDFB5EC0C5CE42B24694D8BBF0DCBEF72C",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/encoding_rs-0.8.42/LICENSE-WHATWG",
+      "bytes": 1501,
+      "sha256": "838118388FE5C2E7F1DBBAEED13E1C7F3EBF88BE91319C7C1D77C18E987D1A50",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/error-code-3.4.0/LICENSE",
+      "bytes": 1338,
+      "sha256": "C9BFF75738922193E67FA726FA225535870D2AA1059F91452C411736284AD566",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/fdeflate-0.3.7/LICENSE-APACHE",
+      "bytes": 10174,
+      "sha256": "0D542E0C8804E39AA7F37EB00DA5A762149DC682D7829451287E11B938E94594",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/fdeflate-0.3.7/LICENSE-MIT",
+      "bytes": 1036,
+      "sha256": "C77A4CF9DA729987D0FE7CCD811E3BD27393914DDF3D23467C18CC22954513B3",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/flate2-1.1.10/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/flate2-1.1.10/LICENSE-MIT",
+      "bytes": 1062,
+      "sha256": "025436EDFF4CFCDDE17A5811FDEA78892D8482EFD1ABDEC5A17872D07A4F2112",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/fnv-1.0.7/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/fnv-1.0.7/LICENSE-MIT",
+      "bytes": 1056,
+      "sha256": "65FDB6C76CD61612070C066EEC9ECDB30EE74FB27859D0D9AF58B9F499FD0C3E",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/form_urlencoded-1.2.2/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/form_urlencoded-1.2.2/LICENSE-MIT",
+      "bytes": 1072,
+      "sha256": "20C7855C364D57EA4C97889A5E8D98470A9952DADE37BD9248B9A54431670E5E",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/getrandom-0.4.3/LICENSE-APACHE",
+      "bytes": 10849,
+      "sha256": "AAFF376532EA30A0CD5330B9502AD4A4C8BF769C539C87FFE78819D188A18EBF",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/getrandom-0.4.3/LICENSE-MIT",
+      "bytes": 1130,
+      "sha256": "523A42C25D245DDE9C015F882CEC7F4555AAD883382A6CF19B4B7D9B2CD5419B",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/gilrs-0.11.2/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/gilrs-0.11.2/LICENSE-MIT",
+      "bytes": 1091,
+      "sha256": "74497FA3C93EBB5EC32D85DE117469CB3FAB3276F7C02426F14C0F19F31F4424",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/gilrs-core-0.6.8/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/gilrs-core-0.6.8/LICENSE-MIT",
+      "bytes": 1091,
+      "sha256": "74497FA3C93EBB5EC32D85DE117469CB3FAB3276F7C02426F14C0F19F31F4424",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/global-hotkey-0.8.0/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/global-hotkey-0.8.0/LICENSE-MIT",
+      "bytes": 1108,
+      "sha256": "2AB5537B8C0CB1D475E2145B6A7994B04E7C71E6E5BD836F7F9C47C221A5AD9A",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/global-hotkey-0.8.0/LICENSE.spdx",
+      "bytes": 845,
+      "sha256": "3B3A242FA1704327A51563C614C1043DEAB014F58EBBBDD173262C990104497E",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/icu_collections-2.3.0/LICENSE",
+      "bytes": 2195,
+      "sha256": "F367C1B8E1AA262435251E442901DA4607B4650E0E63A026F5044473ECFB90F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/icu_locale_core-2.3.0/LICENSE",
+      "bytes": 2195,
+      "sha256": "F367C1B8E1AA262435251E442901DA4607B4650E0E63A026F5044473ECFB90F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/icu_normalizer-2.3.0/LICENSE",
+      "bytes": 2195,
+      "sha256": "F367C1B8E1AA262435251E442901DA4607B4650E0E63A026F5044473ECFB90F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/icu_normalizer_data-2.3.0/LICENSE",
+      "bytes": 2195,
+      "sha256": "F367C1B8E1AA262435251E442901DA4607B4650E0E63A026F5044473ECFB90F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/icu_properties-2.3.0/LICENSE",
+      "bytes": 2195,
+      "sha256": "F367C1B8E1AA262435251E442901DA4607B4650E0E63A026F5044473ECFB90F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/icu_properties_data-2.3.0/LICENSE",
+      "bytes": 2195,
+      "sha256": "F367C1B8E1AA262435251E442901DA4607B4650E0E63A026F5044473ECFB90F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/icu_provider-2.3.1/LICENSE",
+      "bytes": 2195,
+      "sha256": "F367C1B8E1AA262435251E442901DA4607B4650E0E63A026F5044473ECFB90F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/idna-1.1.0/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/idna-1.1.0/LICENSE-MIT",
+      "bytes": 1072,
+      "sha256": "B38F11F6096706E6DE553DABE2A7ED142D59B6FA8C97E290C67496154745CDD5",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/idna_adapter-1.2.2/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/idna_adapter-1.2.2/LICENSE-MIT",
+      "bytes": 1062,
+      "sha256": "8B43CE8ACCD61E9D370B5CA9E9C4F953279B5C239926C62315B40E24DF51B726",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/image-0.25.10/LICENSE-APACHE",
+      "bytes": 10174,
+      "sha256": "0D542E0C8804E39AA7F37EB00DA5A762149DC682D7829451287E11B938E94594",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/image-0.25.10/LICENSE-MIT",
+      "bytes": 1036,
+      "sha256": "C77A4CF9DA729987D0FE7CCD811E3BD27393914DDF3D23467C18CC22954513B3",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/itoa-1.0.18/LICENSE-APACHE",
+      "bytes": 9723,
+      "sha256": "62C7A1E35F56406896D7AA7CA52D0CC0D272AC022B5D2796E7D6905DB8A3636A",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/itoa-1.0.18/LICENSE-MIT",
+      "bytes": 1023,
+      "sha256": "23F18E03DC49DF91622FE2A76176497404E46CED8A715D9D2B67A7446571CCA3",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/keyboard-types-0.7.0/LICENSE-APACHE",
+      "bytes": 10846,
+      "sha256": "769F80B5BCB42ED0AF4E4D2FD74E1AC9BF843CB80C5A29219D1EF3544428A6BB",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/keyboard-types-0.7.0/LICENSE-MIT",
+      "bytes": 1050,
+      "sha256": "31DBBAB009F1B2E59A1622D5955DFAFC38EBE834000215B49D954C6F85FE927C",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/keyboard-types-0.8.3/LICENSE-APACHE",
+      "bytes": 10846,
+      "sha256": "769F80B5BCB42ED0AF4E4D2FD74E1AC9BF843CB80C5A29219D1EF3544428A6BB",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/keyboard-types-0.8.3/LICENSE-MIT",
+      "bytes": 1050,
+      "sha256": "31DBBAB009F1B2E59A1622D5955DFAFC38EBE834000215B49D954C6F85FE927C",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/lazy_static-1.5.1/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/lazy_static-1.5.1/LICENSE-MIT",
+      "bytes": 1023,
+      "sha256": "23F18E03DC49DF91622FE2A76176497404E46CED8A715D9D2B67A7446571CCA3",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/litemap-0.8.3/LICENSE",
+      "bytes": 2195,
+      "sha256": "F367C1B8E1AA262435251E442901DA4607B4650E0E63A026F5044473ECFB90F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/log-0.4.34/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/log-0.4.34/LICENSE-MIT",
+      "bytes": 1071,
+      "sha256": "6485B8ED310D3F0340BF1AD1F47645069CE4069DCC6BB46C7D5C6FAF41DE1FDB",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/memchr-2.8.3/COPYING",
+      "bytes": 126,
+      "sha256": "01C266BCED4A434DA0051174D6BEE16A4C82CF634E2679B6155D40D75012390F",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/memchr-2.8.3/LICENSE-MIT",
+      "bytes": 1081,
+      "sha256": "0F96A83840E146E43C0EC96A22EC1F392E0680E6C1226E6F3BA87E0740AF850F",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/memchr-2.8.3/UNLICENSE",
+      "bytes": 1211,
+      "sha256": "7E12E5DF4BAE12CB21581BA157CED20E1986A0508DD10D0E8A4AB9A4CF94E85C",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/miniz_oxide-0.8.9/LICENSE",
+      "bytes": 1213,
+      "sha256": "4108245A1F2DF9D4E94DF8ABED5B4BA0759BB2F9B40A6B939F1BE141077AE50B",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/miniz_oxide-0.8.9/LICENSE-APACHE.md",
+      "bytes": 10174,
+      "sha256": "0D542E0C8804E39AA7F37EB00DA5A762149DC682D7829451287E11B938E94594",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/miniz_oxide-0.8.9/LICENSE-MIT.md",
+      "bytes": 1212,
+      "sha256": "799E9CA9D179295EF372F25D3769CDDA7D25BB2668ADD6A6A1E22D1E4C678B8D",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/miniz_oxide-0.8.9/LICENSE-ZLIB.md",
+      "bytes": 984,
+      "sha256": "0A54E647FE54104658B5E563C04C6F9EDF251710E47BCE692E0BD990A4DDAA39",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/miniz_oxide-0.9.1/LICENSE",
+      "bytes": 1213,
+      "sha256": "4108245A1F2DF9D4E94DF8ABED5B4BA0759BB2F9B40A6B939F1BE141077AE50B",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/miniz_oxide-0.9.1/LICENSE-APACHE.md",
+      "bytes": 10174,
+      "sha256": "0D542E0C8804E39AA7F37EB00DA5A762149DC682D7829451287E11B938E94594",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/miniz_oxide-0.9.1/LICENSE-MIT.md",
+      "bytes": 1212,
+      "sha256": "799E9CA9D179295EF372F25D3769CDDA7D25BB2668ADD6A6A1E22D1E4C678B8D",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/miniz_oxide-0.9.1/LICENSE-ZLIB.md",
+      "bytes": 984,
+      "sha256": "0A54E647FE54104658B5E563C04C6F9EDF251710E47BCE692E0BD990A4DDAA39",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/moxcms-0.8.1/LICENSE-APACHE.md",
+      "bytes": 11348,
+      "sha256": "90BF2D659C43045111B65C733AB2A6D4CBCB422A098368C8C58A9BA3DB4ED0C5",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/moxcms-0.8.1/LICENSE.md",
+      "bytes": 1506,
+      "sha256": "2AA92CADA6431E75615E3FE6CB1A9082C98F777D48AE1C087C0DA0E37F7B8BFF",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/muda-0.21.2/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/muda-0.21.2/LICENSE-MIT",
+      "bytes": 1108,
+      "sha256": "2AB5537B8C0CB1D475E2145B6A7994B04E7C71E6E5BD836F7F9C47C221A5AD9A",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/muda-0.21.2/LICENSE.spdx",
+      "bytes": 809,
+      "sha256": "B99F9D43803F2AC979C50949DF630BD8EEAF2FCD1B9FDB9093710D70F5DFB63D",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/multiversion_no_op-1.0.0/LICENSE-APACHE",
+      "bytes": 11358,
+      "sha256": "CFC7749B96F63BD31C3C42B5C471BF756814053E847C10F3EB003417BC523D30",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/multiversion_no_op-1.0.0/LICENSE-MIT",
+      "bytes": 1053,
+      "sha256": "3FA4CA83DCC9237839B1BDEB2E6D16BDFB5EC0C5CE42B24694D8BBF0DCBEF72C",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/native-sdk-and-upstream/CubismCore-RedistributableFiles.txt",
+      "bytes": 2730,
+      "sha256": "7FC84DE68C192319CB0F8F724BA2C3AA374DC5385900AF32D11FFE6A248C6B68",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/native-sdk-and-upstream/LICENSE-BongoCat-Apache-2.0.txt",
+      "bytes": 11164,
+      "sha256": "BD9F0C4905EF3F1A9CD174F58834B104D8121027A95238D8DD3B1861DFADADE1",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/native-sdk-and-upstream/LICENSE-CubismCore.txt",
+      "bytes": 520,
+      "sha256": "B81E37048010EF1D336106151201A0323C3309CAE44AECDEDF57831FE88FA991",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/normpath-1.5.2/LICENSE-APACHE",
+      "bytes": 10173,
+      "sha256": "A6CBA85BC92E0CFF7A450B1D873C0EAA2E9FC96BF472DF0247A26BEC77BF3FF9",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/normpath-1.5.2/LICENSE-MIT",
+      "bytes": 1089,
+      "sha256": "E021C8DFCB52F12BC62D0405C14B5273FAB253AE593852A23EFC5A66B6BFC0F8",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/normpath-1.5.2/LICENSE-THIRD-PARTY",
+      "bytes": 23950,
+      "sha256": "6CAA651183DD30C01D321AD676A7505EC533DB132C8C0B081764621F77DFC6A0",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/num-bigint-0.4.8/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/num-bigint-0.4.8/LICENSE-MIT",
+      "bytes": 1071,
+      "sha256": "6485B8ED310D3F0340BF1AD1F47645069CE4069DCC6BB46C7D5C6FAF41DE1FDB",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/num-conv-0.2.2/LICENSE-Apache",
+      "bytes": 10174,
+      "sha256": "0D542E0C8804E39AA7F37EB00DA5A762149DC682D7829451287E11B938E94594",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/num-conv-0.2.2/LICENSE-MIT",
+      "bytes": 1050,
+      "sha256": "E2E245F2B566D0BFAFB0F6A04C16B82D710C4E6E7D799E39BB4EF6E541B85B98",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/num-integer-0.1.47/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/num-integer-0.1.47/LICENSE-MIT",
+      "bytes": 1071,
+      "sha256": "6485B8ED310D3F0340BF1AD1F47645069CE4069DCC6BB46C7D5C6FAF41DE1FDB",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/num-rational-0.4.2/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/num-rational-0.4.2/LICENSE-MIT",
+      "bytes": 1071,
+      "sha256": "6485B8ED310D3F0340BF1AD1F47645069CE4069DCC6BB46C7D5C6FAF41DE1FDB",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/num-traits-0.2.19/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/num-traits-0.2.19/LICENSE-MIT",
+      "bytes": 1071,
+      "sha256": "6485B8ED310D3F0340BF1AD1F47645069CE4069DCC6BB46C7D5C6FAF41DE1FDB",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/once_cell-1.21.4/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/once_cell-1.21.4/LICENSE-MIT",
+      "bytes": 1023,
+      "sha256": "23F18E03DC49DF91622FE2A76176497404E46CED8A715D9D2B67A7446571CCA3",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/opener-0.9.0/LICENSE-APACHE",
+      "bytes": 11309,
+      "sha256": "8F3C95DE851C0ACC9D1CBAA95E500E4198408283B853ED3E355CE27112057B44",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/opener-0.9.0/LICENSE-MIT",
+      "bytes": 1035,
+      "sha256": "1847E0E0698142ED4347C1441A9FA81C8FBDDD44B1D8BBCD5E3647F991759D7F",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/opener-0.9.0/LICENSE-THIRD-PARTY",
+      "bytes": 1163,
+      "sha256": "D1BD8C7783BFFD68A6207D89D9243EECE7E7DF0BB6BCB605F76D9684621C2E35",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/option-ext-0.2.0/LICENSE.txt",
+      "bytes": 16727,
+      "sha256": "66A3107D5AD6A058AAB753EAAC2047CCB2ED0E39465DD0FE5844DA3E300D5172",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/os_info-3.15.0/LICENSE",
+      "bytes": 1082,
+      "sha256": "44B62AA8F8A212F36D120A4F719438765020731207FD78BF28768032291DF836",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/percent-encoding-2.3.2/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/percent-encoding-2.3.2/LICENSE-MIT",
+      "bytes": 1072,
+      "sha256": "B38F11F6096706E6DE553DABE2A7ED142D59B6FA8C97E290C67496154745CDD5",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/png-0.18.1/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/png-0.18.1/LICENSE-MIT",
+      "bytes": 1048,
+      "sha256": "EAF40297C75DA471F7CDA1F3458E8D91B4B2EC866E609527A13ACFA93B638652",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/potential_utf-0.1.6/LICENSE",
+      "bytes": 2195,
+      "sha256": "F367C1B8E1AA262435251E442901DA4607B4650E0E63A026F5044473ECFB90F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/powerfmt-0.2.1/LICENSE-Apache",
+      "bytes": 11349,
+      "sha256": "155420C6403D4E0FCA34105E3C03FDD6939B64C393C7EC6F95F5B72C5474EAB0",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/powerfmt-0.2.1/LICENSE-MIT",
+      "bytes": 1062,
+      "sha256": "070DBC7DDA03A29296F2D58BDB9B7331AF90F2ABC9F31DF22875D1EABAF29852",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/proc-macro2-1.0.107/LICENSE-APACHE",
+      "bytes": 9723,
+      "sha256": "62C7A1E35F56406896D7AA7CA52D0CC0D272AC022B5D2796E7D6905DB8A3636A",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/proc-macro2-1.0.107/LICENSE-MIT",
+      "bytes": 1023,
+      "sha256": "23F18E03DC49DF91622FE2A76176497404E46CED8A715D9D2B67A7446571CCA3",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/pxfm-0.1.30/LICENSE-APACHE.md",
+      "bytes": 11348,
+      "sha256": "90BF2D659C43045111B65C733AB2A6D4CBCB422A098368C8C58A9BA3DB4ED0C5",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/pxfm-0.1.30/LICENSE.md",
+      "bytes": 1506,
+      "sha256": "2AA92CADA6431E75615E3FE6CB1A9082C98F777D48AE1C087C0DA0E37F7B8BFF",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/quote-1.0.47/LICENSE-APACHE",
+      "bytes": 9723,
+      "sha256": "62C7A1E35F56406896D7AA7CA52D0CC0D272AC022B5D2796E7D6905DB8A3636A",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/quote-1.0.47/LICENSE-MIT",
+      "bytes": 1023,
+      "sha256": "23F18E03DC49DF91622FE2A76176497404E46CED8A715D9D2B67A7446571CCA3",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/rand-0.10.3/LICENSE-APACHE",
+      "bytes": 9724,
+      "sha256": "35242E7A83F69875E6EDEFF02291E688C97CAAFE2F8902E4E19B49D3E78B4CAB",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/rand-0.10.3/LICENSE-MIT",
+      "bytes": 1117,
+      "sha256": "209FBBE0AD52D9235E37BADF9CADFE4DBDC87203179C0899E738B39ADE42177B",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/rand_core-0.10.1/LICENSE-APACHE",
+      "bytes": 10282,
+      "sha256": "6DF43F6F4B5D4587F3D8D71E45532C688FD168AFA5FE89D571CB32FA09C4EF51",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/rand_core-0.10.1/LICENSE-MIT",
+      "bytes": 1076,
+      "sha256": "8B6E9FEEC03E7C9A5FACB26855CECD31662BF989B636BCFE79521BDF8AC863F0",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/raw-window-handle-0.6.2/LICENSE-APACHE.md",
+      "bytes": 10174,
+      "sha256": "0D542E0C8804E39AA7F37EB00DA5A762149DC682D7829451287E11B938E94594",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/raw-window-handle-0.6.2/LICENSE-MIT.md",
+      "bytes": 1064,
+      "sha256": "9C5A80639A57C1C945570E7EBBCA0706305849CE3C098021325CCA9DB2F7ACC4",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/raw-window-handle-0.6.2/LICENSE-ZLIB.md",
+      "bytes": 836,
+      "sha256": "AE895C8576E682F310FB70D93D9F99B1DD82872094C54A8F6CDFE2CA5C2D6ECB",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/ref-cast-1.0.27/LICENSE-APACHE",
+      "bytes": 9723,
+      "sha256": "62C7A1E35F56406896D7AA7CA52D0CC0D272AC022B5D2796E7D6905DB8A3636A",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/ref-cast-1.0.27/LICENSE-MIT",
+      "bytes": 1023,
+      "sha256": "23F18E03DC49DF91622FE2A76176497404E46CED8A715D9D2B67A7446571CCA3",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/ref-cast-impl-1.0.27/LICENSE-APACHE",
+      "bytes": 9723,
+      "sha256": "62C7A1E35F56406896D7AA7CA52D0CC0D272AC022B5D2796E7D6905DB8A3636A",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/ref-cast-impl-1.0.27/LICENSE-MIT",
+      "bytes": 1023,
+      "sha256": "23F18E03DC49DF91622FE2A76176497404E46CED8A715D9D2B67A7446571CCA3",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/rfd-0.17.2/LICENSE",
+      "bytes": 1079,
+      "sha256": "65FC947F4BAC882A2CD104EF73C246B1B037059DF9F2B3A58B7F77F0B9E56071",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/rodio-0.23.0/LICENSE-APACHE",
+      "bytes": 10140,
+      "sha256": "BB28C48E3E078166E91CFC2B6DB7FFEBB8A0973B9E23B3DF060561292D8D69EC",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/rodio-0.23.0/LICENSE-MIT",
+      "bytes": 1069,
+      "sha256": "30D4779716921B979D54C84FFB986EFE66F5AA518A9FA57E3C4E612F880E3CC5",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/rustversion-1.0.23/LICENSE-APACHE",
+      "bytes": 9723,
+      "sha256": "62C7A1E35F56406896D7AA7CA52D0CC0D272AC022B5D2796E7D6905DB8A3636A",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/rustversion-1.0.23/LICENSE-MIT",
+      "bytes": 1023,
+      "sha256": "23F18E03DC49DF91622FE2A76176497404E46CED8A715D9D2B67A7446571CCA3",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/schemars-1.2.2/LICENSE",
+      "bytes": 1068,
+      "sha256": "1954992A2B32E8A2AF24A4C11B726902E344C1934B947A77F04D404908F8DB30",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/schemars_derive-1.2.2/LICENSE",
+      "bytes": 1068,
+      "sha256": "1954992A2B32E8A2AF24A4C11B726902E344C1934B947A77F04D404908F8DB30",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/scopeguard-1.2.0/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/scopeguard-1.2.0/LICENSE-MIT",
+      "bytes": 1097,
+      "sha256": "FB77F0A9C53E473ABE5103C8632EF9F0F2874D4FB3F17CB2D8C661AAB9CEE9D7",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/serde-1.0.229/LICENSE-APACHE",
+      "bytes": 9723,
+      "sha256": "62C7A1E35F56406896D7AA7CA52D0CC0D272AC022B5D2796E7D6905DB8A3636A",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/serde-1.0.229/LICENSE-MIT",
+      "bytes": 1023,
+      "sha256": "23F18E03DC49DF91622FE2A76176497404E46CED8A715D9D2B67A7446571CCA3",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/serde_core-1.0.229/LICENSE-APACHE",
+      "bytes": 9723,
+      "sha256": "62C7A1E35F56406896D7AA7CA52D0CC0D272AC022B5D2796E7D6905DB8A3636A",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/serde_core-1.0.229/LICENSE-MIT",
+      "bytes": 1023,
+      "sha256": "23F18E03DC49DF91622FE2A76176497404E46CED8A715D9D2B67A7446571CCA3",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/serde_derive-1.0.229/LICENSE-APACHE",
+      "bytes": 9723,
+      "sha256": "62C7A1E35F56406896D7AA7CA52D0CC0D272AC022B5D2796E7D6905DB8A3636A",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/serde_derive-1.0.229/LICENSE-MIT",
+      "bytes": 1023,
+      "sha256": "23F18E03DC49DF91622FE2A76176497404E46CED8A715D9D2B67A7446571CCA3",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/serde_derive_internals-0.30.0/LICENSE-APACHE",
+      "bytes": 9723,
+      "sha256": "62C7A1E35F56406896D7AA7CA52D0CC0D272AC022B5D2796E7D6905DB8A3636A",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/serde_derive_internals-0.30.0/LICENSE-MIT",
+      "bytes": 1023,
+      "sha256": "23F18E03DC49DF91622FE2A76176497404E46CED8A715D9D2B67A7446571CCA3",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/serde_json-1.0.154/LICENSE-APACHE",
+      "bytes": 9723,
+      "sha256": "62C7A1E35F56406896D7AA7CA52D0CC0D272AC022B5D2796E7D6905DB8A3636A",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/serde_json-1.0.154/LICENSE-MIT",
+      "bytes": 1023,
+      "sha256": "23F18E03DC49DF91622FE2A76176497404E46CED8A715D9D2B67A7446571CCA3",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/simd-adler32-0.3.10/LICENSE.md",
+      "bytes": 1078,
+      "sha256": "42A35170233E83E18856792E748DE4C1CE4A63B2AFCE9A370C89EF3FE23F9F2D",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/simdutf8-0.1.5/LICENSE-Apache",
+      "bytes": 10173,
+      "sha256": "0CEC06E0E55FBC3DC5CEE4FCA9B607F66CB8F4E4DBCF3B3C013594DD156732E9",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/simdutf8-0.1.5/LICENSE-MIT",
+      "bytes": 1035,
+      "sha256": "1847E0E0698142ED4347C1441A9FA81C8FBDDD44B1D8BBCD5E3647F991759D7F",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/smallvec-1.16.3/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/smallvec-1.16.3/LICENSE-MIT",
+      "bytes": 1072,
+      "sha256": "0B28172679E0009B655DA42797C03FD163A3379D5CFA67BA1F1655E974A2A1A9",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/stable_deref_trait-1.2.1/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/stable_deref_trait-1.2.1/LICENSE-MIT",
+      "bytes": 1056,
+      "sha256": "5E05B024F653A5CE199E77CBBBD42FB5553562EC714B819421ED0C3E552A75D7",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/syn-2.0.119/LICENSE-APACHE",
+      "bytes": 9723,
+      "sha256": "62C7A1E35F56406896D7AA7CA52D0CC0D272AC022B5D2796E7D6905DB8A3636A",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/syn-2.0.119/LICENSE-MIT",
+      "bytes": 1023,
+      "sha256": "23F18E03DC49DF91622FE2A76176497404E46CED8A715D9D2B67A7446571CCA3",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/syn-3.0.8/LICENSE-APACHE",
+      "bytes": 9723,
+      "sha256": "62C7A1E35F56406896D7AA7CA52D0CC0D272AC022B5D2796E7D6905DB8A3636A",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/syn-3.0.8/LICENSE-MIT",
+      "bytes": 1023,
+      "sha256": "23F18E03DC49DF91622FE2A76176497404E46CED8A715D9D2B67A7446571CCA3",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/synstructure-0.14.0/LICENSE",
+      "bytes": 1052,
+      "sha256": "219920E865EEE70B7DCFC948A86B099E7F4FE2DE01BCCA2CA9A20C0A033F2B59",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/sys-locale-0.3.2/LICENSE-APACHE",
+      "bytes": 11357,
+      "sha256": "C71D239DF91726FC519C6EB72D318EC65820627232B2F796219E87DCF35D0AB4",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/sys-locale-0.3.2/LICENSE-MIT",
+      "bytes": 1066,
+      "sha256": "5CC390AB5E5E6507F467368CBAB1297552D64BFD863F4B496C7928508BCFEFD8",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/thiserror-2.0.21/LICENSE-APACHE",
+      "bytes": 9723,
+      "sha256": "62C7A1E35F56406896D7AA7CA52D0CC0D272AC022B5D2796E7D6905DB8A3636A",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/thiserror-2.0.21/LICENSE-MIT",
+      "bytes": 1023,
+      "sha256": "23F18E03DC49DF91622FE2A76176497404E46CED8A715D9D2B67A7446571CCA3",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/thiserror-impl-2.0.21/LICENSE-APACHE",
+      "bytes": 9723,
+      "sha256": "62C7A1E35F56406896D7AA7CA52D0CC0D272AC022B5D2796E7D6905DB8A3636A",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/thiserror-impl-2.0.21/LICENSE-MIT",
+      "bytes": 1023,
+      "sha256": "23F18E03DC49DF91622FE2A76176497404E46CED8A715D9D2B67A7446571CCA3",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/time-0.3.55/LICENSE-Apache",
+      "bytes": 10174,
+      "sha256": "0D542E0C8804E39AA7F37EB00DA5A762149DC682D7829451287E11B938E94594",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/time-0.3.55/LICENSE-MIT",
+      "bytes": 1057,
+      "sha256": "2537228D9A1B44A5DC595241349CAE7090B326C8DE165AAF89BFDDEF4A00D0FC",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/time-core-0.1.9/LICENSE-Apache",
+      "bytes": 10174,
+      "sha256": "0D542E0C8804E39AA7F37EB00DA5A762149DC682D7829451287E11B938E94594",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/time-core-0.1.9/LICENSE-MIT",
+      "bytes": 1057,
+      "sha256": "2537228D9A1B44A5DC595241349CAE7090B326C8DE165AAF89BFDDEF4A00D0FC",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/time-macros-0.2.32/LICENSE-Apache",
+      "bytes": 10174,
+      "sha256": "0D542E0C8804E39AA7F37EB00DA5A762149DC682D7829451287E11B938E94594",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/time-macros-0.2.32/LICENSE-MIT",
+      "bytes": 1057,
+      "sha256": "2537228D9A1B44A5DC595241349CAE7090B326C8DE165AAF89BFDDEF4A00D0FC",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/tinystr-0.8.4/LICENSE",
+      "bytes": 2195,
+      "sha256": "F367C1B8E1AA262435251E442901DA4607B4650E0E63A026F5044473ECFB90F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/tray-icon-0.26.1/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/tray-icon-0.26.1/LICENSE-MIT",
+      "bytes": 1108,
+      "sha256": "2AB5537B8C0CB1D475E2145B6A7994B04E7C71E6E5BD836F7F9C47C221A5AD9A",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/tray-icon-0.26.1/LICENSE.spdx",
+      "bytes": 832,
+      "sha256": "6C1E5D0CCF5E8951401CB964036AE664D52FC8D1148173B53BC54FC534F5D404",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/unicode-ident-1.0.27/LICENSE-APACHE",
+      "bytes": 9723,
+      "sha256": "62C7A1E35F56406896D7AA7CA52D0CC0D272AC022B5D2796E7D6905DB8A3636A",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/unicode-ident-1.0.27/LICENSE-MIT",
+      "bytes": 1023,
+      "sha256": "23F18E03DC49DF91622FE2A76176497404E46CED8A715D9D2B67A7446571CCA3",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/unicode-ident-1.0.27/LICENSE-UNICODE",
+      "bytes": 1995,
+      "sha256": "F7DB81051789B729FEA528A63EC4C938FDCB93D9D61D97DC8CC2E9DF6D47F2A1",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/unicode-segmentation-1.13.3/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/unicode-segmentation-1.13.3/LICENSE-MIT",
+      "bytes": 1071,
+      "sha256": "7B63ECD5F1902AF1B63729947373683C32745C16A10E8E6292E2E2DCD7E90AE0",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/url-2.5.8/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/url-2.5.8/LICENSE-MIT",
+      "bytes": 1072,
+      "sha256": "B38F11F6096706E6DE553DABE2A7ED142D59B6FA8C97E290C67496154745CDD5",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/utf8_iter-1.0.4/LICENSE-APACHE",
+      "bytes": 11358,
+      "sha256": "CFC7749B96F63BD31C3C42B5C471BF756814053E847C10F3EB003417BC523D30",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/utf8_iter-1.0.4/LICENSE-MIT",
+      "bytes": 1053,
+      "sha256": "3FA4CA83DCC9237839B1BDEB2E6D16BDFB5EC0C5CE42B24694D8BBF0DCBEF72C",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/uuid-1.28.0/LICENSE-APACHE",
+      "bytes": 10847,
+      "sha256": "A60EEA817514531668D7E00765731449FE14D059D3249E0BC93B36DE45F759F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/uuid-1.28.0/LICENSE-MIT",
+      "bytes": 1157,
+      "sha256": "436BC5A105D8E57DCD8778730F3754F7BF39C14D2F530E4CDE4BD2D17A83EC3D",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/vec_map-0.8.2/LICENSE-APACHE",
+      "bytes": 10850,
+      "sha256": "8173D5C29B4F956D532781D2B86E4E30F83E6B7878DCE18C919451D6BA707C90",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/vec_map-0.8.2/LICENSE-MIT",
+      "bytes": 1071,
+      "sha256": "7B63ECD5F1902AF1B63729947373683C32745C16A10E8E6292E2E2DCD7E90AE0",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-0.62.2/license-apache-2.0",
+      "bytes": 11351,
+      "sha256": "C16F8DCF1A368B83BE78D826EA23DE4079FE1B4469A0AB9EE20563F37FF3D44B",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-0.62.2/license-mit",
+      "bytes": 1141,
+      "sha256": "C2CFCCB812FE482101A8F04597DFC5A9991A6B2748266C47AC91B6A5AAE15383",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-collections-0.3.2/license-apache-2.0",
+      "bytes": 11351,
+      "sha256": "C16F8DCF1A368B83BE78D826EA23DE4079FE1B4469A0AB9EE20563F37FF3D44B",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-collections-0.3.2/license-mit",
+      "bytes": 1141,
+      "sha256": "C2CFCCB812FE482101A8F04597DFC5A9991A6B2748266C47AC91B6A5AAE15383",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-core-0.62.2/license-apache-2.0",
+      "bytes": 11351,
+      "sha256": "C16F8DCF1A368B83BE78D826EA23DE4079FE1B4469A0AB9EE20563F37FF3D44B",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-core-0.62.2/license-mit",
+      "bytes": 1141,
+      "sha256": "C2CFCCB812FE482101A8F04597DFC5A9991A6B2748266C47AC91B6A5AAE15383",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-future-0.3.2/license-apache-2.0",
+      "bytes": 11351,
+      "sha256": "C16F8DCF1A368B83BE78D826EA23DE4079FE1B4469A0AB9EE20563F37FF3D44B",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-future-0.3.2/license-mit",
+      "bytes": 1141,
+      "sha256": "C2CFCCB812FE482101A8F04597DFC5A9991A6B2748266C47AC91B6A5AAE15383",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-implement-0.60.2/license-apache-2.0",
+      "bytes": 11351,
+      "sha256": "C16F8DCF1A368B83BE78D826EA23DE4079FE1B4469A0AB9EE20563F37FF3D44B",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-implement-0.60.2/license-mit",
+      "bytes": 1141,
+      "sha256": "C2CFCCB812FE482101A8F04597DFC5A9991A6B2748266C47AC91B6A5AAE15383",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-interface-0.59.3/license-apache-2.0",
+      "bytes": 11351,
+      "sha256": "C16F8DCF1A368B83BE78D826EA23DE4079FE1B4469A0AB9EE20563F37FF3D44B",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-interface-0.59.3/license-mit",
+      "bytes": 1141,
+      "sha256": "C2CFCCB812FE482101A8F04597DFC5A9991A6B2748266C47AC91B6A5AAE15383",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-link-0.2.1/license-apache-2.0",
+      "bytes": 11351,
+      "sha256": "C16F8DCF1A368B83BE78D826EA23DE4079FE1B4469A0AB9EE20563F37FF3D44B",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-link-0.2.1/license-mit",
+      "bytes": 1141,
+      "sha256": "C2CFCCB812FE482101A8F04597DFC5A9991A6B2748266C47AC91B6A5AAE15383",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-numerics-0.3.1/license-apache-2.0",
+      "bytes": 11351,
+      "sha256": "C16F8DCF1A368B83BE78D826EA23DE4079FE1B4469A0AB9EE20563F37FF3D44B",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-numerics-0.3.1/license-mit",
+      "bytes": 1141,
+      "sha256": "C2CFCCB812FE482101A8F04597DFC5A9991A6B2748266C47AC91B6A5AAE15383",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-registry-0.6.1/license-apache-2.0",
+      "bytes": 11351,
+      "sha256": "C16F8DCF1A368B83BE78D826EA23DE4079FE1B4469A0AB9EE20563F37FF3D44B",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-registry-0.6.1/license-mit",
+      "bytes": 1141,
+      "sha256": "C2CFCCB812FE482101A8F04597DFC5A9991A6B2748266C47AC91B6A5AAE15383",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-result-0.4.1/license-apache-2.0",
+      "bytes": 11351,
+      "sha256": "C16F8DCF1A368B83BE78D826EA23DE4079FE1B4469A0AB9EE20563F37FF3D44B",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-result-0.4.1/license-mit",
+      "bytes": 1141,
+      "sha256": "C2CFCCB812FE482101A8F04597DFC5A9991A6B2748266C47AC91B6A5AAE15383",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-strings-0.5.1/license-apache-2.0",
+      "bytes": 11351,
+      "sha256": "C16F8DCF1A368B83BE78D826EA23DE4079FE1B4469A0AB9EE20563F37FF3D44B",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-strings-0.5.1/license-mit",
+      "bytes": 1141,
+      "sha256": "C2CFCCB812FE482101A8F04597DFC5A9991A6B2748266C47AC91B6A5AAE15383",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-sys-0.59.0/license-apache-2.0",
+      "bytes": 11351,
+      "sha256": "C16F8DCF1A368B83BE78D826EA23DE4079FE1B4469A0AB9EE20563F37FF3D44B",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-sys-0.59.0/license-mit",
+      "bytes": 1141,
+      "sha256": "C2CFCCB812FE482101A8F04597DFC5A9991A6B2748266C47AC91B6A5AAE15383",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-sys-0.60.2/license-apache-2.0",
+      "bytes": 11351,
+      "sha256": "C16F8DCF1A368B83BE78D826EA23DE4079FE1B4469A0AB9EE20563F37FF3D44B",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-sys-0.60.2/license-mit",
+      "bytes": 1141,
+      "sha256": "C2CFCCB812FE482101A8F04597DFC5A9991A6B2748266C47AC91B6A5AAE15383",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-sys-0.61.2/license-apache-2.0",
+      "bytes": 11351,
+      "sha256": "C16F8DCF1A368B83BE78D826EA23DE4079FE1B4469A0AB9EE20563F37FF3D44B",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-sys-0.61.2/license-mit",
+      "bytes": 1141,
+      "sha256": "C2CFCCB812FE482101A8F04597DFC5A9991A6B2748266C47AC91B6A5AAE15383",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-targets-0.52.6/license-apache-2.0",
+      "bytes": 11351,
+      "sha256": "C16F8DCF1A368B83BE78D826EA23DE4079FE1B4469A0AB9EE20563F37FF3D44B",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-targets-0.52.6/license-mit",
+      "bytes": 1141,
+      "sha256": "C2CFCCB812FE482101A8F04597DFC5A9991A6B2748266C47AC91B6A5AAE15383",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-targets-0.53.5/license-apache-2.0",
+      "bytes": 11351,
+      "sha256": "C16F8DCF1A368B83BE78D826EA23DE4079FE1B4469A0AB9EE20563F37FF3D44B",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-targets-0.53.5/license-mit",
+      "bytes": 1141,
+      "sha256": "C2CFCCB812FE482101A8F04597DFC5A9991A6B2748266C47AC91B6A5AAE15383",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-threading-0.2.1/license-apache-2.0",
+      "bytes": 11351,
+      "sha256": "C16F8DCF1A368B83BE78D826EA23DE4079FE1B4469A0AB9EE20563F37FF3D44B",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows-threading-0.2.1/license-mit",
+      "bytes": 1141,
+      "sha256": "C2CFCCB812FE482101A8F04597DFC5A9991A6B2748266C47AC91B6A5AAE15383",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows_x86_64_msvc-0.52.6/license-apache-2.0",
+      "bytes": 11351,
+      "sha256": "C16F8DCF1A368B83BE78D826EA23DE4079FE1B4469A0AB9EE20563F37FF3D44B",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows_x86_64_msvc-0.52.6/license-mit",
+      "bytes": 1141,
+      "sha256": "C2CFCCB812FE482101A8F04597DFC5A9991A6B2748266C47AC91B6A5AAE15383",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows_x86_64_msvc-0.53.1/license-apache-2.0",
+      "bytes": 11351,
+      "sha256": "C16F8DCF1A368B83BE78D826EA23DE4079FE1B4469A0AB9EE20563F37FF3D44B",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/windows_x86_64_msvc-0.53.1/license-mit",
+      "bytes": 1141,
+      "sha256": "C2CFCCB812FE482101A8F04597DFC5A9991A6B2748266C47AC91B6A5AAE15383",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/writeable-0.6.4/LICENSE",
+      "bytes": 2195,
+      "sha256": "F367C1B8E1AA262435251E442901DA4607B4650E0E63A026F5044473ECFB90F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/yoke-0.8.3/LICENSE",
+      "bytes": 2195,
+      "sha256": "F367C1B8E1AA262435251E442901DA4607B4650E0E63A026F5044473ECFB90F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/yoke-derive-0.8.4/LICENSE",
+      "bytes": 2195,
+      "sha256": "F367C1B8E1AA262435251E442901DA4607B4650E0E63A026F5044473ECFB90F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/zerofrom-0.1.8/LICENSE",
+      "bytes": 2195,
+      "sha256": "F367C1B8E1AA262435251E442901DA4607B4650E0E63A026F5044473ECFB90F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/zerofrom-derive-0.1.8/LICENSE",
+      "bytes": 2195,
+      "sha256": "F367C1B8E1AA262435251E442901DA4607B4650E0E63A026F5044473ECFB90F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/zerotrie-0.2.5/LICENSE",
+      "bytes": 2195,
+      "sha256": "F367C1B8E1AA262435251E442901DA4607B4650E0E63A026F5044473ECFB90F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/zerovec-0.11.8/LICENSE",
+      "bytes": 2195,
+      "sha256": "F367C1B8E1AA262435251E442901DA4607B4650E0E63A026F5044473ECFB90F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/zerovec-derive-0.11.6/LICENSE",
+      "bytes": 2195,
+      "sha256": "F367C1B8E1AA262435251E442901DA4607B4650E0E63A026F5044473ECFB90F2",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "native/zmij-1.0.23/LICENSE-MIT",
+      "bytes": 1023,
+      "sha256": "23F18E03DC49DF91622FE2A76176497404E46CED8A715D9D2B67A7446571CCA3",
+      "origin": "previously verified exact license or notice copy"
+    },
+    {
+      "path": "toolchain-licenses/rust/COPYRIGHT-library.html",
+      "bytes": 279302,
+      "sha256": "0A65BB747C49C7BB816CBC7188319BD6E4E8D08091C1190B8A3C0971C47968ED",
+      "origin": "Rust 1.97.1 installed standard-library copyright/license collection; offline copy verified against toolchain evidence",
+      "scope": "conservative-rust-standard-library-notice-set"
+    },
+    {
+      "path": "toolchain-licenses/rust/licenses/Apache-2.0.txt",
+      "bytes": 10280,
+      "sha256": "074E6E32C86A4C0EF8B3ED25B721CA23ACA83DF277CD88106EF7177C354615FF",
+      "origin": "Rust 1.97.1 installed standard-library copyright/license collection; offline copy verified against toolchain evidence",
+      "scope": "conservative-rust-standard-library-notice-set"
+    },
+    {
+      "path": "toolchain-licenses/rust/licenses/BSD-2-Clause.txt",
+      "bytes": 1267,
+      "sha256": "F32FB3B417A194167CFAD068223FC975BA96C5960513A10F66A3C28720AEC1DF",
+      "origin": "Rust 1.97.1 installed standard-library copyright/license collection; offline copy verified against toolchain evidence",
+      "scope": "conservative-rust-standard-library-notice-set"
+    },
+    {
+      "path": "toolchain-licenses/rust/licenses/CC-BY-SA-4.0.txt",
+      "bytes": 20137,
+      "sha256": "23EE78C8BAE49CF08EA2F0C84945C66B987EBE4520881FB51B3DAD4FB43D07C2",
+      "origin": "Rust 1.97.1 installed standard-library copyright/license collection; offline copy verified against toolchain evidence",
+      "scope": "conservative-rust-standard-library-notice-set"
+    },
+    {
+      "path": "toolchain-licenses/rust/licenses/GCC-exception-3.1.txt",
+      "bytes": 3320,
+      "sha256": "A3966C9410EF94A1EFBFA9EC04E9C1994026A70623FBF0885CE36737BFBA3B54",
+      "origin": "Rust 1.97.1 installed standard-library copyright/license collection; offline copy verified against toolchain evidence",
+      "scope": "conservative-rust-standard-library-notice-set"
+    },
+    {
+      "path": "toolchain-licenses/rust/licenses/GPL-2.0-only.txt",
+      "bytes": 17642,
+      "sha256": "54B212BA1F97F6948FA5486239AB505DD820B02E50CBFD296B4062C8609A70AF",
+      "origin": "Rust 1.97.1 installed standard-library copyright/license collection; offline copy verified against toolchain evidence",
+      "scope": "conservative-rust-standard-library-notice-set"
+    },
+    {
+      "path": "toolchain-licenses/rust/licenses/GPL-3.0-or-later.txt",
+      "bytes": 34795,
+      "sha256": "05315FCE6C35F79B8A35454828995FA26336F235895AC64557ABC028F4FFCEA2",
+      "origin": "Rust 1.97.1 installed standard-library copyright/license collection; offline copy verified against toolchain evidence",
+      "scope": "conservative-rust-standard-library-notice-set"
+    },
+    {
+      "path": "toolchain-licenses/rust/licenses/ISC.txt",
+      "bytes": 730,
+      "sha256": "0FF61769B238634E042AB759DDDFD104A8E69D091E3600AE3410E401A6164381",
+      "origin": "Rust 1.97.1 installed standard-library copyright/license collection; offline copy verified against toolchain evidence",
+      "scope": "conservative-rust-standard-library-notice-set"
+    },
+    {
+      "path": "toolchain-licenses/rust/licenses/LLVM-exception.txt",
+      "bytes": 919,
+      "sha256": "E34C58338BD89D43E709E226610D8F32B3E3C47F4AD9A99A8DC1D4AC7842488E",
+      "origin": "Rust 1.97.1 installed standard-library copyright/license collection; offline copy verified against toolchain evidence",
+      "scope": "conservative-rust-standard-library-notice-set"
+    },
+    {
+      "path": "toolchain-licenses/rust/licenses/MIT.txt",
+      "bytes": 1078,
+      "sha256": "B85DCD3E453D05982552C52B5FC9E0BDD6D23C6F8E844B984A88AF32570B0CC0",
+      "origin": "Rust 1.97.1 installed standard-library copyright/license collection; offline copy verified against toolchain evidence",
+      "scope": "conservative-rust-standard-library-notice-set"
+    },
+    {
+      "path": "toolchain-licenses/rust/licenses/NCSA.txt",
+      "bytes": 1676,
+      "sha256": "39CB0234065C92B9E6CEE3830CBB52B1AA289AA8FE9BA2E66730FEC5CF05C630",
+      "origin": "Rust 1.97.1 installed standard-library copyright/license collection; offline copy verified against toolchain evidence",
+      "scope": "conservative-rust-standard-library-notice-set"
+    },
+    {
+      "path": "toolchain-licenses/rust/licenses/OFL-1.1.txt",
+      "bytes": 4016,
+      "sha256": "8EEA8287E5876B539670CADB82E99F9A7AFDDEC6F6730811BE1DAF25D2E9BCFD",
+      "origin": "Rust 1.97.1 installed standard-library copyright/license collection; offline copy verified against toolchain evidence",
+      "scope": "conservative-rust-standard-library-notice-set"
+    },
+    {
+      "path": "toolchain-licenses/rust/licenses/Unicode-3.0.txt",
+      "bytes": 1995,
+      "sha256": "F5062C9A188D81DFE66B56DB4182DCF9E4B17C0D9B0D311A8E20B3A1B075C443",
+      "origin": "Rust 1.97.1 installed standard-library copyright/license collection; offline copy verified against toolchain evidence",
+      "scope": "conservative-rust-standard-library-notice-set"
+    }
+  ],
+  "distributionBoundaries": [
+    "This archive contains license/notice texts and source-availability references, not SDK libraries, model textures, application data, credentials or build caches.",
+    "Core proprietary terms and component-specific end-user confirmation are separate product resources; a linked Core notice alone is not full agreement text or evidence of user consent.",
+    "Installer engine/translation license coverage is outside this EXE dependency collection and must be checked for the final installer.",
+    "No fresh network check of source links or universal legal clearance is claimed by assembly.",
+    "The project-owned native helper workspace declares Apache-2.0; a missing package license field is metadata, not proof of missing rights. Final release attribution must preserve upstream notices and state the integration glue license without relicensing Core/models.",
+    "Static MSVC CRT is Microsoft code. Exact local compiler/license identity was not located; no concrete conflicting redistribution condition was demonstrated. Do not strip toolchain-required notices."
+  ],
+  "toolchainStandardLibraryNotices": {
+    "name": "Rust standard-library notice collection",
+    "version": "rustc 1.97.1 (8bab26f4f 2026-07-14), LLVM 22.1.6, x86_64-pc-windows-msvc",
+    "scope": "COPYRIGHT-library.html and its 12 accompanying original license texts, conservatively retained for possible static Rust standard-library code. Inclusion does not assert that each listed third-party component is linked.",
+    "notDistributedByThisCollection": "No compiler, rustc, Cargo, LLVM binaries or full compiler COPYRIGHT.html are distributed by this collection.",
+    "files": [
+      "toolchain-licenses/rust/COPYRIGHT-library.html",
+      "toolchain-licenses/rust/licenses/Apache-2.0.txt",
+      "toolchain-licenses/rust/licenses/BSD-2-Clause.txt",
+      "toolchain-licenses/rust/licenses/CC-BY-SA-4.0.txt",
+      "toolchain-licenses/rust/licenses/GCC-exception-3.1.txt",
+      "toolchain-licenses/rust/licenses/GPL-2.0-only.txt",
+      "toolchain-licenses/rust/licenses/GPL-3.0-or-later.txt",
+      "toolchain-licenses/rust/licenses/ISC.txt",
+      "toolchain-licenses/rust/licenses/LLVM-exception.txt",
+      "toolchain-licenses/rust/licenses/MIT.txt",
+      "toolchain-licenses/rust/licenses/NCSA.txt",
+      "toolchain-licenses/rust/licenses/OFL-1.1.txt",
+      "toolchain-licenses/rust/licenses/Unicode-3.0.txt"
+    ],
+    "licenseSource": "https://rust-lang.org/policies/licenses/",
+    "localSourceCopiesValidated": true
+  }
+}

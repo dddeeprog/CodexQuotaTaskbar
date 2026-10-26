@@ -26,6 +26,10 @@
     <EmbeddedResource Include="Assets\QuotaIslandIcon.ico" />
     <EmbeddedResource Include="Assets\Companion\poses.json" />
     <EmbeddedResource Include="Assets\Companion\LICENSE.txt" />
+    <EmbeddedResource Include="Assets\Licenses\Live2DCubismCore.ComponentTerms.zh-CN.txt" LogicalName="CodexQuotaTaskbar.Host.Assets.Licenses.Live2DCubismCore.ComponentTerms.zh-CN.txt" WithCulture="false" />
+    <EmbeddedResource Include="Assets\Licenses\Live2DCubismCore.ProprietaryAgreement.en.txt" LogicalName="CodexQuotaTaskbar.Host.Assets.Licenses.Live2DCubismCore.ProprietaryAgreement.en.txt" WithCulture="false" />
+    <EmbeddedResource Include="Assets\Licenses\ThirdPartyLicenses.zip" LogicalName="CodexQuotaTaskbar.Host.Assets.Licenses.ThirdPartyLicenses.zip" WithCulture="false" />
+    <EmbeddedResource Include="Assets\Licenses\ThirdPartyLicenses.index.json" LogicalName="CodexQuotaTaskbar.Host.Assets.Licenses.ThirdPartyLicenses.index.json" WithCulture="false" />
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Assets\OpenAILogo.png" />
@@ -42,4 +46,14 @@
       <Link>Assets\Licenses\THIRD_PARTY_NOTICES.md</Link>
     </Resource>
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\Bongo\payload.zip" LogicalName="CodexQuotaTaskbar.Host.Assets.Bongo.payload.zip"
+                      Condition="Exists('$(MSBuildProjectDirectory)\Assets\Bongo\payload.zip')" />
+    <EmbeddedResource Include="Assets\Bongo\payload-manifest.json" LogicalName="CodexQuotaTaskbar.Host.Assets.Bongo.payload-manifest.json"
+                      Condition="Exists('$(MSBuildProjectDirectory)\Assets\Bongo\payload-manifest.json')" />
+  </ItemGroup>
+  <Target Name="ValidateBongoPayloadForPublish" BeforeTargets="PrepareForPublish" Condition="'$(PublishSingleFile)' == 'true'">
+    <Error Condition="!Exists('$(MSBuildProjectDirectory)\Assets\Bongo\payload.zip') Or !Exists('$(MSBuildProjectDirectory)\Assets\Bongo\payload-manifest.json')"
+           Text="The reviewed local Bongo runtime payload must be generated before publishing the single-file candidate." />
+  </Target>
 </Project>

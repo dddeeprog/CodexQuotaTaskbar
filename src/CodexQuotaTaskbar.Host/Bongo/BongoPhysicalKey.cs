@@ -1,0 +1,110 @@
+namespace CodexQuotaTaskbar.Host.Bongo;
+
+// Set-1 MakeCode, with bit 8 representing E0, to USB keyboard-page usage.
+// This describes a physical position only; it never consults a layout or translates text.
+// A valid usage need not have artwork in the bundled standard model.
+internal static class BongoPhysicalKey
+{
+    internal static bool TryGetHid(ushort physicalKey, out ushort hid)
+    {
+        if (physicalKey is >= 0x02 and <= 0x0b)
+        {
+            hid = (ushort)(0x1e + physicalKey - 0x02);
+            return true;
+        }
+        if (physicalKey is >= 0x3b and <= 0x44)
+        {
+            hid = (ushort)(0x3a + physicalKey - 0x3b);
+            return true;
+        }
+        hid = physicalKey switch
+        {
+            0x01 => 0x29, // Escape
+            0x0c => 0x2d,
+            0x0d => 0x2e,
+            0x0e => 0x2a, // Backspace
+            0x0f => 0x2b, // Tab
+            0x10 => 0x14,
+            0x11 => 0x1a,
+            0x12 => 0x08,
+            0x13 => 0x15,
+            0x14 => 0x17,
+            0x15 => 0x1c,
+            0x16 => 0x18,
+            0x17 => 0x0c,
+            0x18 => 0x12,
+            0x19 => 0x13,
+            0x1a => 0x2f,
+            0x1b => 0x30,
+            0x1c => 0x28, // Main Enter
+            0x1d => 0xe0, // Left Control
+            0x1e => 0x04,
+            0x1f => 0x16,
+            0x20 => 0x07,
+            0x21 => 0x09,
+            0x22 => 0x0a,
+            0x23 => 0x0b,
+            0x24 => 0x0d,
+            0x25 => 0x0e,
+            0x26 => 0x0f,
+            0x27 => 0x33,
+            0x28 => 0x34,
+            0x29 => 0x35,
+            0x2a => 0xe1, // Left Shift
+            0x2b => 0x31,
+            0x2c => 0x1d,
+            0x2d => 0x1b,
+            0x2e => 0x06,
+            0x2f => 0x19,
+            0x30 => 0x05,
+            0x31 => 0x11,
+            0x32 => 0x10,
+            0x33 => 0x36,
+            0x34 => 0x37,
+            0x35 => 0x38,
+            0x36 => 0xe5, // Right Shift
+            0x37 => 0x55, // Keypad multiply
+            0x38 => 0xe2, // Left Alt
+            0x39 => 0x2c, // Space
+            0x3a => 0x39, // Caps Lock
+            0x45 => 0x53, // Num Lock; E1/Pause is not represented by this source
+            0x46 => 0x47, // Scroll Lock
+            0x47 => 0x5f,
+            0x48 => 0x60,
+            0x49 => 0x61,
+            0x4a => 0x56,
+            0x4b => 0x5c,
+            0x4c => 0x5d,
+            0x4d => 0x5e,
+            0x4e => 0x57,
+            0x4f => 0x59,
+            0x50 => 0x5a,
+            0x51 => 0x5b,
+            0x52 => 0x62,
+            0x53 => 0x63,
+            0x56 => 0x64, // ISO extra physical position
+            0x57 => 0x44, // F11
+            0x58 => 0x45, // F12
+            0x11c => 0x58, // Keypad Enter
+            0x11d => 0xe4, // Right Control
+            0x135 => 0x54, // Keypad divide
+            0x137 => 0x46, // Print Screen
+            0x138 => 0xe6, // Right Alt
+            0x147 => 0x4a, // Home
+            0x148 => 0x52,
+            0x149 => 0x4b,
+            0x14b => 0x50,
+            0x14d => 0x4f,
+            0x14f => 0x4d,
+            0x150 => 0x51,
+            0x151 => 0x4e,
+            0x152 => 0x49,
+            0x153 => 0x4c, // Delete
+            0x15b => 0xe3, // Left Meta
+            0x15c => 0xe7, // Right Meta
+            0x15d => 0x65, // Application menu
+            _ => 0,
+        };
+        return hid != 0;
+    }
+}

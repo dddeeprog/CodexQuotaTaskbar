@@ -1,0 +1,382 @@
+{
+  "schema": 1,
+  "archiveBytes": 2119187,
+  "archiveSha256": "04492F69FDAEE57CA9310CD375AA75D326E1FC84F14691DD3843AF25E62E3444",
+  "files": [
+    {
+      "path": "DianDao.BongoRuntime.exe",
+      "bytes": 1673728,
+      "sha256": "BDEFFD90F6AA3FF155273CE68A91BF49D789DDF381E5FC3EBF6996D275188C49"
+    },
+    {
+      "path": "licenses/BongoCat-Apache-2.0.txt",
+      "bytes": 11164,
+      "sha256": "BD9F0C4905EF3F1A9CD174F58834B104D8121027A95238D8DD3B1861DFADADE1"
+    },
+    {
+      "path": "licenses/Live2D-Core.txt",
+      "bytes": 520,
+      "sha256": "B81E37048010EF1D336106151201A0323C3309CAE44AECDEDF57831FE88FA991"
+    },
+    {
+      "path": "standard/LICENSE-MIT.txt",
+      "bytes": 1550,
+      "sha256": "B2EBD60270F54DFC7D7865E8FB59BDD69170B23C3A3EE063BAB5A023B2ABFA08"
+    },
+    {
+      "path": "standard/cat.model3.json",
+      "bytes": 1547,
+      "sha256": "BBF6AF69234B3F1DFD95B891F7713ADD5B60ABCC065998C4AE52178618848270"
+    },
+    {
+      "path": "standard/demomodel.1024/texture_00.png",
+      "bytes": 71485,
+      "sha256": "F20955F2779F52DDDEFAE131E6C7C5506CE4261D60CF020D594E095E5A2193B2"
+    },
+    {
+      "path": "standard/demomodel.1024/texture_01.png",
+      "bytes": 153026,
+      "sha256": "BF32B89F328160AC8BD7CD4E527646EEDFAE98294506C597F381001AE6A83EB4"
+    },
+    {
+      "path": "standard/demomodel.1024/texture_02.png",
+      "bytes": 81269,
+      "sha256": "93C3213355E4743B38E8DD2E14A24693F2D24F10DC8B51C4CA986A749EE24682"
+    },
+    {
+      "path": "standard/demomodel.cdi3.json",
+      "bytes": 4424,
+      "sha256": "3E2E4DD20667BF56E4310E1FCC1B752F164045B9EFAC6BB1F0BF72F3EEEAC99E"
+    },
+    {
+      "path": "standard/demomodel.moc3",
+      "bytes": 41216,
+      "sha256": "7BBCDB3DF4FE085B0CBD9DC3A1CF32D351BD56787D0DDD1C238E50A5DCB6729A"
+    },
+    {
+      "path": "standard/exp_1.exp3.json",
+      "bytes": 236,
+      "sha256": "D1B12B4D8FFBFAD69D772C0AE9E63D49BFC80F2646B2669831DDBF401AA4FD8C"
+    },
+    {
+      "path": "standard/exp_2.exp3.json",
+      "bytes": 138,
+      "sha256": "574C8E18DF8D2E0A839667B7F2E3804F56C36642E0A80CAA67BCB852EDCB97B5"
+    },
+    {
+      "path": "standard/live2d_expression0.exp3.json",
+      "bytes": 54,
+      "sha256": "01B84ACD47B264471A5E96A80628A024EFC987C7ABB02D552EF648D5E7518420"
+    },
+    {
+      "path": "standard/live2d_expression1.exp3.json",
+      "bytes": 151,
+      "sha256": "6194A66D3437C7F46D15C58E5BC192711EE1EDBED7D5E06C7FD419108578CB94"
+    },
+    {
+      "path": "standard/live2d_expression2.exp3.json",
+      "bytes": 151,
+      "sha256": "C5E1F9092AA4340B1E3B1D6A6D86472F8D63BFD354F2EAA3059A8FB3D7AD6205"
+    },
+    {
+      "path": "standard/live2d_motion1.flac",
+      "bytes": 450454,
+      "sha256": "9FFFBA307E390C5EAE8EB491FA357E469C6CDC51F112BBA18EC6B06BF882AEB8"
+    },
+    {
+      "path": "standard/live2d_motion1.motion3.json",
+      "bytes": 1059,
+      "sha256": "63349243A2B072A7C947D6BBCFB339456A273EE7B36884DF959714CD6C5B7E26"
+    },
+    {
+      "path": "standard/live2d_motion2.motion3.json",
+      "bytes": 1085,
+      "sha256": "9365F4533958609D3D737F363EC24AFD7872D5B0F5A7EF7A4B2D092A48B52973"
+    },
+    {
+      "path": "standard/resources/background.png",
+      "bytes": 73258,
+      "sha256": "83600C47170155C5ECCFCEED7EC219EBE8FE9DDDF25F9035C4F14C69057CAAEC"
+    },
+    {
+      "path": "standard/resources/cover.png",
+      "bytes": 101051,
+      "sha256": "4A1A4B503C042F8DE0B243F4F25BAE4E4DF2BC72F30DBA36014CFE4C5067D04D"
+    },
+    {
+      "path": "standard/resources/left-keys/Alt.png",
+      "bytes": 4924,
+      "sha256": "B7158B2062FAAB5069347767CB6257E626EE4C85279F8854A572848DD926FE86"
+    },
+    {
+      "path": "standard/resources/left-keys/AltGr.png",
+      "bytes": 6548,
+      "sha256": "FCF4FD3E9A4B6F389957E19CC30C897577381027AC7A7EEC4BC7BD4B1A074933"
+    },
+    {
+      "path": "standard/resources/left-keys/BackQuote.png",
+      "bytes": 8159,
+      "sha256": "B1F6771A3C190D7C28B8B98F5B1B5C7471E73FD22D36A85B1960941B57BF5579"
+    },
+    {
+      "path": "standard/resources/left-keys/Backspace.png",
+      "bytes": 8839,
+      "sha256": "F1704A055BC1F57A7EEE8FE1F6CCC588796193AA79A9626059F197CA265D6841"
+    },
+    {
+      "path": "standard/resources/left-keys/CapsLock.png",
+      "bytes": 8094,
+      "sha256": "56FCC1EF5708EF91DF8F39C12E16A80A7A7ADC11F148FC057444E7FA9C341B6C"
+    },
+    {
+      "path": "standard/resources/left-keys/Control.png",
+      "bytes": 9310,
+      "sha256": "136E96DD8D567C3EC5E75D5CB7BDF4B4669B97B358B33D285F7AE70E1CAF3018"
+    },
+    {
+      "path": "standard/resources/left-keys/ControlLeft.png",
+      "bytes": 7387,
+      "sha256": "D708E6BEA023ADB2F36FBCA87D34CCF40F9F7C6A72773EE94153AB25733A9C6D"
+    },
+    {
+      "path": "standard/resources/left-keys/ControlRight.png",
+      "bytes": 6115,
+      "sha256": "B021FD7B70CCECD7A59A657ECC1477123D5C816A0B406402328822111A5F4182"
+    },
+    {
+      "path": "standard/resources/left-keys/Delete.png",
+      "bytes": 7871,
+      "sha256": "06ECC869808A1B75BE20DF6DBC0AE435EF7ADB9ECFA6A9D15F769C37E187DF06"
+    },
+    {
+      "path": "standard/resources/left-keys/Escape.png",
+      "bytes": 8645,
+      "sha256": "D3F318F743CA66DC1FFD4EADF221F899B825A2593F0B08746C504D34CF3B16EC"
+    },
+    {
+      "path": "standard/resources/left-keys/Fn.png",
+      "bytes": 7646,
+      "sha256": "41EE2D3B7E34BC5A958B957B95520FD127A74CDBB03A1989B9DD23B0F98E8AB3"
+    },
+    {
+      "path": "standard/resources/left-keys/KeyA.png",
+      "bytes": 6639,
+      "sha256": "B9F6C1928163F3F272C08762FE429F85B0633DB940901F2C3E572C01D7084D66"
+    },
+    {
+      "path": "standard/resources/left-keys/KeyB.png",
+      "bytes": 4925,
+      "sha256": "5F74014B78B868E0219D9F7D44EB74123C5F7EFB6DFC4B1841B276AA26A28FAC"
+    },
+    {
+      "path": "standard/resources/left-keys/KeyC.png",
+      "bytes": 5309,
+      "sha256": "1C2832319C667816610AC8193A15B631450A2DD248DE63697B696DD4AC88600C"
+    },
+    {
+      "path": "standard/resources/left-keys/KeyD.png",
+      "bytes": 5558,
+      "sha256": "E9B8DD504C5C0075174BB414CDDACAD3AF249DB57C24FDEC1E0465CB59BFA684"
+    },
+    {
+      "path": "standard/resources/left-keys/KeyE.png",
+      "bytes": 6640,
+      "sha256": "A1F1E0CE7DAD126F7A1CD4A14039B4305DBC0C7D879827850E44105A7C2B2DE2"
+    },
+    {
+      "path": "standard/resources/left-keys/KeyF.png",
+      "bytes": 5779,
+      "sha256": "339F47463A9B7C2D6E36BF394FCA96C2ADB62B3E8A6FCE454459500E4D29734F"
+    },
+    {
+      "path": "standard/resources/left-keys/KeyG.png",
+      "bytes": 5899,
+      "sha256": "5A53E2C272AED8232E652015B23AE63A9411255141AD61D59396C32E860D32CC"
+    },
+    {
+      "path": "standard/resources/left-keys/KeyH.png",
+      "bytes": 5585,
+      "sha256": "CBB4348DB4CEA9B74E0349A32A6EA451340DC8290F14128E52B089EEF86644A8"
+    },
+    {
+      "path": "standard/resources/left-keys/KeyI.png",
+      "bytes": 6840,
+      "sha256": "FCAAD27D5ABB178C508FDDB43A134CAD6818BB66235429AB5318F56A12AA7FA9"
+    },
+    {
+      "path": "standard/resources/left-keys/KeyJ.png",
+      "bytes": 6034,
+      "sha256": "9BDFF298E092C06F84F5641A6641627443FD1A037831E2D0C1D41169FB8FA7CE"
+    },
+    {
+      "path": "standard/resources/left-keys/KeyK.png",
+      "bytes": 6363,
+      "sha256": "91842D59EFD84AFB546A642AFD702E6BBED48A8A6566C3B1CAEAAA6113A9A1CE"
+    },
+    {
+      "path": "standard/resources/left-keys/KeyL.png",
+      "bytes": 6574,
+      "sha256": "DEE40C370F0B8C640A19A5B9AEEF15C10F4F0646146BF9AF3096DEACE3A63279"
+    },
+    {
+      "path": "standard/resources/left-keys/KeyM.png",
+      "bytes": 5241,
+      "sha256": "469E64FC161E1D3076B7DD95BAFA0849B7B0C4AC381F81000E6574320EDA6CF1"
+    },
+    {
+      "path": "standard/resources/left-keys/KeyN.png",
+      "bytes": 5213,
+      "sha256": "39B9EEAE74DA363255BED0A29117E20B3840B8518208FC44F27EB68DDDC26AF8"
+    },
+    {
+      "path": "standard/resources/left-keys/KeyO.png",
+      "bytes": 7126,
+      "sha256": "E8F584A1110A47567FA9C3139F5C9237E9F126BCA4008FB577B7449CB9DF5933"
+    },
+    {
+      "path": "standard/resources/left-keys/KeyP.png",
+      "bytes": 7175,
+      "sha256": "58DF86CF8F3BD5A7779F89276623E212216F09F1D157250C0F136460554C5BB7"
+    },
+    {
+      "path": "standard/resources/left-keys/KeyQ.png",
+      "bytes": 6811,
+      "sha256": "2C40746D939FA40EE5E659D8975E7E1EF4FAE3C3F3A4E13E9AACBD37DB977020"
+    },
+    {
+      "path": "standard/resources/left-keys/KeyR.png",
+      "bytes": 6043,
+      "sha256": "3661C418DBBFC52CD912A7F5D44D8FECE770EDD80C7BFF4298C24B4361C458E7"
+    },
+    {
+      "path": "standard/resources/left-keys/KeyS.png",
+      "bytes": 6123,
+      "sha256": "F74D1AD474443F639CA387E78541DAF461D58BF910F3A244551C2772EF799634"
+    },
+    {
+      "path": "standard/resources/left-keys/KeyT.png",
+      "bytes": 6121,
+      "sha256": "214D04B047F2F09F1AF4EE930688FF3ADD3E12F3CCF9DB99EB9D363E34B1F45F"
+    },
+    {
+      "path": "standard/resources/left-keys/KeyU.png",
+      "bytes": 6659,
+      "sha256": "2FEF77D10135BB38E6A6F65532537F6134962A741F6BC22F7297B464C9A9ADE1"
+    },
+    {
+      "path": "standard/resources/left-keys/KeyV.png",
+      "bytes": 5320,
+      "sha256": "06E4D17A0B27679FADE9467364C51F5EA772AD4EBDAE03AD71309389B97DB964"
+    },
+    {
+      "path": "standard/resources/left-keys/KeyW.png",
+      "bytes": 6505,
+      "sha256": "045D452E3BB680DB45FAC5286F9D40A63EA64B624D13070EF73CD6241FB67850"
+    },
+    {
+      "path": "standard/resources/left-keys/KeyX.png",
+      "bytes": 5333,
+      "sha256": "FDA8882F0513754A65502ABEFA70CE5EED37E8BC8F9F49E06CB0EFB66A0F0930"
+    },
+    {
+      "path": "standard/resources/left-keys/KeyY.png",
+      "bytes": 6074,
+      "sha256": "F924A7183B7D1AD86F4711CC0DABC33186515796FBB73254972C350C8A24C927"
+    },
+    {
+      "path": "standard/resources/left-keys/KeyZ.png",
+      "bytes": 5665,
+      "sha256": "C56858A25A03E644836780229303FF9C89A0676EE2DE4E7FC662441BD638D6FA"
+    },
+    {
+      "path": "standard/resources/left-keys/Meta.png",
+      "bytes": 5828,
+      "sha256": "90A25BFC44303A8B096BF8AEA1599DCE4E7CD4F21A979E6DA4058880D0B58F40"
+    },
+    {
+      "path": "standard/resources/left-keys/Num0.png",
+      "bytes": 7439,
+      "sha256": "D1DEB11DB9AF80F633E326608A00254016F6F0EE68ED4D516A394F4D08D25D1E"
+    },
+    {
+      "path": "standard/resources/left-keys/Num1.png",
+      "bytes": 7977,
+      "sha256": "2F956A742B367565CEC3E0A3CC0DE7B959558D26D3534D408875315A1DEF5142"
+    },
+    {
+      "path": "standard/resources/left-keys/Num2.png",
+      "bytes": 7962,
+      "sha256": "089B74669552BFAF1B8B2E9C798DF82683198541D2B7176D4E87B54FF3D2D52D"
+    },
+    {
+      "path": "standard/resources/left-keys/Num3.png",
+      "bytes": 7181,
+      "sha256": "D8FAA5AF749DB1F1FC2FCDBADF4AE61423092ABE84A8328649F2DF12E1ED475F"
+    },
+    {
+      "path": "standard/resources/left-keys/Num4.png",
+      "bytes": 7276,
+      "sha256": "44D7404BED161B3841453491BB86699ADF775ECDEE24120269B5487E39615E54"
+    },
+    {
+      "path": "standard/resources/left-keys/Num5.png",
+      "bytes": 5662,
+      "sha256": "335655042A50550C8239C6B902526AED6BCCB36C038AE3BC9F560C8B7272E929"
+    },
+    {
+      "path": "standard/resources/left-keys/Num6.png",
+      "bytes": 6601,
+      "sha256": "4AD28E1C190F118CD3661A39A50BB709A2802A58DF408C87847D1BE375189ECE"
+    },
+    {
+      "path": "standard/resources/left-keys/Num7.png",
+      "bytes": 6688,
+      "sha256": "88CC5A0306C23534AD765D486B64438072BDAEE152770DB0A2DB8DA35E8FF8C8"
+    },
+    {
+      "path": "standard/resources/left-keys/Num8.png",
+      "bytes": 6553,
+      "sha256": "5E9CEB43DD98CA07B673CC94A59C68A49183F410C2D7AB83A9DEF11B7C8C2C68"
+    },
+    {
+      "path": "standard/resources/left-keys/Num9.png",
+      "bytes": 6070,
+      "sha256": "BCABB1F9997A2B1401AF8152F8C0AAE6FA679C5C2F98CAE5C459A1A5B4EBBF3F"
+    },
+    {
+      "path": "standard/resources/left-keys/Return.png",
+      "bytes": 7476,
+      "sha256": "586AA9FF226AB4E2AC93CAA2E4A9E8DC9785A05807186DF83C61AF84AD09E3D4"
+    },
+    {
+      "path": "standard/resources/left-keys/Shift.png",
+      "bytes": 9726,
+      "sha256": "0E3C8F003E709046F366C2D78AB726E68381E04502E57C596F0E879F2836F74F"
+    },
+    {
+      "path": "standard/resources/left-keys/ShiftLeft.png",
+      "bytes": 7452,
+      "sha256": "DB000AF963E631E76C8A3F2330DA6104E4DA960142111C6BA97010601B2CF47D"
+    },
+    {
+      "path": "standard/resources/left-keys/ShiftRight.png",
+      "bytes": 8884,
+      "sha256": "7E608810D46F15C5BA1A3DB4337DA12448E48568BF646B6354CFA39881098B1A"
+    },
+    {
+      "path": "standard/resources/left-keys/Slash.png",
+      "bytes": 5255,
+      "sha256": "732D9B2F5F73B0F6D7D43060E70AC17150F05BD15099E1F1B4BECE27CFC5EDC0"
+    },
+    {
+      "path": "standard/resources/left-keys/Space.png",
+      "bytes": 6777,
+      "sha256": "8FC774BC88314E058A8133136E0007439E08ED521DDBD845DED1F7CB7E19DBEA"
+    },
+    {
+      "path": "standard/resources/left-keys/Tab.png",
+      "bytes": 8722,
+      "sha256": "6BD0ADA4E420876D2F65D9E019E5745AC9E058986293678CD50F5517EA8A776E"
+    }
+  ]
+}

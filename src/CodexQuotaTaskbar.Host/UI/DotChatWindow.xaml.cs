@@ -43,6 +43,9 @@ public partial class DotChatWindow : Window
     internal int PlacementResizeCount { get; private set; }
     internal int PlacementStyleCount { get; private set; }
     private double maxPlacementMilliseconds;
+    private bool applyingLaneLayout, laneApplied, laneUnavailable;
+    private double lanePreferredWidth;
+    internal bool LaneUnavailable => laneUnavailable;
     private bool closed, started, busy, needsReview, ready, wanted, attention;
     private bool composing;
     private int compositionGeneration;
@@ -65,9 +68,10 @@ public partial class DotChatWindow : Window
     internal bool Connected => ready;
     internal WebView2 Browser => browser;
 
-    internal DotChatWindow(Process? parent = null)
+    internal DotChatWindow(Process? parent = null, bool inline = false, DotUnreadStore? unreadStore = null)
     {
         this.parent = parent;
+        inlineMode = inline; injectedUnreadStore = unreadStore;
         InitializeComponent();
         anchorMailbox = new(action => Dispatcher.BeginInvoke(DispatcherPriority.Render, action),
             value => { if (!closed) ApplyAnchor(value); });
@@ -173,7 +177,7 @@ public partial class DotChatWindow : Window
         _ = new System.Windows.Interop.WindowInteropHelper(this).EnsureHandle();
         // Initialize the browser in a non-activating, invisible login host, not in the native bubble.
         pageWindow.Opacity = 0; pageWindow.Show(); pageWindow.Hide(); pageWindow.Opacity = 1;
-        _ = ConnectAsync();
+        if (inlineMode) _ = StartInlineConnectionAsync(); else _ = ConnectAsync();
         if (parent is not null) _ = ReadCommandsAsync();
     }
 
@@ -182,13 +186,13 @@ public partial class DotChatWindow : Window
         try
         {
             using var input = new StreamReader(Console.OpenStandardInput(), new UTF8Encoding(false));
+            var bounded = new DotInlineLineReader(input, inlineMode ? DotInlineWire.MaximumCommandCharacters : 4096);
             while (!closed)
             {
-                var line = await input.ReadLineAsync(lifetime.Token).ConfigureAwait(false);
+                var line = await bounded.ReadLineAsync(lifetime.Token).ConfigureAwait(false);
                 if (line is null) break;
-                if (line.Length > 4096) continue;
                 DotCommand? command;
-                try { command = JsonSerializer.Deserialize<DotCommand>(line); } catch (JsonException) { continue; }
+                try { command = inlineMode ? DotInlineWire.Deserialize<DotCommand>(line) : JsonSerializer.Deserialize<DotCommand>(line); } catch (JsonException) { continue; }
                 if (command is null) continue;
                 if (command is { Kind: "anchor", Anchor: { } value }) { anchorMailbox.Post(value); continue; }
                 // An explicit action is a barrier: an older queued placement must not run after its anchor.
@@ -204,6 +208,7 @@ public partial class DotChatWindow : Window
     private void HandleCommand(DotCommand? command)
     {
         if (closed || command is null) return;
+        if (inlineMode && command is { Kind: "inline", Action: { } action }) { HandleInlineAction(action); return; }
         if (command.Anchor is { } value) ApplyAnchor(value);
         if (command.Kind == "reply") Reply();
     }
@@ -211,6 +216,11 @@ public partial class DotChatWindow : Window
     internal void ApplyAnchor(DotAnchor value)
     {
         anchor = value;
+        if (inlineMode)
+        {
+            if (!value.Visible && pageWindow.IsVisible) { pageWindow.Hide(); QueueInlineState(); }
+            return;
+        }
         var highContrast = SystemParameters.HighContrast;
         if (appliedTransparency != value.Transparency || appliedHighContrast != highContrast)
         {
@@ -224,7 +234,9 @@ public partial class DotChatWindow : Window
                 GlassBorder.BorderBrush = SystemColors.WindowTextBrush;
             }
         }
+        var fitsLane = ApplyLaneLayout();
         if (!value.Visible) { Hide(); pageWindow.Hide(); }
+        else if (!fitsLane) Hide();
         else if (wanted && !IsVisible) Present();
         if (autoReplyAwaitingPresentation && IsVisible) ExpandReplyForNewMessage();
         Reposition();
@@ -233,6 +245,21 @@ public partial class DotChatWindow : Window
     internal static System.Drawing.Rectangle CalculateBounds(DotAnchor a, double width, double height)
     {
         var scale = Math.Clamp(a.Dpi / 96d, 0.5, 5);
+        if (a.Lane is { } lane)
+        {
+            var left = Math.Max(a.Left + 8L, lane.Left);
+            var right = Math.Min(a.Right - 8L, lane.Right);
+            var top = Math.Max(a.Top + 8L, lane.Top);
+            var bottom = Math.Min(a.WorkBottom - 8L, lane.Bottom);
+            if (right <= left || bottom <= top) return System.Drawing.Rectangle.Empty;
+            var laneWidth = (int)Math.Min(int.MaxValue, right - left);
+            var laneHeight = (int)Math.Min(int.MaxValue, bottom - top);
+            var fittedWidth = Math.Max(1, Math.Min((int)Math.Ceiling(width * scale), laneWidth));
+            var fittedHeight = Math.Max(1, Math.Min((int)Math.Ceiling(height * scale), laneHeight));
+            var fittedLeft = (int)Math.Clamp((long)a.X - fittedWidth / 2, left, right - fittedWidth);
+            var fittedTop = (int)Math.Clamp((long)a.Y, top, bottom - fittedHeight);
+            return new(fittedLeft, fittedTop, fittedWidth, fittedHeight);
+        }
         var w = Math.Max(1, Math.Min((int)Math.Ceiling(width * scale), a.Right - a.Left - 16));
         var h = Math.Max(1, Math.Min((int)Math.Ceiling(height * scale), a.WorkBottom - a.Top - 16));
         var x = Math.Clamp(a.X - w / 2, a.Left + 8, Math.Max(a.Left + 8, a.Right - w - 8));
@@ -244,8 +271,10 @@ public partial class DotChatWindow : Window
 
     private void Reposition()
     {
-        if (anchor is not { } a || !IsVisible) return;
+        if (applyingLaneLayout || anchor is not { } a || !IsVisible) return;
+        if (!ApplyLaneLayout()) { Hide(); return; }
         var bounds = CalculateBounds(a, Width, Math.Max(ActualHeight, 80));
+        if (bounds.IsEmpty) { Hide(); return; }
         if (lastPlacement == bounds) return;
         var positionOnly = lastPlacement is { } previous && previous.Size == bounds.Size;
         var startedAt = Stopwatch.GetTimestamp();
@@ -262,8 +291,9 @@ public partial class DotChatWindow : Window
 
     private void Present()
     {
+        if (inlineMode) { QueueInlineState(); return; }
         wanted = true;
-        if (closed || anchor?.Visible != true) return;
+        if (closed || anchor?.Visible != true || !ApplyLaneLayout()) return;
         if (!IsVisible)
         {
             ShowActivated = false; Show(); UpdateLayout(); Reposition();
@@ -274,6 +304,7 @@ public partial class DotChatWindow : Window
 
     internal void Reply()
     {
+        if (inlineMode) { QueueInlineState(); return; }
         CancelAutoReply();
         replyCount++; lastReplyUtc = DateTime.UtcNow;
         HidePage(reviewed: false);
@@ -281,8 +312,54 @@ public partial class DotChatWindow : Window
         Present();
         Composer.Visibility = Visibility.Visible;
         MessageScroller.MaxHeight = 160;
-        UpdateLayout(); Reposition(); Activate(); Input.Focus();
+        UpdateLayout(); Reposition();
+        if (IsVisible) { Activate(); Input.Focus(); }
         WriteDiagnostics(force: true);
+    }
+
+    // Only presentation is constrained. No draft, attempt, timer, or receiver state
+    // is cleared when the coordinator temporarily has no safe exterior lane.
+    private bool ApplyLaneLayout()
+    {
+        if (applyingLaneLayout) return !laneUnavailable;
+        applyingLaneLayout = true;
+        try
+        {
+            if (anchor?.Lane is not { } lane)
+            {
+                if (laneApplied)
+                {
+                    Width = lanePreferredWidth; MaxHeight = double.PositiveInfinity;
+                    Input.MaxHeight = 100;
+                    MessageScroller.MaxHeight = Composer.Visibility == Visibility.Visible ? 160 : 112;
+                    laneApplied = false;
+                }
+                laneUnavailable = false; return true;
+            }
+            var a = anchor;
+            var scale = Math.Clamp(a.Dpi / 96d, .5, 5);
+            var availableWidth = (Math.Min((long)lane.Right, (long)a.Right - 8) - Math.Max((long)lane.Left, (long)a.Left + 8)) / scale;
+            var availableHeight = (Math.Min((long)lane.Bottom, (long)a.WorkBottom - 8) - Math.Max((long)lane.Top, (long)a.Top + 8)) / scale;
+            var composerVisible = Composer.Visibility == Visibility.Visible;
+            if (availableWidth < 240 || availableHeight < (composerVisible ? 170 : 80))
+            { laneUnavailable = true; return false; }
+            if (!laneApplied) { lanePreferredWidth = Width; laneApplied = true; }
+            Width = Math.Min(lanePreferredWidth, availableWidth);
+            MaxHeight = availableHeight;
+            Input.MaxHeight = Math.Clamp(availableHeight - 150, Input.MinHeight, 100);
+            MessageScroller.MaxHeight = Math.Min(composerVisible ? 160 : 112,
+                Math.Max(0, availableHeight - (composerVisible ? 185 : 85)));
+            Shell.Measure(new System.Windows.Size(Width, double.PositiveInfinity));
+            var overflow = Shell.DesiredSize.Height - availableHeight;
+            if (overflow > .5 && MessageScroller.MaxHeight > 0)
+            {
+                MessageScroller.MaxHeight = Math.Max(0, MessageScroller.MaxHeight - overflow);
+                Shell.Measure(new System.Windows.Size(Width, double.PositiveInfinity));
+            }
+            laneUnavailable = Shell.DesiredSize.Height > availableHeight + .5;
+            return !laneUnavailable;
+        }
+        finally { applyingLaneLayout = false; }
     }
 
     private void Dismiss()
@@ -301,6 +378,7 @@ public partial class DotChatWindow : Window
         CancelAutoReply();
         SetMemoryLevel(CoreWebView2MemoryUsageTargetLevel.Normal);
         pageWindow.ShowInTaskbar = true; pageWindow.Show(); pageWindow.Activate();
+        QueueInlineState();
     }
 
     private void HidePage() => HidePage(reviewed: true);
@@ -310,6 +388,7 @@ public partial class DotChatWindow : Window
         pageWindow.Hide(); pageWindow.ShowInTaskbar = false;
         if (reviewed && pendingText is null) needsReview = false;
         SetMemoryLevel(CoreWebView2MemoryUsageTargetLevel.Low); UpdateSend();
+        QueueInlineState();
     }
 
     private void SetMemoryLevel(CoreWebView2MemoryUsageTargetLevel level)
@@ -420,6 +499,7 @@ public partial class DotChatWindow : Window
                     DateTimeOffset.TryParse(ReadBridgeString(m, "time"), out var time) ? time : null,
                     m.TryGetProperty("confirmable", out var confirmable) && confirmable.GetBoolean(),
                     ReadSource(m, "idSource"), ReadSource(m, "roleSource"), ReadSource(m, "textSource"))).ToArray();
+                ObserveInlineMessages(messages);
                 if (tracker.Observe(messages) is { } message)
                 {
                     newReply = message.Id != previousMessageId;
@@ -572,22 +652,28 @@ public partial class DotChatWindow : Window
     }
 
     private static string Normalize(string value) => string.Join(" ", value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
-    private bool CanSend() => !closed && !busy && ready && receiptStructureReady && !needsReview && !webDraftPresent && !pageWindow.IsVisible && pendingText is null && !string.IsNullOrWhiteSpace(Input.Text);
+    private bool CanSend() => !inlineMode && !closed && !busy && ready && receiptStructureReady && !needsReview && !webDraftPresent && !pageWindow.IsVisible && pendingText is null && !string.IsNullOrWhiteSpace(Input.Text);
     private void UpdateSend()
     {
         SendButton.IsEnabled = CanSend();
         if (pendingText is not null)
             StatusText.Text = needsReview ? (draftRevision == pendingDraftRevision ? "发送结果待核对 · 草稿已保留" : "发送结果待核对 · 新草稿已保留") : "正在确认发送…";
-        else if (webDraftPresent && Composer.Visibility == Visibility.Visible)
+        else if (webDraftPresent && (inlineMode || Composer.Visibility == Visibility.Visible))
             StatusText.Text = "网页有现有草稿 · 请用网页登录处理，原生草稿已保留";
-        else if (!receiptStructureReady && Composer.Visibility == Visibility.Visible)
+        else if (!receiptStructureReady && (inlineMode || Composer.Visibility == Visibility.Visible))
             StatusText.Text = "当前网页回执结构暂不可核验 · 尚未发送，可用网页登录检查";
         WriteDiagnostics();
+        QueueInlineState();
     }
 
     internal void Stop()
     {
         if (closed) return;
+        if (inlineMode && started && !inlineStopCompleted)
+        {
+            if (!inlineStopping) _ = FlushInlineAndStopAsync();
+            return;
+        }
         CancelAutoReply();
         closed = true; lifetime.Cancel(); ownerWatch.Stop();
         browser.Dispose(); pageWindow.Close();

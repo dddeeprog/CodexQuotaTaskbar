@@ -9,6 +9,8 @@ using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 
 namespace CodexQuotaTaskbar.Host.UI;
 
+internal enum MenuSection { None, Appearance, Preferences }
+
 public partial class TrayMenuWindow
 {
     private bool appearanceOpen;
@@ -20,37 +22,103 @@ public partial class TrayMenuWindow
     private bool menuCenteredOnIsland;
     private bool placingMenu;
 
+    internal const double MenuPageHeightLimitDip = 460;
+    internal MenuSection CurrentSection => appearanceOpen ? MenuSection.Appearance
+        : preferencesOpen ? MenuSection.Preferences : MenuSection.None;
+    internal FrameworkElement CurrentPageRoot => CurrentSection switch
+    {
+        MenuSection.Appearance => AppearanceRoot,
+        MenuSection.Preferences => PreferencesRoot,
+        _ => MenuItems,
+    };
+
     private void InitializeMenuInteraction()
     {
+        MenuContent.RenderTransform = pageTransitionShift;
+        MenuContent.ClipToBounds = true;
+        InitializeMenuScrolling();
         SizeChanged += (_, _) => RepositionMenu();
-        MenuItems.SizeChanged += (_, _) => MoveHighlight(highlightedButton, false);
-        PreviewKeyDown += (_, e) =>
-        {
-            if (e.Key is not (Key.Up or Key.Down or Key.Right)) return;
-            if (MaterialTransparencySlider.IsKeyboardFocusWithin) return;
-            var buttons = FindVisualChildren<Button>(MenuItems).Where(IsAvailable).ToArray();
-            var focused = buttons.FirstOrDefault(b => b.IsKeyboardFocusWithin);
-            if (e.Key == Key.Right)
-            {
-                if (focused != AppearanceButton && focused != PreferencesButton) return;
-                var appearance = focused == AppearanceButton;
-                if (!(appearance ? appearanceOpen : preferencesOpen)) ToggleSubmenu(appearance);
-                else (appearance ? ClassicStyleButton : TrayIconButton).Focus();
-            }
-            else if (buttons.Length > 0)
-            {
-                var index = Array.IndexOf(buttons, focused);
-                index = (index + (e.Key == Key.Down ? 1 : -1) + buttons.Length) % buttons.Length;
-                buttons[index].Focus();
-                buttons[index].BringIntoView();
-            }
-            e.Handled = true;
-        };
+        MenuContent.SizeChanged += (_, _) => MoveHighlight(highlightedButton, false);
+        PreviewKeyDown += (_, e) => e.Handled = HandleMenuKey(e.Key);
     }
 
-    private bool IsAvailable(Button button) => button.IsVisible && button.IsEnabled
-        && (appearanceOpen || !AppearanceRoot.IsAncestorOf(button))
-        && (preferencesOpen || !PreferencesRoot.IsAncestorOf(button));
+    internal bool HandleMenuKey(Key key)
+    {
+        if (IsPopupClosing) return true;
+        if (key is Key.Escape or Key.Left)
+        {
+            if (key == Key.Left && MaterialTransparencySlider.IsKeyboardFocusWithin) return false;
+            if (CurrentSection != MenuSection.None)
+            {
+                // A horizontal selector keeps its ordinary left/right navigation.
+                if (key == Key.Left && Keyboard.FocusedElement is Button choice
+                    && choice.Parent is System.Windows.Controls.Primitives.UniformGrid choices)
+                {
+                    var index = choices.Children.IndexOf(choice);
+                    if (index > 0 && choices.Children[index - 1] is Button previous && previous.IsEnabled)
+                    {
+                        if (IsVisible) previous.Focus();
+                        return true;
+                    }
+                }
+                var target = appearanceOpen ? AppearanceButton : PreferencesButton;
+                ReturnToPrimary();
+                FocusWhenPageReady(target);
+                return true;
+            }
+            if (key == Key.Escape) { if (IsVisible) RequestHide(); return true; }
+            return false;
+        }
+        if (key is not (Key.Up or Key.Down or Key.Right)) return false;
+        if (IsPageTransitionActive) return true;
+        if (MaterialTransparencySlider.IsKeyboardFocusWithin) return false;
+        var buttons = ActiveButtons().ToArray();
+        var focused = buttons.FirstOrDefault(b => b.IsKeyboardFocusWithin);
+        if (key == Key.Right)
+        {
+            if (CurrentSection == MenuSection.None)
+            {
+                if (focused != AppearanceButton && focused != PreferencesButton) return false;
+                OpenSection(focused == AppearanceButton ? MenuSection.Appearance : MenuSection.Preferences);
+                FocusWhenPageReady(focused == AppearanceButton ? ClassicStyleButton : DotRealtimeButton);
+                return true;
+            }
+            if (focused?.Parent is System.Windows.Controls.Primitives.UniformGrid choices)
+            {
+                var index = choices.Children.IndexOf(focused);
+                if (index + 1 < choices.Children.Count && choices.Children[index + 1] is Button next && next.IsEnabled)
+                {
+                    if (IsVisible) next.Focus();
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (buttons.Length == 0) return false;
+        var current = Array.IndexOf(buttons, focused);
+        current = (current + (key == Key.Down ? 1 : -1) + buttons.Length) % buttons.Length;
+        if (IsVisible)
+        {
+            buttons[current].Focus();
+            buttons[current].BringIntoView();
+        }
+        return true;
+    }
+
+    private IEnumerable<Button> ActiveButtons()
+    {
+        if (CurrentSection != MenuSection.None && PageBackButton.IsEnabled) yield return PageBackButton;
+        foreach (var button in FindVisualChildren<Button>(CurrentPageRoot).Where(IsAvailable)) yield return button;
+    }
+
+    private bool IsAvailable(Button button)
+    {
+        if (!button.IsEnabled || button.Visibility != Visibility.Visible) return false;
+        if (!CurrentPageRoot.IsAncestorOf(button) && button != PageBackButton) return false;
+        for (DependencyObject? node = button; node is not null && node != this; node = VisualTreeHelper.GetParent(node))
+            if (node is UIElement element && element.Visibility != Visibility.Visible) return false;
+        return true;
+    }
 
     private void OnMenuItemMouseEnter(object sender, MouseEventArgs e) => MoveHighlight(sender as Button, true);
     private void OnMenuItemFocus(object sender, KeyboardFocusChangedEventArgs e) => MoveHighlight(sender as Button, true);
@@ -63,7 +131,7 @@ public partial class TrayMenuWindow
 
     private void MoveHighlight(Button? button, bool animate)
     {
-        if (button is null || MenuContent is null || !IsAvailable(button) || button.ActualWidth <= 0) return;
+        if (button is null || MenuContent is null || !CurrentPageRoot.IsAncestorOf(button) || !IsAvailable(button) || button.ActualWidth <= 0) return;
         var point = button.TranslatePoint(new System.Windows.Point(), MenuContent);
         var duration = animate && highlightedButton is not null ? 130 : 0;
         highlightedButton = button;
@@ -76,31 +144,36 @@ public partial class TrayMenuWindow
 
     private void ToggleSubmenu(bool appearance)
     {
-        var open = !(appearance ? appearanceOpen : preferencesOpen);
-        SetSection(!appearance, false, true);
-        SetSection(appearance, open, true);
+        var next = appearance ? MenuSection.Appearance : MenuSection.Preferences;
+        if (CurrentSection == next) ReturnToPrimary();
+        else OpenSection(next);
     }
 
-    private void SetSection(bool appearance, bool open, bool animate)
+    internal void OpenSection(MenuSection section)
     {
-        if (appearance) appearanceOpen = open;
-        else preferencesOpen = open;
-        var reveal = appearance ? AppearanceReveal : PreferencesReveal;
-        var content = appearance ? AppearanceRoot : PreferencesRoot;
-        var arrow = appearance ? AppearanceChevronRotation : PreferencesChevronRotation;
-        var button = appearance ? AppearanceButton : PreferencesButton;
-        content.Measure(new System.Windows.Size(Math.Max(1, MenuItems.ActualWidth > 0 ? MenuItems.ActualWidth : 239), double.PositiveInfinity));
-        var target = open ? content.DesiredSize.Height : 0;
-        var duration = animate && IsVisible ? 180 : 0;
-        reveal.IsHitTestVisible = open;
-        // Remove closed children from tab navigation immediately, even during the exit.
-        KeyboardNavigation.SetTabNavigation(reveal, open ? KeyboardNavigationMode.Continue : KeyboardNavigationMode.None);
-        System.Windows.Automation.AutomationProperties.SetItemStatus(button, open ? "已展开" : "已折叠");
-        Animate(reveal, HeightProperty, reveal.Height, target, duration);
-        Animate(content, OpacityProperty, content.Opacity, open ? 1 : 0, duration);
-        Animate(arrow, RotateTransform.AngleProperty, arrow.Angle, open ? 90 : 0, duration);
-        if (!open && highlightedButton is { } selected && content.IsAncestorOf(selected))
-            MoveHighlight(button, false);
+        if (section == MenuSection.None) { ReturnToPrimary(); return; }
+        if (section is not (MenuSection.Appearance or MenuSection.Preferences)) throw new ArgumentOutOfRangeException(nameof(section));
+        NavigatePage(section);
+    }
+
+    internal void ReturnToPrimary()
+    {
+        if (CurrentSection != MenuSection.None) FlushMaterialTransparencyChange();
+        NavigatePage(MenuSection.None);
+    }
+
+    private void UpdateSectionStatus()
+    {
+        System.Windows.Automation.AutomationProperties.SetItemStatus(AppearanceButton, appearanceOpen ? "已展开" : "已折叠");
+        System.Windows.Automation.AutomationProperties.SetItemStatus(PreferencesButton, preferencesOpen ? "已展开" : "已折叠");
+        MenuHighlight.BeginAnimation(OpacityProperty, null);
+        MenuHighlight.Opacity = 0;
+        highlightedButton = null;
+    }
+
+    private void UpdatePageConstraints()
+    {
+        ApplyScrollHeightLimit();
     }
 
     // Set the base value first; finite clocks stop at completion. Retargeting reads the current
@@ -120,7 +193,12 @@ public partial class TrayMenuWindow
 
     private void RepositionMenu()
     {
-        if (!IsVisible || !IsLoaded || placingMenu) return;
+        if (!IsVisible || !IsLoaded || placingMenu || preparingPopup || IsPopupClosing) return;
+        if (menuIslandBounds is not null)
+        {
+            RepositionIslandMenu(show: false);
+            return;
+        }
         placingMenu = true;
         try
         {
@@ -130,7 +208,8 @@ public partial class TrayMenuWindow
             var size = new System.Drawing.Size((int)Math.Ceiling(ActualWidth * dpi), (int)Math.Ceiling(ActualHeight * dpi));
             var bounds = CalculateAnchoredBounds(work, menuAnchor, size, menuOpensAbove, menuAnchorGap, menuCenteredOnIsland);
             NativeMethods.SetWindowPos(handle, NativeMethods.HwndTopmost, bounds.X, bounds.Y, bounds.Width, bounds.Height,
-                NativeMethods.SwpShowWindow | NativeMethods.SwpNoActivate);
+                NativeMethods.SwpNoActivate);
+            PublishPlacement(new(bounds.Left, bounds.Top, bounds.Right, bounds.Bottom));
         }
         finally { placingMenu = false; }
     }

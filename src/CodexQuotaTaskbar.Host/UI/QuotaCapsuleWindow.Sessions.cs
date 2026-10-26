@@ -23,8 +23,10 @@ public partial class QuotaCapsuleWindow
         "PanelScrollOffset", typeof(double), typeof(QuotaCapsuleWindow), new PropertyMetadata(0d,
             (owner, args) => ((QuotaCapsuleWindow)owner).PanelSessionsScroller.ScrollToVerticalOffset((double)args.NewValue)));
 
-    internal double DesiredHeight => LayoutBaseHeight + (IsUnifiedPanel ? (double)GetValue(PanelBodyHeightProperty) : 0);
-    internal double ReservedHeight => LayoutBaseHeight + (IsUnifiedPanel ? PanelSessionHeight(sessionsSnapshot.Sessions.Count, true) : 0);
+    internal double BaseDesiredHeight => LayoutBaseHeight + (IsUnifiedPanel ? (double)GetValue(PanelBodyHeightProperty) + ResetScheduleHeight : 0);
+    internal double BaseReservedHeight => LayoutBaseHeight + (IsUnifiedPanel ? PanelSessionHeight(sessionsSnapshot.Sessions.Count, true) + ResetScheduleHeight : 0);
+    internal double DesiredHeight => BaseDesiredHeight + DotTopExtensionHeight;
+    internal double ReservedHeight => BaseReservedHeight + DotTopExtensionHeight;
     internal bool PanelExpanded => panelExpanded;
     internal event EventHandler? PresentationChanged;
     internal event Action<string>? OpenSessionRequested;
@@ -69,7 +71,8 @@ public partial class QuotaCapsuleWindow
         var window = (QuotaCapsuleWindow)owner;
         var height = Math.Max(0, (double)args.NewValue);
         window.PanelSessionsRegion.Height = height;
-        window.Height = WindowHeight + height;
+        window.RefreshBongoBodyLayout();
+        window.RefreshStandaloneWindowHeight();
         window.PresentationChanged?.Invoke(window, EventArgs.Empty);
     }
 

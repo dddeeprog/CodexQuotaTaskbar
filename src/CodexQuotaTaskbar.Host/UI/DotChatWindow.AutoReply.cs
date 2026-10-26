@@ -28,6 +28,7 @@ public partial class DotChatWindow
 
     private void ExpandReplyForNewMessage()
     {
+        if (inlineMode) { QueueInlineState(); return; }
         if (closed) return;
         var manuallyOpen = Composer.Visibility == Visibility.Visible && autoReplyDeadline is null && !autoReplyAwaitingPresentation;
         Composer.Visibility = Visibility.Visible;
