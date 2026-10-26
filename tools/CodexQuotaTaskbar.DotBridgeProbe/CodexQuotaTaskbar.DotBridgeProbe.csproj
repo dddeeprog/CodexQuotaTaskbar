@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>CodexQuotaTaskbar.DotBridgeProbe</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+    <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="7" />
+    <Compile Include="../../src/CodexQuotaTaskbar.Host/Provider/BrowserSubscriptionProtocol.cs" Link="BrowserSubscriptionProtocol.cs" />
+    <EmbeddedResource Include="Bridge.js" />
+  </ItemGroup>
+</Project>
