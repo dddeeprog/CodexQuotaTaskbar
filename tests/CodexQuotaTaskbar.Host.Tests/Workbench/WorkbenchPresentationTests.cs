@@ -45,6 +45,14 @@ public sealed class WorkbenchPresentationTests
                     $"Managed allocations constructing/rendering actual client presenters: {GC.GetAllocatedBytesForCurrentThread() - allocationBefore} bytes.\nOffscreen rendering only; not process RAM or native/DPI field proof.");
                 view.PreviewHost.Children.Add(new TextBlock { Text = "old workspace content" });
                 browser.SelectRootAsync(fixture.Root).GetAwaiter().GetResult(); Assert.Empty(view.PreviewHost.Children);
+                // A hidden presenter must not start file/Git reads or install watchers, even after a queued refresh.
+                var status = view.StatusLabel.Text;
+                browser.ShowPreviewAsync(Path.Combine(fixture.Root, "..", "outside.txt")).GetAwaiter().GetResult();
+                browser.RefreshAsync().GetAwaiter().GetResult(); panel.RefreshAsync().GetAwaiter().GetResult();
+                Assert.Equal(status, view.StatusLabel.Text);
+                Assert.Null(typeof(WorkbenchBrowser).GetField("watcher", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(browser));
+                Assert.Null(typeof(WorkbenchGitPanel).GetField("indexWatcher", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(panel));
+                Assert.Null(typeof(WorkbenchGitPanel).GetField("snapshot", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(panel));
             }
             catch (Exception error) { failure = error; }
             finally { view.CloseForShutdown(); coordinator.DisposeAsync().AsTask().GetAwaiter().GetResult(); System.Windows.Threading.Dispatcher.CurrentDispatcher.InvokeShutdown(); }

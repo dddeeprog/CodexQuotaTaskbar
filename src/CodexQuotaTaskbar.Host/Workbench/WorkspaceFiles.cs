@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text;
+using System.Windows.Media.Imaging;
 
 namespace CodexQuotaTaskbar.Host.Workbench;
 
@@ -82,6 +83,21 @@ internal sealed partial class WorkspaceFiles
             return text.Contains('\0') ? new WorkspacePreview(path, null, null, "此文件不是可预览的文本，请用默认程序打开。") : new WorkspacePreview(path, text, null, null);
         }
         catch (DecoderFallbackException) { return new WorkspacePreview(path, null, null, "编码不受预览支持，请用默认程序打开。"); }
+    }, token);
+
+    internal static Task<BitmapSource> DecodeImageAsync(byte[] bytes, CancellationToken token) => Task.Run<BitmapSource>(() =>
+    {
+        token.ThrowIfCancellationRequested();
+        using var stream = new MemoryStream(bytes);
+        var frame = BitmapDecoder.Create(stream, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None).Frames[0];
+        var width = frame.PixelWidth; var height = frame.PixelHeight;
+        stream.Position = 0;
+        var bitmap = new BitmapImage(); bitmap.BeginInit(); bitmap.CacheOption = BitmapCacheOption.OnLoad;
+        if (Math.Max(width, height) > 1600)
+        { if (width >= height) bitmap.DecodePixelWidth = 1600; else bitmap.DecodePixelHeight = 1600; }
+        bitmap.StreamSource = stream; bitmap.EndInit(); bitmap.Freeze();
+        token.ThrowIfCancellationRequested();
+        return bitmap;
     }, token);
 
     internal Task<WorkspaceSearchResult> SearchAsync(string root, string query, bool content, CancellationToken token) => Task.Run(async () =>

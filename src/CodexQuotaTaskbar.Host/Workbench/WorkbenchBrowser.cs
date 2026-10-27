@@ -4,7 +4,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using FontFamily = System.Windows.Media.FontFamily;
 using Button = System.Windows.Controls.Button;
@@ -195,7 +194,7 @@ internal sealed partial class WorkbenchBrowser : IDisposable
     }
     internal async Task ShowPreviewAsync(string path)
     {
-        if (Root is null) return;
+        if (Root is null || disposed || !view.IsVisible) return;
         selectedFile = path; var current = generation; var token = reads.Token;
         try
         {
@@ -211,15 +210,15 @@ internal sealed partial class WorkbenchBrowser : IDisposable
                 panel.Children.Add(new TextBox { Text = text, IsReadOnly = true, AcceptsReturn = true, FontFamily = new FontFamily("Cascadia Mono, Consolas"), HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, BorderThickness = new Thickness(0) });
             else if (preview.Image is { } bytes)
             {
-                using var stream = new MemoryStream(bytes);
-                var bitmap = new BitmapImage(); bitmap.BeginInit(); bitmap.CacheOption = BitmapCacheOption.OnLoad; bitmap.DecodePixelWidth = 1600; bitmap.StreamSource = stream; bitmap.EndInit(); bitmap.Freeze();
+                var bitmap = await WorkspaceFiles.DecodeImageAsync(bytes, token);
+                if (current != generation || path != selectedFile || !view.IsVisible) return;
                 panel.Children.Add(new System.Windows.Controls.Image { Source = bitmap, Stretch = Stretch.Uniform });
             }
             else panel.Children.Add(new TextBlock { Text = preview.Notice, TextWrapping = TextWrapping.Wrap });
             view.PreviewHost.Children.Clear(); view.PreviewHost.Children.Add(panel);
         }
         catch (OperationCanceledException) { }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException or FileFormatException)
         { if (current == generation && path == selectedFile) view.SetStatus("无法预览：" + error.Message); }
     }
     private void OpenExternal(string path, bool reveal)

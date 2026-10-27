@@ -32,6 +32,25 @@ public sealed class WorkspaceFilesTests : IDisposable
         Assert.Equal(500, result.Hits.Count); Assert.True(result.Truncated);
     }
     [Fact]
+    public async Task Image_decode_is_frozen_bounded_on_both_axes_and_does_not_upscale()
+    {
+        foreach (var height in new[] { 64, 3200 })
+        {
+            var pixels = new byte[16 * height * 4];
+            var source = System.Windows.Media.Imaging.BitmapSource.Create(16, height, 96, 96,
+                System.Windows.Media.PixelFormats.Bgra32, null, pixels, 16 * 4);
+            var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+            encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(source));
+            using var stream = new MemoryStream(); encoder.Save(stream);
+            var bitmap = await WorkspaceFiles.DecodeImageAsync(stream.ToArray(), default);
+            Assert.True(bitmap.IsFrozen);
+            Assert.Equal(height <= 1600 ? 16 : 8, bitmap.PixelWidth);
+            Assert.Equal(Math.Min(height, 1600), bitmap.PixelHeight);
+        }
+        using var cancel = new CancellationTokenSource(); cancel.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => WorkspaceFiles.DecodeImageAsync([], cancel.Token));
+    }
+    [Fact]
     public async Task Cancelled_reads_and_outside_paths_are_rejected()
     {
         Assert.Throws<IOException>(() => WorkspacePaths.Validate(root, Path.Combine(root, "..", "outside.txt")));
