@@ -133,6 +133,7 @@ internal sealed class TrayController : IDisposable
 
     private void ShowContextMenuCore(QuotaCapsuleWindow? island)
     {
+        if (island?.CaptureOccluded == true) return;
         OverlayLifecycleDiagnostics.Local.Window(menu, island is null
             ? OverlayLifecycleEvent.MenuFromTray : OverlayLifecycleEvent.MenuFromIsland);
         DetachMenuIsland();

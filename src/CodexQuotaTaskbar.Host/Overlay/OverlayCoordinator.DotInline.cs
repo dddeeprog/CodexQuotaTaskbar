@@ -122,7 +122,7 @@ internal sealed partial class OverlayCoordinator
     {
         if (disposed || dotPresentationUpdating || !inlineDotMode || !dotPresentationEnabled) return;
         var owner = preferredOwner ?? windows.GetValueOrDefault(dotOwnerId ?? "") ?? windows.Values.FirstOrDefault();
-        if (owner is null) return;
+        if (owner is null || owner.CaptureOccluded) return;
         dotOwnerId = owner.MonitorId;
         CloseContextRequested?.Invoke(this, EventArgs.Empty); popover?.Close();
         if (!DotReplyAllowed)
@@ -164,7 +164,7 @@ internal sealed partial class OverlayCoordinator
         HideDotNotification();
         inlineDotWanted = true;
         AttachInlineDot(owner);
-        if (focus && DotReplyAllowed && observePointer && owner.DotInlineVisible && owner.IsVisible)
+        if (focus && !owner.CaptureOccluded && DotReplyAllowed && observePointer && owner.DotInlineVisible && owner.IsVisible)
         { owner.EnableExplicitReplyActivation(); owner.Activate(); inlineDotView!.ActivateForReply(); }
     }
 
@@ -208,6 +208,7 @@ internal sealed partial class OverlayCoordinator
 
     private void AttachInlineDot(QuotaCapsuleWindow owner)
     {
+        if (owner.CaptureOccluded) return;
         // A late reconciliation after a mode switch must not construct a cat reader,
         // nor keep inlineWanted set and suppress subsequent single-line notifications.
         if (!DotReplyAllowed) { inlineDotWanted = false; return; }
@@ -383,7 +384,7 @@ internal sealed partial class OverlayCoordinator
             || state.ReadToken != dotReadIntentAction?.ReadToken || state.SessionId != dotReadIntentAction?.ReadSessionId
             || state.Messages.FirstOrDefault(item => item.Id == id) is not { Unread: true })
         { CancelDisplayedNoticeRead(); return; }
-        if (!owner.IsVisible) { CancelDisplayedNoticeRead(); return; }
+        if (owner.CaptureOccluded || !owner.IsVisible) { CancelDisplayedNoticeRead(); return; }
         if (!owner.DotTopExtensionVisible || !ReferenceEquals(owner.DotTopContent, view)
             || owner.DotTopExtensionHeight < view.PreferredHeightDip + .99
             || owner.DotTopExtensionTargetHeight < view.PreferredHeightDip + .99

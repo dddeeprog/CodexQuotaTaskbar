@@ -43,6 +43,8 @@ internal static class WindowInteropPolicy
 
     internal static void Position(Window window, ScreenRect rect)
     {
+        if (window is UI.QuotaCapsuleWindow { CaptureOccluded: true }
+            or UI.SessionStackWindow { CaptureOccluded: true }) return;
         var handle = new WindowInteropHelper(window).Handle;
         if (!NativeMethods.SetWindowPos(handle, NativeMethods.HwndTopmost, rect.Left, rect.Top, rect.Width, rect.Height,
                 NativeMethods.SwpNoActivate | NativeMethods.SwpShowWindow))

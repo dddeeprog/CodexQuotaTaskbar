@@ -137,12 +137,25 @@ public partial class SessionStackWindow : Window
 
     internal void Place(ScreenRect bounds)
     {
+        if (CaptureOccluded) return;
         physicalBounds = bounds;
         WindowInteropPolicy.Position(this, bounds);
     }
 
     internal static int VisibleSessionCount(int totalCount, bool isExpanded) =>
         totalCount <= 0 ? 0 : isExpanded ? Math.Min(totalCount, MaximumVisibleSessions) : 1;
+
+    private bool captureOccluded;
+    internal bool CaptureOccluded
+    {
+        get => captureOccluded;
+        set
+        {
+            if (captureOccluded == value) return;
+            captureOccluded = value;
+            if (!value) Height = Math.Max(1, DesiredHeight);
+        }
+    }
 
     internal static int CollapsedLayerCount(int totalCount) =>
         Math.Clamp(totalCount - 1, 0, MaximumVisibleSessions - 1);
@@ -318,7 +331,7 @@ public partial class SessionStackWindow : Window
         var presentedHeight = transitionAnimated && nextHeight < previousHeight ? previousHeight : nextHeight;
         var heightChanged = Math.Abs(DesiredHeight - presentedHeight) > 0.1;
         DesiredHeight = presentedHeight;
-        Height = Math.Max(1, presentedHeight);
+        if (!CaptureOccluded) Height = Math.Max(1, presentedHeight);
         if (heightChanged)
         {
             PresentationChanged?.Invoke(this, EventArgs.Empty);
@@ -496,7 +509,7 @@ public partial class SessionStackWindow : Window
             LayerTransitionOverlay.Children.Clear();
             var heightChanged = Math.Abs(DesiredHeight - finalHeight) > 0.1;
             DesiredHeight = finalHeight;
-            Height = Math.Max(1, finalHeight);
+            if (!CaptureOccluded) Height = Math.Max(1, finalHeight);
             if (heightChanged)
             {
                 PresentationChanged?.Invoke(this, EventArgs.Empty);

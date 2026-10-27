@@ -88,6 +88,7 @@ public partial class QuotaCapsuleWindow
     internal bool BeginPointerGesture(MouseButton button, IslandHitRegion region, int timestamp,
         int x, int y, Func<bool> capture)
     {
+        if (CaptureOccluded) return false;
         if (button is not (MouseButton.Left or MouseButton.Right) || region == IslandHitRegion.None) return false;
         if (lastPointerDown == (button, timestamp)) { TracePointer("duplicate-down", timestamp); return true; }
         CancelPointerGesture("new-gesture");
@@ -138,6 +139,7 @@ public partial class QuotaCapsuleWindow
     internal bool EndPointerGesture(MouseButton button, IslandHitRegion releaseRegion, int timestamp)
     {
         if (!pointerDown || button != gestureButton) return false;
+        if (CaptureOccluded) { CancelPointerGesture("capture-overlay"); return true; }
         var region = gestureRegion;
         var invoke = !userDragging && region == releaseRegion;
         // Reset before releasing capture or raising callbacks: LostCapture/reentrant input cannot dispatch twice.

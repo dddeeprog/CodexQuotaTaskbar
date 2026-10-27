@@ -16,7 +16,7 @@ internal enum OverlayLifecycleEvent
     LeftDown, RightDown, PrimaryInvoke, ContextInvoke, DetailsToggle, DetailsCreated, DetailsClosed, DetailsDeactivated,
     MenuFromIsland, MenuFromTray, MenuExplicitClose, MenuToggle, MenuHide, MenuDeactivated, MenuVisibility,
 }
-internal enum OverlayVisibilityReason { None, Available, Fullscreen, TaskbarHidden, Locked }
+internal enum OverlayVisibilityReason { None, Available, Fullscreen, TaskbarHidden, Locked, CaptureOverlay }
 internal sealed record OverlayLifecycleEntry(long Sequence, DateTimeOffset Utc, long Tick, int Pid,
     OverlayLifecycleEvent Kind, int Owner, long Hwnd, bool Visible, OverlayVisibilityReason Reason,
     int RelatedPid, int InputTimestamp);

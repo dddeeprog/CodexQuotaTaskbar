@@ -173,6 +173,7 @@ internal sealed partial class OverlayCoordinator
 
     private void InvokeCompanion(QuotaCapsuleWindow owner)
     {
+        if (owner.CaptureOccluded) return;
         dotOwnerId = owner.MonitorId; CloseContextRequested?.Invoke(this, EventArgs.Empty);
         popover?.Close(); PublishDotAnchor(); OpenDotChatRequested?.Invoke(owner, EventArgs.Empty);
     }

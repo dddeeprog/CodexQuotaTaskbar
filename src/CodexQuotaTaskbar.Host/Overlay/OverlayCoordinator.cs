@@ -51,7 +51,7 @@ internal sealed partial class OverlayCoordinator : IDisposable
     internal event Action<bool>? TypingAvailabilityChanged;
     internal bool CanAnimateTyping => !disposed && !bongoStopping && !companionReduced && !sessionLocked
         && System.Windows.SystemParameters.ClientAreaAnimation
-        && (bongoSelected && !bongoFailed && windows.Values.Any(window => window.BongoVisible)
+        && (bongoSelected && !bongoFailed && windows.Values.Any(window => !window.CaptureOccluded && window.BongoVisible)
             || windows.Values.Any(window => window.CanAnimateTyping));
 
     internal OverlayCoordinator(bool showAllTaskbars, int materialTransparency = 0, bool unifiedPanel = false,
@@ -291,7 +291,6 @@ internal sealed partial class OverlayCoordinator : IDisposable
                 window.ApplyResetSchedule(resetSchedule);
                 window.ApplyResetQueryState(resetQueryState);
                 window.ApplyConfirmedReset(confirmedResetUntil);
-                window.Show();
                 if (!unifiedPanel)
                 {
                     var stack = new SessionStackWindow(anchor.MonitorId);
@@ -314,15 +313,23 @@ internal sealed partial class OverlayCoordinator : IDisposable
                 }
             }
 
+            var foreground = anchor.IsVisible && !sessionLocked
+                ? TaskbarTopologySource.GetForegroundDisposition(anchor) : ForegroundDisposition.Normal;
+            window.CaptureOccluded = foreground == ForegroundDisposition.CaptureOverlay;
+            if (sessionWindows.TryGetValue(anchor.MonitorId, out var captureStack))
+                captureStack.CaptureOccluded = window.CaptureOccluded;
             window.ApplyResets(resetFeed);
             window.SetCompanionTyping(companionTyping);
-
             var visibilityReason = sessionLocked ? OverlayVisibilityReason.Locked
                 : !anchor.IsVisible ? OverlayVisibilityReason.TaskbarHidden
-                : TaskbarTopologySource.IsMonitorFullscreen(anchor) ? OverlayVisibilityReason.Fullscreen : OverlayVisibilityReason.Available;
+                : window.CaptureOccluded ? OverlayVisibilityReason.CaptureOverlay
+                : foreground == ForegroundDisposition.Fullscreen ? OverlayVisibilityReason.Fullscreen : OverlayVisibilityReason.Available;
             var shouldShow = visibilityReason == OverlayVisibilityReason.Available;
             OverlayLifecycleDiagnostics.Local.Window(window, OverlayLifecycleEvent.VisibilityPolicy,
                 visibilityReason, deduplicate: true);
+            // Leave the island's HWND and Z order alone beneath the capture UI.
+            // Do not Hide, Show or raise it over QQ's selection surface.
+            if (window.CaptureOccluded) continue;
             if (!shouldShow)
             {
                 window.Hide();
@@ -368,7 +375,7 @@ internal sealed partial class OverlayCoordinator : IDisposable
         var dpi = NativeMethods.GetDpiForWindow(new System.Windows.Interop.WindowInteropHelper(owner).Handle);
         var lane = ResolveDotLane(owner, new(work.Left, work.Top, work.Right, work.Bottom), dpi);
         DotAnchorChanged?.Invoke(new((int)point.X, (int)point.Y, obstruction.Bottom, work.Left, work.Top,
-            work.Right, work.Bottom, dpi, owner.IsVisible && !sessionLocked, materialTransparency, lane));
+            work.Right, work.Bottom, dpi, owner.IsVisible && !owner.CaptureOccluded && !sessionLocked, materialTransparency, lane));
     }
 
     private QuotaCapsuleWindow CreateWindow(string monitorId)
@@ -401,6 +408,7 @@ internal sealed partial class OverlayCoordinator : IDisposable
         };
         window.ContextInvoked += (_, _) =>
         {
+            if (window.CaptureOccluded) return;
             dotOwnerId = window.MonitorId;
             popover?.Close();
             ContextRequested?.Invoke(window, EventArgs.Empty);
@@ -458,7 +466,7 @@ internal sealed partial class OverlayCoordinator : IDisposable
 
     private void UpdatePanelPlacement(QuotaCapsuleWindow owner, TaskbarAnchor? knownAnchor = null, ScreenRect? requestedOwner = null)
     {
-        if (!owner.IsVisible || !dotPlacing.Add(owner.MonitorId)) return;
+        if (owner.CaptureOccluded || !owner.IsVisible || !dotPlacing.Add(owner.MonitorId)) return;
         try
         {
             // WPF clocks already provide frame callbacks. Their placement work
@@ -586,7 +594,7 @@ internal sealed partial class OverlayCoordinator : IDisposable
 
     private void RepositionPopover(QuotaCapsuleWindow owner)
     {
-        if (popover is null)
+        if (owner.CaptureOccluded || popover is null)
         {
             return;
         }
@@ -604,6 +612,7 @@ internal sealed partial class OverlayCoordinator : IDisposable
 
     private void TogglePopover(QuotaCapsuleWindow owner)
     {
+        if (owner.CaptureOccluded) return;
         OverlayLifecycleDiagnostics.Local.Window(owner, OverlayLifecycleEvent.DetailsToggle);
         if (popover is not null)
         {

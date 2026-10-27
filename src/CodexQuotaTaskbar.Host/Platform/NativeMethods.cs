@@ -77,6 +77,9 @@ internal static class NativeMethods
     internal static extern nint GetForegroundWindow();
 
     [DllImport("user32.dll")]
+    internal static extern nint GetWindow(nint window, uint command);
+
+    [DllImport("user32.dll")]
     internal static extern nint GetShellWindow();
 
     [DllImport("user32.dll")]

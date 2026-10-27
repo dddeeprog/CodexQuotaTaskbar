@@ -31,6 +31,7 @@ public partial class QuotaCapsuleWindow
     internal bool UsesCoordinatedPlacement { get; set; }
     private void RefreshStandaloneWindowHeight()
     {
+        if (CaptureOccluded) return;
         if (!UsesCoordinatedPlacement || !IsVisible) Height = DesiredHeight;
     }
 

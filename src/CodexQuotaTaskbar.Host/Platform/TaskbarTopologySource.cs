@@ -49,11 +49,14 @@ internal sealed class TaskbarTopologySource
     }
 
     internal static bool IsMonitorFullscreen(TaskbarAnchor anchor)
+        => GetForegroundDisposition(anchor) == ForegroundDisposition.Fullscreen;
+
+    internal static ForegroundDisposition GetForegroundDisposition(TaskbarAnchor anchor)
     {
         var foreground = NativeMethods.GetForegroundWindow();
         if (foreground == nint.Zero || !NativeMethods.IsWindowVisible(foreground))
         {
-            return false;
+            return ForegroundDisposition.Normal;
         }
 
         // Show Desktop makes the shell's monitor-sized surface foreground. It is
@@ -65,7 +68,7 @@ internal sealed class TaskbarTopologySource
         _ = NativeMethods.GetWindowThreadProcessId(shell, out var shellProcess);
         if (IsDesktopSurface(foreground, shell, foregroundProcess, shellProcess, foregroundClass.ToString()))
         {
-            return false;
+            return ForegroundDisposition.Normal;
         }
 
         var monitor = NativeMethods.MonitorFromWindow(foreground, 2);
@@ -73,7 +76,7 @@ internal sealed class TaskbarTopologySource
         if (monitor == nint.Zero || !NativeMethods.GetMonitorInfo(monitor, ref info)
             || !string.Equals(info.Device, anchor.MonitorId, StringComparison.Ordinal))
         {
-            return false;
+            return ForegroundDisposition.Normal;
         }
 
         var cloaked = 0;
@@ -82,10 +85,43 @@ internal sealed class TaskbarTopologySource
         if (NativeMethods.DwmGetWindowAttribute(foreground, 9, out frame, Marshal.SizeOf<NativeMethods.Rect>()) != 0
             && !NativeMethods.GetWindowRect(foreground, out frame))
         {
-            return false;
+            return ForegroundDisposition.Normal;
         }
 
-        return FullscreenClassifier.IsTrueFullscreen(ToScreenRect(info.Monitor), ToScreenRect(frame), cloaked != 0);
+        var monitorBounds = ToScreenRect(info.Monitor);
+        if (!FullscreenClassifier.IsTrueFullscreen(monitorBounds, ToScreenRect(frame), cloaked != 0))
+            return ForegroundDisposition.Normal;
+        return IsQqCaptureForeground(foreground, foregroundProcess, monitorBounds)
+            ? ForegroundDisposition.CaptureOverlay : ForegroundDisposition.Fullscreen;
+    }
+
+    private static bool IsQqCaptureForeground(nint foreground, uint processId, ScreenRect monitor)
+    {
+        var window = CaptureFacts(foreground);
+        if (window is null || window.Value.Class is not ("Chrome_WidgetWin_1" or "QQScreenCapture Window Class")) return false;
+        var capture = window.Value.Class == "QQScreenCapture Window Class" ? window : CaptureFacts(window.Value.Owner);
+        if (capture is null || capture.Value.Class != "QQScreenCapture Window Class") return false;
+        try
+        {
+            using var process = System.Diagnostics.Process.GetProcessById(checked((int)processId));
+            return CaptureOverlayClassifier.IsQqCapture(window.Value, capture.Value, monitor, process.ProcessName);
+        }
+        catch (Exception error) when (error is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception or OverflowException)
+        { return false; } // Unknown identity stays on the existing fullscreen policy.
+    }
+
+    private static CaptureWindowFacts? CaptureFacts(nint handle)
+    {
+        if (handle == 0) return null;
+        var name = new StringBuilder(128);
+        if (NativeMethods.GetClassName(handle, name, name.Capacity) == 0
+            || NativeMethods.DwmGetWindowAttribute(handle, 14, out int cloaked, sizeof(int)) != 0
+            || NativeMethods.DwmGetWindowAttribute(handle, 9, out NativeMethods.Rect frame, Marshal.SizeOf<NativeMethods.Rect>()) != 0) return null;
+        _ = NativeMethods.GetWindowThreadProcessId(handle, out var processId);
+        return new(handle, processId, NativeMethods.GetWindow(handle, 4), NativeMethods.MonitorFromWindow(handle, 2),
+            name.ToString(), unchecked((uint)NativeMethods.GetWindowLongPtr(handle, -16).ToInt64()),
+            unchecked((uint)NativeMethods.GetWindowLongPtr(handle, -20).ToInt64()),
+            NativeMethods.IsWindowVisible(handle), cloaked == 0, ToScreenRect(frame));
     }
 
     private static ScreenRect ToScreenRect(NativeMethods.Rect rect) => new(rect.Left, rect.Top, rect.Right, rect.Bottom);

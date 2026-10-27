@@ -30,7 +30,7 @@ public partial class QuotaCapsuleWindow
         companionObservePointer = allowed; companion?.SetPointerObservationAllowed(allowed);
     }
     private bool CompanionReady => companion?.Ready == true;
-    internal bool CanAnimateTyping => IsVisible && companion?.CanAnimateTyping == true;
+    internal bool CanAnimateTyping => !CaptureOccluded && IsVisible && companion?.CanAnimateTyping == true;
     internal event EventHandler? CompanionInvoked;
     internal event Action<System.Windows.Point>? CompanionGazeChanged;
     internal void SetExternalCompanion(bool active)

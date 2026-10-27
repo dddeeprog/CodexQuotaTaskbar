@@ -97,6 +97,7 @@ public partial class QuotaCapsuleWindow : Window
     }
 
     internal string MonitorId { get; }
+    internal bool CaptureOccluded { get; set; }
     internal bool IsUnifiedPanel { get; }
     internal double LayoutWidth => IsUnifiedPanel ? WindowWidth : 306;
     private double QuotaBaseHeight => IsUnifiedPanel ? WindowHeight : visibleQuotaRows > 1 ? 112 : 100;
@@ -350,7 +351,7 @@ public partial class QuotaCapsuleWindow : Window
 
     internal void Place(ScreenRect bounds)
     {
-        if (physicalBounds == bounds) return;
+        if (CaptureOccluded || physicalBounds == bounds) return;
         physicalBounds = bounds;
         WindowInteropPolicy.Position(this, bounds);
         BoundsChanged?.Invoke(this, EventArgs.Empty);
