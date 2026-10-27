@@ -39,6 +39,7 @@ public partial class TrayMenuWindow : Window
         MaterialTransparencySlider.ValueChanged += (_, _) => OnMaterialTransparencyChanged();
         IsVisibleChanged += (_, _) =>
         {
+            OverlayLifecycleDiagnostics.Local.Window(this, OverlayLifecycleEvent.MenuVisibility);
             if (IsVisible)
             {
                 if (!preparingPopup) PlayPopupEntrance(popupEntranceOffset);
@@ -85,6 +86,7 @@ public partial class TrayMenuWindow : Window
         Activated += (_, _) => activationEstablished = true;
         Deactivated += (_, _) =>
         {
+            OverlayLifecycleDiagnostics.Local.Window(this, OverlayLifecycleEvent.MenuDeactivated);
             if (activationEstablished) RequestHide();
         };
         KeyDown += (_, eventArgs) =>
@@ -157,7 +159,11 @@ public partial class TrayMenuWindow : Window
     {
         RunPopupRequest(() =>
         {
-            if (IsVisible && !IsPopupClosing) { RequestHide(); return; }
+            OverlayLifecycleDiagnostics.Local.Window(this, OverlayLifecycleEvent.MenuToggle);
+            // A second click during dismissal completes that dismissal; it must
+            // not reverse the old close animation into an unsolicited reopen.
+            if (IsPopupClosing) { HidePopupImmediately(); return; }
+            if (IsVisible) { RequestHide(); return; }
             var generation = PreparePopupOpen();
             ShowPopupAt(cursor, anchorGap, island, islandDpi, avoidance, generation);
         });

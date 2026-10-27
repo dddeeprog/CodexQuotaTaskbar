@@ -207,6 +207,39 @@ public sealed class QuotaCapsuleBongoSurfaceTests
     });
 
     private static BongoFrame Frame() => new(1, 1, [255, 255, 255, 255], 4);
+
+    [Theory]
+    [InlineData(true)] [InlineData(false)]
+    public void Temporary_hide_keeps_one_cached_frame_and_layout_until_resume_or_disable(bool unified) => Sta(() =>
+    {
+        var window = new QuotaCapsuleWindow("capture-recovery", unified);
+        try
+        {
+            window.ConfigureBongoSurface(true, 192);
+            window.PresentBongoFrame(Frame());
+            var chrome = Named<Border>(window, "GlassBorder");
+            var surface = chrome.Child;
+            var bitmap = Field<WriteableBitmap>(window, "bongoBitmap");
+            var height = window.DesiredHeight;
+            var changes = 0;
+            window.PresentationChanged += (_, _) => changes++;
+            // Same production hidden callback, no HWND, mouse or renderer process.
+            for (var i = 0; i < 100; i++) window.HandleHiddenIsland();
+            Assert.True(window.BongoHasFrame);
+            Assert.False(window.BongoVisible);
+            Assert.Same(surface, chrome.Child);
+            Assert.Same(bitmap, Field<WriteableBitmap>(window, "bongoBitmap"));
+            Assert.Equal(height, window.DesiredHeight);
+            window.PresentBongoFrame(Frame());
+            Assert.Same(bitmap, Field<WriteableBitmap>(window, "bongoBitmap"));
+            Assert.Equal(0, changes);
+            window.ConfigureBongoSurface(false, 192);
+            Assert.False(window.BongoHasFrame);
+            Assert.Null(Field<WriteableBitmap?>(window, "bongoBitmap"));
+            Assert.Equal(nint.Zero, new WindowInteropHelper(window).Handle);
+        }
+        finally { window.Close(); }
+    });
     private static T Named<T>(Window window, string name) => Assert.IsType<T>(window.FindName(name));
     private static T Field<T>(object value, string name) => (T)typeof(QuotaCapsuleWindow)
         .GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(value)!;

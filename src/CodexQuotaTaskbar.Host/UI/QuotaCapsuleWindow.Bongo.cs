@@ -17,6 +17,16 @@ public partial class QuotaCapsuleWindow
     private BongoIslandSurface? bongoSurface;
     private WriteableBitmap? bongoBitmap;
 
+    internal void HandleHiddenIsland()
+    {
+        if (IsVisible) return;
+        CancelPointerGesture("hidden");
+        FinishExtensionTransitions();
+        // The renderer still stops while hidden. Retain only its last bitmap and
+        // visual tree so restoring the owner does not collapse/reinsert the cat.
+        // Disable, lock, failure and Close continue to release this cache.
+    }
+
     internal bool BongoHasFrame => bongoBitmap is not null && bongoSurface?.HasModel == true;
     internal bool BongoVisible => IsVisible && BongoHasFrame && bongoSurface?.Visibility == Visibility.Visible;
     internal Size BongoModelSizeDip => new(bongoSizeDip, bongoSizeDip / BongoCompanionPlacement.ModelAspect);

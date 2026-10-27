@@ -124,6 +124,7 @@ public partial class TrayMenuWindow
 
     internal void RequestHide()
     {
+        OverlayLifecycleDiagnostics.Local.Window(this, OverlayLifecycleEvent.MenuHide);
         if (popupMotionClosed || IsPopupClosing) return;
         if (!IsVisible) { CancelPopupMotion(); return; }
         var opacity = Math.Clamp(MenuShell.Opacity, 0, 1);

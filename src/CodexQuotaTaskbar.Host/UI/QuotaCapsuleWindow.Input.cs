@@ -99,6 +99,8 @@ public partial class QuotaCapsuleWindow
         gestureButton = button; gestureRegion = region;
         pointerDown = true; userDragging = false;
         TracePointer("down-" + region, timestamp);
+        OverlayLifecycleDiagnostics.Local.Window(this, button == MouseButton.Right
+            ? OverlayLifecycleEvent.RightDown : OverlayLifecycleEvent.LeftDown, inputTimestamp: timestamp);
         return true;
     }
 
@@ -142,6 +144,8 @@ public partial class QuotaCapsuleWindow
         CancelPointerGesture("up");
         if (!invoke) return true;
         TracePointer(button == MouseButton.Right ? "context" : "invoke-" + region, timestamp);
+        OverlayLifecycleDiagnostics.Local.Window(this, button == MouseButton.Right
+            ? OverlayLifecycleEvent.ContextInvoke : OverlayLifecycleEvent.PrimaryInvoke, inputTimestamp: timestamp);
         if (button == MouseButton.Right) ContextInvoked?.Invoke(this, EventArgs.Empty);
         else if (region == IslandHitRegion.Ball) { companion?.Tap(); CompanionInvoked?.Invoke(this, EventArgs.Empty); }
         else if (region == IslandHitRegion.ResetNotice) OpenResetSourceRequested?.Invoke(CodexResetFeedClient.SiteUri);

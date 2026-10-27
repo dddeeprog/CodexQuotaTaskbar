@@ -180,6 +180,21 @@ public sealed class TrayMenuPopupMotionTests
     private static T Named<T>(TrayMenuWindow menu, string name) where T : class =>
         Assert.IsAssignableFrom<T>(menu.FindName(name));
 
+    [Fact]
+    public void Toggle_during_outro_completes_close_without_creating_or_reopening_native_window() => Sta(menu =>
+    {
+        // Emulate the state between RequestHide and its animation completion.
+        // ShowAt is the real production toggle entry, not an alternative test policy.
+        typeof(TrayMenuWindow).GetProperty(nameof(TrayMenuWindow.IsPopupClosing),
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.SetValue(menu, true);
+        var generation = menu.PopupTransitionGeneration;
+        menu.ShowAt(new System.Drawing.Point(0, 0));
+        Assert.True(menu.PopupTransitionGeneration > generation);
+        AssertNormalized(menu);
+        AssertManagedOnly(menu);
+        Assert.Equal(nint.Zero, new System.Windows.Interop.WindowInteropHelper(menu).Handle);
+    });
+
     private static void AssertNormalized(TrayMenuWindow menu)
     {
         var shell = Named<FrameworkElement>(menu, "MenuShell");

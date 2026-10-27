@@ -8,6 +8,44 @@ namespace CodexQuotaTaskbar.Host.Tests.UI;
 public sealed class QuotaPopoverWindowTests
 {
     [Fact]
+    public void Deferred_deactivation_rechecks_activation_generation_visibility_and_closed_state()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            var dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
+            var details = new QuotaPopoverWindow();
+            try
+            {
+                var generation = details.ActivationGeneration;
+                Assert.True(details.CanCloseAfterDeactivation(generation, active: false, visible: true));
+                Assert.False(details.CanCloseAfterDeactivation(generation, active: true, visible: true));
+                Assert.False(details.CanCloseAfterDeactivation(generation, active: false, visible: false));
+                var staleWouldClose = true;
+                var queued = dispatcher.InvokeAsync(() =>
+                    staleWouldClose = details.CanCloseAfterDeactivation(generation, active: false, visible: true));
+                // Invoke the actual managed activation event, never OS activation/input.
+                typeof(System.Windows.Window).GetMethod("OnActivated",
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+                    .Invoke(details, [EventArgs.Empty]);
+                queued.Wait();
+                Assert.False(staleWouldClose);
+                generation = details.ActivationGeneration;
+                details.PlayEntrance((0, 10));
+                Assert.False(details.CanCloseAfterDeactivation(generation, active: false, visible: true));
+                details.Close();
+                Assert.False(details.CanCloseAfterDeactivation(details.ActivationGeneration, active: false, visible: true));
+                Assert.Equal(nint.Zero, new System.Windows.Interop.WindowInteropHelper(details).Handle);
+            }
+            catch (Exception error) { failure = error; }
+            finally { details.Close(); dispatcher.InvokeShutdown(); }
+        }) { IsBackground = true };
+        thread.SetApartmentState(ApartmentState.STA); thread.Start();
+        Assert.True(thread.Join(TimeSpan.FromSeconds(15)));
+        if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
+    [Fact]
     public void Details_blur_the_capture_layer_behind_the_content_surface()
     {
         Assert.Equal("BackdropLayer", QuotaPopoverWindow.GlassCaptureTargetName);

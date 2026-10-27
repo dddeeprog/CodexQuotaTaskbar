@@ -266,6 +266,7 @@ internal sealed partial class OverlayCoordinator : IDisposable
             try
             {
                 PrepareInlineDotOwnerForClose(windows[stale]);
+                OverlayLifecycleDiagnostics.Local.Window(windows[stale], OverlayLifecycleEvent.TopologyRemoved);
                 RemoveBongoView(stale);
                 if (sessionWindows.Remove(stale, out var staleStack)) staleStack.Close();
                 windows[stale].Close();
@@ -281,6 +282,7 @@ internal sealed partial class OverlayCoordinator : IDisposable
             if (!windows.TryGetValue(anchor.MonitorId, out var window))
             {
                 window = CreateWindow(anchor.MonitorId);
+                OverlayLifecycleDiagnostics.Local.Window(window, OverlayLifecycleEvent.OwnerCreated);
                 windows.Add(anchor.MonitorId, window);
                 if (anchor.IsPrimary || dotOwnerId is null) dotOwnerId = anchor.MonitorId;
                 window.Apply(snapshot);
@@ -315,7 +317,12 @@ internal sealed partial class OverlayCoordinator : IDisposable
             window.ApplyResets(resetFeed);
             window.SetCompanionTyping(companionTyping);
 
-            var shouldShow = anchor.IsVisible && !sessionLocked && !TaskbarTopologySource.IsMonitorFullscreen(anchor);
+            var visibilityReason = sessionLocked ? OverlayVisibilityReason.Locked
+                : !anchor.IsVisible ? OverlayVisibilityReason.TaskbarHidden
+                : TaskbarTopologySource.IsMonitorFullscreen(anchor) ? OverlayVisibilityReason.Fullscreen : OverlayVisibilityReason.Available;
+            var shouldShow = visibilityReason == OverlayVisibilityReason.Available;
+            OverlayLifecycleDiagnostics.Local.Window(window, OverlayLifecycleEvent.VisibilityPolicy,
+                visibilityReason, deduplicate: true);
             if (!shouldShow)
             {
                 window.Hide();
@@ -597,6 +604,7 @@ internal sealed partial class OverlayCoordinator : IDisposable
 
     private void TogglePopover(QuotaCapsuleWindow owner)
     {
+        OverlayLifecycleDiagnostics.Local.Window(owner, OverlayLifecycleEvent.DetailsToggle);
         if (popover is not null)
         {
             popover.RequestClose();
@@ -606,6 +614,7 @@ internal sealed partial class OverlayCoordinator : IDisposable
         CloseContextRequested?.Invoke(this, EventArgs.Empty);
         dotOwnerId = owner.MonitorId;
         var details = new QuotaPopoverWindow { Owner = owner };
+        OverlayLifecycleDiagnostics.Local.Window(details, OverlayLifecycleEvent.DetailsCreated);
         details.SetMaterialTransparency(materialTransparency);
         popover = details;
         popoverOwner = owner;
@@ -622,6 +631,7 @@ internal sealed partial class OverlayCoordinator : IDisposable
         details.OpenSubscriptionLoginRequested += (_, _) => OpenSubscriptionLoginRequested?.Invoke(this, EventArgs.Empty);
         details.Closed += (_, _) =>
         {
+            OverlayLifecycleDiagnostics.Local.Window(details, OverlayLifecycleEvent.DetailsClosed);
             popover = null;
             popoverOwner = null;
             popoverBounds = null;

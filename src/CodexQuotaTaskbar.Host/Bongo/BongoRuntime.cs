@@ -5,6 +5,7 @@ using System.IO;
 using System.Text;
 using System.Text.Json;
 using CodexQuotaTaskbar.Host.Platform;
+using CodexQuotaTaskbar.Host.UI;
 
 namespace CodexQuotaTaskbar.Host.Bongo;
 
@@ -114,6 +115,7 @@ internal sealed class BongoRuntime : IAsyncDisposable
             if (!process.Start()) throw new InvalidOperationException("Bongo renderer did not start.");
             processStarted = true;
             ActiveProcessId = process.Id;
+            OverlayLifecycleDiagnostics.Local.Record(OverlayLifecycleEvent.RendererStarted, relatedPid: process.Id);
             process.StandardInput.AutoFlush = true;
             diagnostics = DrainDiagnosticsAsync(process.StandardError);
             var clock = Stopwatch.StartNew();
@@ -165,6 +167,7 @@ internal sealed class BongoRuntime : IAsyncDisposable
                     frame = new(width, height, pixels, bytes, ArrayPool<byte>.Shared);
                     bufferOwned = false;
                     FramesProduced++;
+                    if (first) OverlayLifecycleDiagnostics.Local.Record(OverlayLifecycleEvent.RendererFirstFrame, relatedPid: process.Id);
                     if (FrameAvailable is { } handler) { handler(frame); frame = null; }
                 }
                 finally
@@ -187,6 +190,7 @@ internal sealed class BongoRuntime : IAsyncDisposable
             or ArgumentException or NotSupportedException or System.Net.Http.HttpRequestException)
         {
             // Fixed categories only: never echo pipe content or physical input.
+            OverlayLifecycleDiagnostics.Local.Record(OverlayLifecycleEvent.RendererFailed, relatedPid: ActiveProcessId ?? 0);
             Failed?.Invoke(error is OperationCanceledException ? "BongoCat 渲染超时，已回退小白球" : "BongoCat 暂不可用，已回退小白球");
         }
         finally
@@ -218,6 +222,8 @@ internal sealed class BongoRuntime : IAsyncDisposable
                     lock (gate) uncertainProcess = process;
                     Failed?.Invoke("BongoCat 退出尚未确认，已停用自动重启");
                 }
+                OverlayLifecycleDiagnostics.Local.Record(uncertain ? OverlayLifecycleEvent.RendererExitUnconfirmed
+                    : OverlayLifecycleEvent.RendererExited, relatedPid: ActiveProcessId ?? 0);
                 if (!uncertain) { process.Dispose(); ActiveProcessId = null; }
             }
         }

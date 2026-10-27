@@ -77,10 +77,11 @@ public partial class QuotaCapsuleWindow : Window
         SystemParameters.StaticPropertyChanged += OnSystemParametersChanged;
         IsVisibleChanged += (_, _) =>
         {
+            OverlayLifecycleDiagnostics.Local.Window(this, OverlayLifecycleEvent.Visibility);
             // Resize/Bongo cleanup can reenter rendering before this callback returns.
             // Match the visibility gate before any native geometry mutation.
             RefreshCompanionResetNotice();
-            if (!IsVisible) { CancelPointerGesture("hidden"); FinishExtensionTransitions(); ClearBongoFrame(); }
+            HandleHiddenIsland();
             RefreshCompanionResetNotice();
         };
         Closing += (_, _) =>

@@ -20,6 +20,8 @@ public partial class QuotaPopoverWindow : Window
     internal const double GlassMerging = OverlayGlassMaterial.Merging;
     internal static EasingMode ExitEasingMode => EasingMode.EaseOut;
     private bool activationEstablished;
+    internal long ActivationGeneration { get; private set; }
+    private bool popupClosed;
     private bool blurReady;
     private int materialTransparency;
     private bool closingAnimated;
@@ -49,14 +51,16 @@ public partial class QuotaPopoverWindow : Window
             RequestClose();
             OpenSubscriptionLoginRequested?.Invoke(this, EventArgs.Empty);
         };
-        Activated += (_, _) => activationEstablished = true;
+        Activated += (_, _) => { activationEstablished = true; ++ActivationGeneration; };
         Deactivated += (_, _) =>
         {
+            OverlayLifecycleDiagnostics.Local.Window(this, OverlayLifecycleEvent.DetailsDeactivated);
             if (activationEstablished && !HasOpenShortcutInteraction)
             {
+                var generation = ++ActivationGeneration;
                 Dispatcher.BeginInvoke(new Action(() =>
                 {
-                    if (!HasOpenShortcutInteraction) RequestClose();
+                    if (CanCloseAfterDeactivation(generation, IsActive, IsVisible)) RequestClose();
                 }));
             }
         };
@@ -68,7 +72,11 @@ public partial class QuotaPopoverWindow : Window
             }
         };
         SystemParameters.StaticPropertyChanged += OnSystemParametersChanged;
-        Closed += (_, _) => SystemParameters.StaticPropertyChanged -= OnSystemParametersChanged;
+        Closed += (_, _) =>
+        {
+            popupClosed = true; ++ActivationGeneration;
+            SystemParameters.StaticPropertyChanged -= OnSystemParametersChanged;
+        };
         ApplySystemAppearance();
     }
 
@@ -78,6 +86,7 @@ public partial class QuotaPopoverWindow : Window
 
     internal void PlayEntrance((double X, double Y) offset)
     {
+        ++ActivationGeneration;
         anchorOffsetX = offset.X;
         anchorOffsetY = offset.Y;
         Opacity = 1;
@@ -153,6 +162,10 @@ public partial class QuotaPopoverWindow : Window
         PopoverTranslate.BeginAnimation(TranslateTransform.XProperty, CreateSurfaceAnimation(PopoverTranslate.X, anchorOffsetX * 0.7, false));
         PopoverTranslate.BeginAnimation(TranslateTransform.YProperty, CreateSurfaceAnimation(PopoverTranslate.Y, anchorOffsetY * 0.7, false));
     }
+
+    internal bool CanCloseAfterDeactivation(long generation, bool active, bool visible) =>
+        generation == ActivationGeneration && !active && visible && !popupClosed
+        && !closingAnimated && !HasOpenShortcutInteraction;
 
     internal static (double X, double Y) CalculateEntranceOffset(ScreenRect anchor, ScreenRect popover)
     {

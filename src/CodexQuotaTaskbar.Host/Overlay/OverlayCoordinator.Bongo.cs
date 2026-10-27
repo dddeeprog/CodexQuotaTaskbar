@@ -63,7 +63,7 @@ internal sealed partial class OverlayCoordinator
             owner.ConfigureBongoSurface(bongoSelected && !bongoFailed && !bongoStopping && fits, bongoSize);
             owner.SetCompanionFailure(bongoSelected && bongoFailed ? bongoFailureReason : null);
             if (BongoEligible(owner)) eligible.Add(owner);
-            else owner.ClearBongoFrame();
+            else if (sessionLocked) owner.ClearBongoFrame();
         }
         BongoTarget? target = null;
         if (eligible.Count > 0)
@@ -111,6 +111,8 @@ internal sealed partial class OverlayCoordinator
             if (disposed || version != Volatile.Read(ref bongoGeneration)) return;
             if (bongoRuntime is not null)
             {
+                OverlayLifecycleDiagnostics.Local.Record(OverlayLifecycleEvent.RendererStop,
+                    relatedPid: bongoRuntime.ActiveProcessId ?? 0);
                 await bongoRuntime.DisposeAsync();
                 lastBongoFramesProduced = bongoRuntime.FramesProduced;
                 lastBongoExitConfirmed = bongoRuntime.ExitConfirmed;
@@ -123,6 +125,7 @@ internal sealed partial class OverlayCoordinator
             }
             if (disposed || version != Volatile.Read(ref bongoGeneration) || desiredBongoTarget is not { } target) return;
             var runtime = createBongoRuntime(); bongoRuntime = runtime;
+            OverlayLifecycleDiagnostics.Local.Record(OverlayLifecycleEvent.RendererStart);
             runtime.FrameAvailable += frame => QueueBongoFrame(frame, version);
             runtime.Failed += reason => OnOwnerThread(() =>
             {
