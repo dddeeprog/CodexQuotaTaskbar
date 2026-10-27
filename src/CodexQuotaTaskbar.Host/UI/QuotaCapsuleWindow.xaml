@@ -64,7 +64,7 @@
             BorderBrush="{x:Static ui:OverlayGlassMaterial.Border}" BorderThickness="0">
       <Grid>
         <Grid.RowDefinitions><RowDefinition Height="48"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-        <Grid x:Name="QuotaHeader" Margin="14,0,10,0">
+        <Grid x:Name="QuotaHeader" Margin="14,0,10,0" Background="Transparent">
           <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
         <Grid x:Name="FirstRow" Grid.Column="0" Margin="0,0,8,0" VerticalAlignment="Center">
           <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="7"/></Grid.RowDefinitions>
@@ -152,7 +152,7 @@
           </Border>
         </Grid>
         <Grid x:Name="ResetScheduleReveal" Grid.Row="2" Height="0" VerticalAlignment="Top" Visibility="Collapsed">
-        <Border x:Name="ResetScheduleRow" Height="26" VerticalAlignment="Top" Margin="12,0,12,0" BorderBrush="Transparent" BorderThickness="0,1,0,0" Padding="4,0,4,8" Visibility="Collapsed">
+        <Border x:Name="ResetScheduleRow" Height="26" VerticalAlignment="Top" Margin="12,0,12,0" Background="Transparent" BorderBrush="Transparent" BorderThickness="0,1,0,0" Padding="4,0,4,8" Visibility="Collapsed">
           <Grid>
             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
             <Border x:Name="ResetScheduleDivider" Grid.ColumnSpan="2" Height="1" VerticalAlignment="Top" Margin="-4,-1,-4,0" BorderBrush="#28FFFFFF" BorderThickness="0,1,0,0" IsHitTestVisible="False">

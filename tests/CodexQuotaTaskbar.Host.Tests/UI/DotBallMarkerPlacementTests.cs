@@ -140,9 +140,12 @@ public sealed class DotBallMarkerPlacementTests
             Assert.True(owner.DotMarkerIsCatHead);
             Assert.Equal(System.Windows.HorizontalAlignment.Left, marker.HorizontalAlignment);
             var model = owner.BongoModelBoundsDip;
-            var expected = model.Top - 22;
+            // The approved cat-head anchor uses the real standard-model canvas
+            // (61% x, 16% y), not the obsolete centre above the whole model.
+            var scale = Math.Min(model.Width / 480, model.Height / 278);
+            var expected = Math.Max(0, model.Top + (model.Height - 278 * scale) / 2 + .16 * 278 * scale - 27);
             Assert.Equal(expected, marker.Margin.Top, 5);
-            Assert.Equal(model.Left + model.Width / 2 - 12, marker.Margin.Left, 5);
+            Assert.Equal(model.Left + (model.Width - 480 * scale) / 2 + .61 * 480 * scale - 12, marker.Margin.Left, 5);
             Assert.Equal("!", Assert.IsType<TextBlock>(marker.Content).Text);
             AssertNonOverlapping(Bounds(marker, (Visual)owner.Content), owner.StatusBallBoundsDip);
             Assert.True(marker.Margin.Top + 24 <= owner.DesiredHeight + .01);

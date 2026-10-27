@@ -49,21 +49,21 @@ public partial class DotChatWindow
     private void ObserveInlineMessages(IEnumerable<DotMessage> current)
     {
         if (!inlineMode || inlineStopping) return;
-        var known = inlineInbox.Capture().KnownIds.ToHashSet(StringComparer.Ordinal);
+        var known = inlineInbox.CaptureKnownIds();
         var changed = false;
         foreach (var message in current)
         {
             if (message.Role != "assistant" || string.IsNullOrWhiteSpace(message.Id)
                 || message.Id.Length > 256 || string.IsNullOrWhiteSpace(message.Text)
                 || message.Time is not { } time || time < inlineConnectedAt && !known.Contains(message.Id)) continue;
-            var before = inlineInbox.Messages.FirstOrDefault(item => item.Id == message.Id);
+            var before = inlineInbox.Find(message.Id);
             if (inlineInbox.ObserveNotification(message))
             {
                 inlineNotificationId = message.Id; inlineNotificationSerial++; changed = true;
             }
             else
             {
-                var after = inlineInbox.Messages.FirstOrDefault(item => item.Id == message.Id);
+                var after = inlineInbox.Find(message.Id);
                 changed |= before != after;
             }
             known.Add(message.Id);

@@ -13,6 +13,16 @@ public partial class QuotaCapsuleWindow
     private ResetScheduleSnapshot resetSchedule = ResetScheduleSnapshot.Loading;
     private ResetScheduleRowPresentation? resetScheduleView;
     private bool resetSchedulePresentationAllowed = true;
+    private DateTimeOffset? confirmedResetUntil;
+    private QuotaResetTracker? recoveryTracker;
+    private ResetQueryState resetQueryState = ResetQueryState.Idle;
+    internal void ApplyResetQueryState(ResetQueryState state)
+    {
+        if (state.Revision < resetQueryState.Revision) return;
+        resetQueryState = state;
+        RefreshCompanionResetNotice();
+    }
+    internal void SetResetTracker(QuotaResetTracker tracker) => recoveryTracker = tracker;
     private double ResetScheduleHeight => appliedResetExtensionHeight;
     internal bool ResetNoticeActive => !bongoWindowClosing && !extensionMotionClosed && ShouldUseResetNoticeColor(
         resetScheduleView?.IsVisible == true, resetSchedulePresentationAllowed,
@@ -22,7 +32,16 @@ public partial class QuotaCapsuleWindow
         bool rowVisible, double appliedHeight, bool ownerVisible) => scheduleVisible && presentationAllowed
         && rowVisible && double.IsFinite(appliedHeight) && appliedHeight > .001 && ownerVisible;
 
-    private void RefreshCompanionResetNotice() => companion?.SetResetNoticeActive(ResetNoticeActive);
+    internal void ApplyConfirmedReset(DateTimeOffset? until)
+    {
+        confirmedResetUntil = until;
+        RefreshResetSchedule(DateTimeOffset.UtcNow);
+    }
+
+    private void RefreshCompanionResetNotice(DateTimeOffset? now = null) => companion?.SetResetState(
+        !bongoWindowClosing && !extensionMotionClosed && IsVisible
+            ? resetQueryState.Select(ResetNoticeActive, confirmedResetUntil, now ?? DateTimeOffset.UtcNow)
+            : ResetVisualState.None);
 
     internal void ApplyResetSchedule(ResetScheduleSnapshot snapshot) => ApplyResetSchedule(snapshot, DateTimeOffset.UtcNow);
 
@@ -35,8 +54,12 @@ public partial class QuotaCapsuleWindow
     internal void RefreshResetSchedule(DateTimeOffset now, TimeZoneInfo? zone = null)
     {
         var view = ResetScheduleRowPresentation.Create(resetSchedule, now, zone);
+        if (recoveryTracker?.IsNoticeConsumed(resetSchedule.Schedule) == true
+            || QuotaResetTracker.Select(false, confirmedResetUntil, now) == ResetVisualState.Confirmed)
+            view = view with { IsVisible = false };
         if (!IsUnifiedPanel) view = view with { IsVisible = false };
-        if (view == resetScheduleView) return;
+        // Reuse the coordinator's existing 750 ms reconciliation, even when minute text is unchanged.
+        if (view == resetScheduleView) { RefreshCompanionResetNotice(now); return; }
         if (resetScheduleView?.Countdown != view.Countdown) ResetScheduleCountdown.Text = view.Countdown;
         if (resetScheduleView?.LocalTime != view.LocalTime) ResetScheduleLocalTime.Text = view.LocalTime;
         if (resetScheduleView?.Tooltip != view.Tooltip)
@@ -54,7 +77,7 @@ public partial class QuotaCapsuleWindow
         }
         else if (resetSchedulePresentationAllowed) ResetScheduleRow.Visibility = Visibility.Visible;
         RetargetResetExtension(view.IsVisible && resetSchedulePresentationAllowed ? ResetScheduleRowHeight : 0);
-        RefreshCompanionResetNotice();
+        RefreshCompanionResetNotice(now);
     }
 
     // An optional footer is never clipped into a half-readable line. A short

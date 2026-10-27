@@ -93,6 +93,63 @@ function fixture({origin = 'https://chatgpt.com', path = '/dots/home', draft = '
 const safeArticle = (text = 'Prior visible message', id = 'old') => article(text, {id});
 const plain = value => JSON.parse(JSON.stringify(value));
 const normalizeFixtureText = value => value.trim().replace(/\s+/gu, ' ');
+
+test('notification reads skip historical bodies but preserve the exact latest message window', () => {
+    const nodes = Array.from({length:256}, (_, i) => article('synthetic '.repeat(300), {id:'history-' + i}));
+    let bodyReads = 0;
+    for (const node of nodes) {
+        const body = node.querySelector('.message-content');
+        Object.defineProperty(body, 'innerText', {get() { bodyReads++; return this.ownText; }});
+    }
+    const f = fixture({articles:nodes});
+    const full = plain(f.call('read')); const fullReads = bodyReads;
+    bodyReads = 0;
+    const lean = plain(f.call('read', '', {notificationOnly:true}));
+    assert.deepEqual(lean.messages, full.messages);
+    assert.equal(lean.state, full.state); assert.equal(lean.draftEmpty, full.draftEmpty);
+    assert.equal(lean.diagnostics.baselineComplete, full.diagnostics.baselineComplete);
+    assert.equal(fullReads, 256); assert.equal(bodyReads, 12);
+    assert.equal(lean.diagnostics.historicalBodiesSkipped, 244);
+    assert.deepEqual(f.stats(), {clicks:0, insertions:0});
+});
+
+test('notification reads retain off-window duplicate, conflicting and missing identity checks', () => {
+    for (const historical of [article('old', {id:'recent-0'}), article('old', {id:null}),
+        article('old', {id:'old', conflictId:'conflict'})]) {
+        const nodes = [historical, ...Array.from({length:12}, (_, i) => article('new', {id:'recent-' + i}))];
+        const f = fixture({articles:nodes});
+        const full = plain(f.call('read')); const lean = plain(f.call('read', '', {notificationOnly:true}));
+        assert.deepEqual(lean.messages, full.messages);
+        assert.equal(lean.diagnostics.baselineComplete, false);
+        assert.equal(lean.diagnostics.missingIds, full.diagnostics.missingIds);
+        assert.equal(lean.diagnostics.duplicateIds, full.diagnostics.duplicateIds);
+    }
+});
+
+test('pending receipt and prepare never use the notification-only body shortcut', () => {
+    const nodes = [article(payload, {id:'historical-match', role:'user'}),
+        ...Array.from({length:12}, (_, i) => article('new', {id:'recent-' + i}))];
+    const f = fixture({articles:nodes});
+    const full = plain(f.call('read', '', {pendingText:payload}));
+    const guarded = plain(f.call('read', '', {pendingText:payload, notificationOnly:true}));
+    assert.deepEqual(guarded, full); assert.equal(guarded.diagnostics.fullMatches, 1);
+    const prepared = f.call('prepare', payload, {notificationOnly:true});
+    assert.equal(prepared.diagnostics.historicalBodiesSkipped, 0);
+    assert.equal(prepared.beforeIds.length, 13);
+});
+
+test('notification polling sees streaming edits, append, reorder and page boundary immediately', () => {
+    const nodes = Array.from({length:14}, (_, i) => article('text-' + i, {id:'n-' + i}));
+    const f = fixture({articles:nodes});
+    const compare = () => assert.deepEqual(plain(f.call('read', '', {notificationOnly:true})).messages,
+        plain(f.call('read')).messages);
+    compare(); nodes[13].querySelector('.message-content').innerText = 'stream changed'; compare();
+    f.nodes.push(article('newest', {id:'newest'})); compare(); f.nodes.reverse(); compare();
+    assert.equal(f.call('read', '', {notificationOnly:true}).messages.at(-1).id, 'n-0');
+    const other = fixture({origin:'https://chatgpt.com.evil.test', articles:nodes});
+    assert.equal(other.call('read', '', {notificationOnly:true}).state, 'page_required');
+    assert.deepEqual(other.stats(), {clicks:0, insertions:0});
+});
 function simulateLayoutSkipped(root) {
     // Contract reproduction only. This getter override does not establish which CSS caused the live symptom.
     root.forceInnerTextEmpty = true;

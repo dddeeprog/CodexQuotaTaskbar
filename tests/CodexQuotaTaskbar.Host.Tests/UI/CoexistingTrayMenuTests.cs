@@ -109,7 +109,7 @@ public sealed class CoexistingTrayMenuTests
                     text.FontSize, text.Foreground, dpi / 96d);
                 Assert.True(full.WidthIncludingTrailingWhitespace <= text.ActualWidth + .5, text.Text);
             }
-            Assert.True(Named<Button>(menu, "CompanionPreviewButton").IsEnabled);
+            Assert.Null(menu.FindName("CompanionPreviewButton"));
             Assert.Equal("已选中", AutomationProperties.GetItemStatus(Named<Button>(menu, "CompanionWhiteBallButton")));
             Assert.Equal(nint.Zero, new WindowInteropHelper(menu).Handle);
         }

@@ -85,6 +85,22 @@ public sealed class AppServerRateLimitsParserTests
     }
 
     [Theory]
+    [InlineData("{\"primary\":{\"usedPercent\":null,\"windowDurationMins\":60,\"resetsAt\":1785661200}}")]
+    [InlineData("{\"primary\":{\"usedPercent\":10,\"windowDurationMins\":60,\"resetsAt\":9999999999999}}")]
+    [InlineData("{\"primary\":42}")]
+    [InlineData("null")]
+    public void Unknown_nullable_or_unrepresentable_bucket_does_not_discard_valid_codex(string unknownBucket)
+    {
+        var json = "{\"rateLimitsByLimitId\":{\"codex\":{\"primary\":{\"usedPercent\":28,\"windowDurationMins\":300,\"resetsAt\":1785661200}},\"future-meter\":" + unknownBucket + "}}";
+        var snapshot = AppServerRateLimitsParser.Parse(json, DateTimeOffset.UnixEpoch);
+        var known = Assert.Single(snapshot.Windows);
+        Assert.Equal("codex", known.LimitId);
+        Assert.Equal(72, known.RemainingPercent);
+    }
+
+    [Theory]
+    [InlineData("{\"rateLimits\":{\"primary\":{\"usedPercent\":10,\"windowDurationMins\":\"bad\",\"resetsAt\":1785661200}}}")]
+    [InlineData("{\"rateLimits\":{\"primary\":{\"usedPercent\":10,\"windowDurationMins\":300,\"resetsAt\":\"bad\"}}}")]
     [InlineData("{\"rateLimits\":{\"limitId\":\"codex\",\"primary\":{\"usedPercent\":null,\"windowDurationMins\":60,\"resetsAt\":1}}}")]
     [InlineData("{\"rateLimits\":{\"limitId\":\"codex\",\"primary\":{\"usedPercent\":101,\"windowDurationMins\":60,\"resetsAt\":1}}}")]
     [InlineData("not json")]

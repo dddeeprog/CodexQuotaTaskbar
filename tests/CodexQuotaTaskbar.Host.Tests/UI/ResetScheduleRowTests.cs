@@ -252,8 +252,8 @@ public sealed class ResetScheduleRowTests
                 window.ApplyResetSchedule(Fresh(), Now, China);
                 if (!unified)
                 {
-                    Assert.Equal(112, window.Height);
-                    Assert.Equal(112, window.DesiredHeight);
+                    Assert.Equal(100, window.Height); // Unknown/single quota occupies one compact row.
+                    Assert.Equal(100, window.DesiredHeight);
                     Assert.Equal(Visibility.Collapsed, Named<Border>(window, "ResetScheduleRow").Visibility);
                     continue;
                 }

@@ -465,7 +465,8 @@ public partial class DotChatWindow : Window
 
     private async Task<JsonDocument> CallAsync(string action, string text = "")
     {
-        var probe = new { pendingText, beforeIds = beforeSend.ToArray(), baselineComplete = pendingBaselineComplete };
+        var probe = new { pendingText, beforeIds = beforeSend.ToArray(), baselineComplete = pendingBaselineComplete,
+            notificationOnly = inlineMode && pendingText is null };
         var json = await browser.ExecuteScriptAsync($"{script}({JsonSerializer.Serialize(action)}, {JsonSerializer.Serialize(text)}, {JsonSerializer.Serialize(probe)})");
         if (closed) throw new OperationCanceledException(lifetime.Token);
         return JsonDocument.Parse(json);
@@ -494,11 +495,25 @@ public partial class DotChatWindow : Window
             if (root.TryGetProperty("messages", out var list))
             {
                 if (list.ValueKind != JsonValueKind.Array || list.GetArrayLength() > 12) throw new JsonException("Invalid message window");
-                messages = list.EnumerateArray().Select(m => new DotMessage(
-                    ReadBridgeString(m, "id"), ReadBridgeString(m, "role"), ReadBridgeString(m, "text"),
-                    DateTimeOffset.TryParse(ReadBridgeString(m, "time"), out var time) ? time : null,
-                    m.TryGetProperty("confirmable", out var confirmable) && confirmable.GetBoolean(),
-                    ReadSource(m, "idSource"), ReadSource(m, "roleSource"), ReadSource(m, "textSource"))).ToArray();
+                var next = new DotMessage[list.GetArrayLength()];
+                var index = 0;
+                foreach (var m in list.EnumerateArray())
+                {
+                    var prior = index < messages.Length ? messages[index] : null;
+                    var id = ReadBridgeString(m, "id", prior?.Id);
+                    var role = ReadBridgeString(m, "role", prior?.Role);
+                    var text = ReadBridgeString(m, "text", prior?.Text);
+                    DateTimeOffset? time = DateTimeOffset.TryParse(ReadBridgeString(m, "time"), out var parsed) ? parsed : null;
+                    var confirmable = m.TryGetProperty("confirmable", out var flag) && flag.GetBoolean();
+                    var idSource = ReadSource(m, "idSource");
+                    var roleSource = ReadSource(m, "roleSource");
+                    var textSource = ReadSource(m, "textSource");
+                    next[index++] = prior is not null && prior.Id == id && prior.Role == role && prior.Text == text
+                        && prior.Time == time && prior.Confirmable == confirmable && prior.IdSource == idSource
+                        && prior.RoleSource == roleSource && prior.TextSource == textSource ? prior
+                        : new(id, role, text, time, confirmable, idSource, roleSource, textSource);
+                }
+                messages = next;
                 ObserveInlineMessages(messages);
                 if (tracker.Observe(messages) is { } message)
                 {
@@ -530,11 +545,13 @@ public partial class DotChatWindow : Window
     private static string ReadSource(JsonElement value, string name) =>
         value.TryGetProperty(name, out var source) ? DotBridgeDiagnostic.SafeSource(source.GetString()) : "unknown";
 
-    private static string ReadBridgeString(JsonElement value, string name)
+    private static string ReadBridgeString(JsonElement value, string name, string? previous = null)
     {
         if (value.ValueKind != JsonValueKind.Object || !value.TryGetProperty(name, out var field) || field.ValueKind != JsonValueKind.String)
             throw new JsonException("Invalid bridge field");
-        return field.GetString()!;
+        // ValueEquals compares the UTF-8 JSON without allocating another UTF-16
+        // copy of an unchanged (up to 8000-character) message on every poll.
+        return previous is not null && field.ValueEquals(previous) ? previous : field.GetString()!;
     }
 
     private void CheckPendingSend()

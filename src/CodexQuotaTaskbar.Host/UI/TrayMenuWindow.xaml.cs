@@ -65,7 +65,6 @@ public partial class TrayMenuWindow : Window
         RefreshButton.Click += (_, _) => InvokeAndHide(RefreshRequested);
         CheckUpdatesButton.Click += (_, _) => InvokeAndHide(CheckUpdatesRequested);
         OpenCodexButton.Click += (_, _) => InvokeAndHide(OpenCodexRequested);
-        DotChatButton.Click += (_, _) => InvokeAndHide(OpenDotChatRequested);
         DotRealtimeButton.Click += (_, _) => RequestSettings(this.settings with { DotRealtime = !this.settings.DotRealtime });
         SubscriptionLoginButton.Click += (_, _) => InvokeAndHide(OpenSubscriptionLoginRequested);
         ExitButton.Click += (_, _) => InvokeAndHide(ExitRequested);
@@ -116,7 +115,6 @@ public partial class TrayMenuWindow : Window
     internal event EventHandler? RefreshRequested;
     internal event EventHandler? CheckUpdatesRequested;
     internal event EventHandler? OpenCodexRequested;
-    internal event EventHandler? OpenDotChatRequested;
     internal event EventHandler? OpenSubscriptionLoginRequested;
     internal event EventHandler<AppSettings>? SettingsChangeRequested;
     internal event EventHandler<int>? MaterialTransparencyPreviewRequested;
@@ -157,16 +155,20 @@ public partial class TrayMenuWindow : Window
     internal void ShowAt(System.Drawing.Point cursor, int anchorGap = 8, System.Drawing.Rectangle? island = null, uint islandDpi = 96,
         IReadOnlyList<CodexQuotaTaskbar.Core.Overlay.ScreenRect>? avoidance = null)
     {
-        if (popupMotionClosed) return;
-        if (IsVisible && !IsPopupClosing)
+        RunPopupRequest(() =>
         {
-            RequestHide();
-            return;
-        }
+            if (IsVisible && !IsPopupClosing) { RequestHide(); return; }
+            var generation = PreparePopupOpen();
+            ShowPopupAt(cursor, anchorGap, island, islandDpi, avoidance, generation);
+        });
+    }
 
+    internal bool IsPopupRequestInProgress => preparingPopup;
+    internal bool RunPopupRequest(Action request)
+    {
+        if (popupMotionClosed || preparingPopup) return false;
         preparingPopup = true;
-        var generation = PreparePopupOpen();
-        try { ShowPopupAt(cursor, anchorGap, island, islandDpi, avoidance, generation); }
+        try { request(); return true; }
         finally { preparingPopup = false; }
     }
 

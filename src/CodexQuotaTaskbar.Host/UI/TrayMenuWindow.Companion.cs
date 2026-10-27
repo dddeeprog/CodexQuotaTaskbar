@@ -13,12 +13,10 @@ public partial class TrayMenuWindow
     private Button lightChoice = null!;
     private Button motionChoice = null!;
     private Button typingChoice = null!;
-    private Button ballPreview = null!;
     private Button coreTermsChoice = null!;
     private CoreConsentState coreConsentState;
     private bool coreTermsReadable;
     private readonly Dictionary<int, Button> bongoSizeChoices = new();
-    internal event EventHandler? CompanionPreviewRequested;
     internal event EventHandler? CoreTermsRequested;
 
     private void InitializeCompanionMenu()
@@ -47,8 +45,6 @@ public partial class TrayMenuWindow
         typingChoice.ToolTip = "默认关闭。仅将当前物理键位及鼠标按下/松开用于本地动作，不转换文字、不保存或上传；关闭形象、隐藏或减少动画时暂停。";
         System.Windows.Automation.AutomationProperties.SetName(typingChoice, "跟随键盘敲击");
         System.Windows.Automation.AutomationProperties.SetHelpText(typingChoice, (string)typingChoice.ToolTip);
-        ballPreview = Add(CompanionInteractionItems, "试玩全部 32 种表情 / 停止", () => InvokeAndHide(CompanionPreviewRequested));
-        Name(ballPreview, "CompanionPreviewButton", "试玩全部 32 种表情 / 停止");
         coreTermsChoice = Add(CompanionInteractionItems, "Core 组件条款 · 待确认", () => InvokeAndHide(CoreTermsRequested));
         coreTermsChoice.Style = (Style)FindResource("MenuAction");
         Name(coreTermsChoice, "CoreComponentTermsButton", "Core 组件条款");
@@ -56,7 +52,7 @@ public partial class TrayMenuWindow
 
         Button Add(System.Windows.Controls.Panel list, string text, Action action, bool choice = false)
         {
-            var button = new Button { Content = text, Style = (Style)FindResource(choice ? "ChoiceAction" : list == CompanionInteractionItems && text.StartsWith("试玩", StringComparison.Ordinal) ? "MenuAction" : "BinaryAction"),
+            var button = new Button { Content = text, Style = (Style)FindResource(choice ? "ChoiceAction" : "BinaryAction"),
                 FontSize = 13, Margin = choice ? new Thickness(1, 0, 1, 0) : new Thickness(0) };
             button.Click += (_, _) => action();
             list.Children.Add(button);
@@ -90,8 +86,7 @@ public partial class TrayMenuWindow
         typingChoice.Content = "跟随键盘敲击";
         typingChoice.Tag = value.CompanionTyping ? "On" : null;
         System.Windows.Automation.AutomationProperties.SetItemStatus(typingChoice, value.CompanionTyping ? "已选中" : "未选中");
-        ballPreview.IsEnabled = value.CompanionBallEnabled;
-        foreach (var button in new[] { ballChoice, bongoChoice, lightChoice, motionChoice, typingChoice, ballPreview, coreTermsChoice }.Concat(bongoSizeChoices.Values))
+        foreach (var button in new[] { ballChoice, bongoChoice, lightChoice, motionChoice, typingChoice, coreTermsChoice }.Concat(bongoSizeChoices.Values))
             button.FontFamily = OverlayTypography.Interface;
         RefreshCoreTermsStatus();
 

@@ -113,6 +113,11 @@ internal sealed class CompanionPoseEngine
     internal int BurstVersion { get; private set; }
     internal int SpinVersion { get; private set; }
     internal bool Spinning => spin is not null;
+    internal int PoolPosition => poolPosition;
+    // Leave at least half of a 12-second item to see another eye shape. Preserve
+    // the original range ratio and every faster rhythm; do not rewrite the asset.
+    internal static double PoolIntervalScale(CompanionDefinition definition) =>
+        Math.Min(1, CompanionEmotionDirector.RotationInterval.TotalMilliseconds / 2 / definition.PoolMs[1]);
 
     internal CompanionPoseEngine(int? randomSeed = null)
     {
@@ -142,7 +147,7 @@ internal sealed class CompanionPoseEngine
         sequenceDone = false;
         poolPosition = 0;
         SetRing(definition.Pool[0], definition.PoolSpeed >= 10 ? 10 : 8);
-        nextPool = now + Between(definition.PoolMs);
+        nextPool = now + Between(definition.PoolMs) * PoolIntervalScale(definition);
         nextBlink = definition.BlinkMs is null ? double.PositiveInfinity : now + Between(definition.BlinkMs);
         nextAntic = now + 2500 + random.NextDouble() * 2500;
         blinks.Clear();
@@ -169,13 +174,11 @@ internal sealed class CompanionPoseEngine
             var last = frames[^1];
             if (t >= last.At)
             {
-                if (seq.Settle.ValueKind == JsonValueKind.Object && seq.Settle.TryGetProperty("next", out var next))
-                {
-                    Enter(catalog.Get(next.GetString()!), now, true);
-                    Array.Copy(Definition.Base, Pose, Pose.Length);
-                    t = 0;
-                }
-                else if (seq.Settle.GetString() == "hold") Array.Copy(last.Pose, Pose, Pose.Length);
+                // Legacy wake sequences requested another emotion (02). Hold this
+                // item's own final pose instead; only the director selects IDs.
+                if (seq.Settle.ValueKind == JsonValueKind.Object
+                    || seq.Settle.ValueKind == JsonValueKind.String && seq.Settle.GetString() == "hold")
+                    Array.Copy(last.Pose, Pose, Pose.Length);
                 else
                 {
                     sequenceDone = true;
@@ -212,7 +215,7 @@ internal sealed class CompanionPoseEngine
             {
                 if (Definition.Pool.Length > 1)
                 { poolPosition = (poolPosition + 1 + random.Next(Definition.Pool.Length - 1)) % Definition.Pool.Length; SetRing(Definition.Pool[poolPosition], Definition.PoolSpeed); }
-                nextPool = now + Between(Definition.PoolMs);
+                nextPool = now + Between(Definition.PoolMs) * PoolIntervalScale(Definition);
             }
             if (now >= nextBlink && Definition.BlinkMs is { } interval)
             { Blink(now); nextBlink = now + Between(interval); }

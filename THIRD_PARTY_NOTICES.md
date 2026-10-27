@@ -166,7 +166,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
   verified model. Core-specific end-user conditions do not restrict the independent GPL Host.
 - The renderer is a locally adapted derivative using a bounded physical-state/control input and complete
   BGRA frame output. Local bridge and lifecycle adaptations are not represented as the unmodified upstream application.
-- The fixed embedded payload retains the Apache license at `licenses/BongoCat-Apache-2.0.txt`,
+- The optional fixed-model renderer package (`DianDao-BongoRuntime-win-x64.zip`), downloaded only after explicit Core consent, retains the Apache license at `licenses/BongoCat-Apache-2.0.txt`,
   the Core notice at `licenses/Live2D-Core.txt`, and the model MIT license at
   `standard/LICENSE-MIT.txt`. No SDK download or agreement acceptance occurs at application startup.
 

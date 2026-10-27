@@ -9,7 +9,6 @@ public partial class QuotaCapsuleWindow
 {
     private static readonly System.Windows.Media.Transform CoexistingStatusBallScale = MakeCoexistingStatusBallScale();
     private CompanionBallControl? companion;
-    private bool companionPointerDown;
     private bool companionTyping;
     private bool companionReduced;
     private bool companionObservePointer = true;

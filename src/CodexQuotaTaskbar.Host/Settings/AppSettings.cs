@@ -19,6 +19,11 @@ internal sealed record AppSettings(
     bool? BongoCatVisible = null)
 {
     internal static AppSettings Default { get; } = new(true, false, true, 10, true, true);
+    // Public appearance template only. Core acceptance never opts into input, Dot, or autostart.
+    internal static AppSettings InstallerDefault { get; } = new(true, false, false, 10, true, true,
+        MaterialTransparencyPercent: 3, UnifiedPanel: true, CompanionBall: true,
+        ReduceCompanionMotion: false, ShowTrayIcon: false, DotRealtime: false, CompanionTyping: false,
+        CompanionAppearance: "bongo-cat", BongoSizeDip: 192, BongoCatVisible: true);
     internal bool AutomaticUpdatesEnabled => AutomaticUpdates is not false;
     internal bool SubscriptionDetailsEnabled => SubscriptionDetails is not false;
     internal bool CompanionBallEnabled => CompanionBall is not false;

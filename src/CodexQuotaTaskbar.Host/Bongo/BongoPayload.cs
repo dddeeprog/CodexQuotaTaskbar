@@ -8,8 +8,8 @@ namespace CodexQuotaTaskbar.Host.Bongo;
 
 internal sealed record BongoPayloadPaths(string HelperPath, string ModelDirectory);
 
-// The updater still replaces one EXE. Only fixed resources from that EXE may
-// become a native runtime; user/model paths and downloaded payloads are not accepted.
+// The updater still replaces one Core-free EXE. Only the fixed manifest's exact
+// optional renderer can be downloaded after consent; arbitrary payloads are rejected.
 internal sealed class BongoPayload
 {
     internal const string ManifestResourceName = "CodexQuotaTaskbar.Host.Assets.Bongo.payload-manifest.json";
@@ -27,19 +27,23 @@ internal sealed class BongoPayload
     };
     private readonly string cacheRoot;
     private readonly Func<string, Stream?> openResource;
+    private readonly Func<CancellationToken, Task<byte[]>>? downloadArchive;
     private readonly SemaphoreSlim gate = new(1, 1);
 
     internal BongoPayload(string? cacheRoot = null) : this(cacheRoot ?? Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "CodexQuotaTaskbar", "Bongo"), name => typeof(BongoPayload).Assembly.GetManifestResourceStream(name)) { }
+        "CodexQuotaTaskbar", "Bongo"), name => typeof(BongoPayload).Assembly.GetManifestResourceStream(name),
+        BongoOptionalDownload.ReadAfterConsentAsync) { }
 
-    internal BongoPayload(string cacheRoot, Func<string, Stream?> openResource)
+    internal BongoPayload(string cacheRoot, Func<string, Stream?> openResource,
+        Func<CancellationToken, Task<byte[]>>? downloadArchive = null)
     {
         this.cacheRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(cacheRoot));
         if (this.cacheRoot.StartsWith("\\\\", StringComparison.Ordinal)
             || this.cacheRoot.Equals(Path.GetPathRoot(this.cacheRoot), StringComparison.OrdinalIgnoreCase))
             throw new ArgumentException("Bongo cache must be a bounded local directory.", nameof(cacheRoot));
         this.openResource = openResource ?? throw new ArgumentNullException(nameof(openResource));
+        this.downloadArchive = downloadArchive;
     }
 
     internal async Task<BongoPayloadPaths> EnsureAsync(CancellationToken cancellationToken)
@@ -54,13 +58,7 @@ internal sealed class BongoPayload
                 ?? throw new InvalidDataException("Missing Bongo payload manifest."); }
             catch (JsonException error) { throw new InvalidDataException("Invalid Bongo payload manifest.", error); }
             var expected = ValidateManifest(manifest);
-            var archiveBytes = await ReadResourceAsync(ArchiveResourceName, MaximumPayloadBytes, cancellationToken).ConfigureAwait(false);
-            if (archiveBytes.Length != manifest.ArchiveBytes || !Hash(archiveBytes).Equals(manifest.ArchiveSha256, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException("Bongo embedded archive hash does not match its manifest.");
-
             AssertLocalRegularPath(cacheRoot, allowMissing: true);
-            Directory.CreateDirectory(cacheRoot);
-            AssertLocalRegularPath(cacheRoot, allowMissing: false);
             var target = ContainedPath(cacheRoot, manifest.ArchiveSha256!.ToLowerInvariant());
             if (Directory.Exists(target))
             {
@@ -68,6 +66,14 @@ internal sealed class BongoPayload
                 return Paths(target);
             }
             if (File.Exists(target)) throw new InvalidDataException("Bongo cache target is not a directory.");
+
+            var archiveBytes = downloadArchive is null
+                ? await ReadResourceAsync(ArchiveResourceName, MaximumPayloadBytes, cancellationToken).ConfigureAwait(false)
+                : await downloadArchive(cancellationToken).ConfigureAwait(false);
+            if (archiveBytes.Length != manifest.ArchiveBytes || !Hash(archiveBytes).Equals(manifest.ArchiveSha256, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("Bongo optional archive hash does not match its manifest.");
+            Directory.CreateDirectory(cacheRoot);
+            AssertLocalRegularPath(cacheRoot, allowMissing: false);
 
             staging = ContainedPath(cacheRoot, ".extract-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(staging);

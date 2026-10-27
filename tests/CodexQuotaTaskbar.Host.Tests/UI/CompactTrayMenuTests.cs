@@ -25,12 +25,12 @@ public sealed class CompactTrayMenuTests
         true, false, 37, true, true, false, false, false, false, "bongo-cat", 192);
 
     [Fact]
-    public void Primary_page_has_seven_actions_and_moves_only_the_two_existing_settings() => Sta(menu =>
+    public void Primary_page_has_six_actions_without_dot_or_preview_entries() => Sta(menu =>
     {
         var primary = Named<StackPanel>(menu, "MenuItems");
         Assert.Equal(new[]
         {
-            "DotChatButton", "OpenCodexButton", "RefreshButton", "AppearanceButton",
+            "OpenCodexButton", "RefreshButton", "AppearanceButton",
             "PreferencesButton", "CheckUpdatesButton", "ExitButton",
         }, primary.Children.OfType<Button>().Select(button => button.Name));
 
@@ -42,10 +42,12 @@ public sealed class CompactTrayMenuTests
         foreach (var name in new[] { "ClassicStyleButton", "UnifiedStyleButton", "AllTaskbarsButton",
                      "CompanionWhiteBallButton", "CompanionBongoCatButton", "CompanionSignalLightButton",
                      "BongoSize160Button", "BongoSize192Button", "BongoSize240Button",
-                     "CompanionMotionButton", "CompanionTypingButton", "CompanionPreviewButton" })
+                     "CompanionMotionButton", "CompanionTypingButton" })
             Assert.True(appearance.IsAncestorOf(Named<Button>(menu, name)), name);
         Assert.True(appearance.IsAncestorOf(Named<Slider>(menu, "MaterialTransparencySlider")));
         Assert.Equal(MenuSection.None, menu.CurrentSection);
+        Assert.Null(menu.FindName("DotChatButton"));
+        Assert.Null(menu.FindName("CompanionPreviewButton"));
         AssertNoNativeWindow(menu);
     });
 
@@ -115,10 +117,8 @@ public sealed class CompactTrayMenuTests
     [InlineData("RefreshButton")]
     [InlineData("CheckUpdatesButton")]
     [InlineData("OpenCodexButton")]
-    [InlineData("DotChatButton")]
     [InlineData("SubscriptionLoginButton")]
     [InlineData("ExitButton")]
-    [InlineData("CompanionPreviewButton")]
     public void Every_existing_action_keeps_its_event_without_modifying_settings(string name) => Sta(menu =>
     {
         var hits = new List<string>();
@@ -126,10 +126,8 @@ public sealed class CompactTrayMenuTests
         menu.RefreshRequested += (_, _) => hits.Add("RefreshButton");
         menu.CheckUpdatesRequested += (_, _) => hits.Add("CheckUpdatesButton");
         menu.OpenCodexRequested += (_, _) => hits.Add("OpenCodexButton");
-        menu.OpenDotChatRequested += (_, _) => hits.Add("DotChatButton");
         menu.OpenSubscriptionLoginRequested += (_, _) => hits.Add("SubscriptionLoginButton");
         menu.ExitRequested += (_, _) => hits.Add("ExitButton");
-        menu.CompanionPreviewRequested += (_, _) => hits.Add("CompanionPreviewButton");
         menu.SettingsChangeRequested += (_, _) => settingsChanged++;
         var button = Named<Button>(menu, name);
         Assert.True(button.IsEnabled);
@@ -249,7 +247,7 @@ public sealed class CompactTrayMenuTests
         var backTop = back.TranslatePoint(default(Point), content).Y;
         Assert.InRange(backTop, 0, actualHeight - back.ActualHeight);
         Assert.True(back.ActualHeight >= 32);
-        var last = Named<Button>(menu, "CompanionPreviewButton");
+        var last = Named<Button>(menu, "CompanionTypingButton");
         ScrollIntoView(menu, last);
         var viewportBounds = new Rect(scroll.TranslatePoint(default(Point), content), scroll.RenderSize);
         var lastBounds = new Rect(last.TranslatePoint(default(Point), content), last.RenderSize);
@@ -321,10 +319,10 @@ public sealed class CompactTrayMenuTests
         menu.ApplySettings(DistinctSettings with { CompanionAppearance = "white-ball" });
         Assert.Equal("已选中", AutomationProperties.GetItemStatus(Named<Button>(menu, "CompanionWhiteBallButton")));
         Assert.Equal("已关闭", AutomationProperties.GetItemStatus(Named<Button>(menu, "CompanionBongoCatButton")));
-        Assert.True(Named<Button>(menu, "CompanionPreviewButton").IsEnabled);
+        Assert.Null(menu.FindName("CompanionPreviewButton"));
         foreach (var size in new[] { 160, 192, 240 }) Assert.False(Named<Button>(menu, $"BongoSize{size}Button").IsEnabled);
         menu.ApplySettings(DistinctSettings with { BongoSizeDip = 160 });
-        Assert.True(Named<Button>(menu, "CompanionPreviewButton").IsEnabled);
+        Assert.Null(menu.FindName("CompanionPreviewButton"));
         Assert.Equal("已选中", AutomationProperties.GetItemStatus(Named<Button>(menu, "CompanionWhiteBallButton")));
         Assert.Equal("已开启", AutomationProperties.GetItemStatus(Named<Button>(menu, "CompanionBongoCatButton")));
         foreach (var size in new[] { 160, 192, 240 }) Assert.True(Named<Button>(menu, $"BongoSize{size}Button").IsEnabled);

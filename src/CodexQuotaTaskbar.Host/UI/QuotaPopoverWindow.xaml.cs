@@ -43,7 +43,6 @@ public partial class QuotaPopoverWindow : Window
         CloseButton.Click += (_, _) => RequestClose();
         RefreshButton.Click += (_, _) => RefreshRequested?.Invoke(this, EventArgs.Empty);
         OpenCodexButton.Click += (_, _) => OpenCodexRequested?.Invoke(this, EventArgs.Empty);
-        DotChatButton.Click += (_, _) => { RequestClose(); OpenDotChatRequested?.Invoke(this, EventArgs.Empty); };
         AddShortcutButton.Click += (_, _) => OpenAddShortcutDialog();
         SubscriptionLoginButton.Click += (_, _) =>
         {
@@ -75,7 +74,6 @@ public partial class QuotaPopoverWindow : Window
 
     internal event EventHandler? RefreshRequested;
     internal event EventHandler? OpenCodexRequested;
-    internal event EventHandler? OpenDotChatRequested;
     internal event EventHandler? OpenSubscriptionLoginRequested;
 
     internal void PlayEntrance((double X, double Y) offset)
@@ -90,13 +88,11 @@ public partial class QuotaPopoverWindow : Window
             return;
         }
 
-        var duration = TimeSpan.FromMilliseconds(EntranceAnimationMilliseconds);
-        var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
-        BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, duration) { EasingFunction = easing });
-        PopoverScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(0.97, 1, duration) { EasingFunction = easing });
-        PopoverScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(0.97, 1, duration) { EasingFunction = easing });
-        PopoverTranslate.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(offset.X, 0, duration) { EasingFunction = easing });
-        PopoverTranslate.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(offset.Y, 0, duration) { EasingFunction = easing });
+        BeginAnimation(OpacityProperty, CreateSurfaceAnimation(0, 1, true));
+        PopoverScale.BeginAnimation(ScaleTransform.ScaleXProperty, CreateSurfaceAnimation(0.97, 1, true));
+        PopoverScale.BeginAnimation(ScaleTransform.ScaleYProperty, CreateSurfaceAnimation(0.97, 1, true));
+        PopoverTranslate.BeginAnimation(TranslateTransform.XProperty, CreateSurfaceAnimation(offset.X, 0, true));
+        PopoverTranslate.BeginAnimation(TranslateTransform.YProperty, CreateSurfaceAnimation(offset.Y, 0, true));
         PlaySectionEntrance();
     }
 
@@ -108,19 +104,24 @@ public partial class QuotaPopoverWindow : Window
             var group = groups[index];
             var slide = new TranslateTransform();
             group.RenderTransform = slide;
-            var delay = TimeSpan.FromMilliseconds(index * 25);
-            var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
-            DoubleAnimationUsingKeyFrames Entrance(double from, double to)
-            {
-                var animation = new DoubleAnimationUsingKeyFrames { FillBehavior = FillBehavior.Stop };
-                animation.KeyFrames.Add(new DiscreteDoubleKeyFrame(from, KeyTime.FromTimeSpan(TimeSpan.Zero)));
-                animation.KeyFrames.Add(new DiscreteDoubleKeyFrame(from, KeyTime.FromTimeSpan(delay)));
-                animation.KeyFrames.Add(new EasingDoubleKeyFrame(to, KeyTime.FromTimeSpan(delay + TimeSpan.FromMilliseconds(150)), ease));
-                return animation;
-            }
-            group.BeginAnimation(OpacityProperty, Entrance(0.7, 1));
-            slide.BeginAnimation(TranslateTransform.YProperty, Entrance(3, 0));
+            group.BeginAnimation(OpacityProperty, CreateSectionEntranceAnimation(0.7, 1, index));
+            slide.BeginAnimation(TranslateTransform.YProperty, CreateSectionEntranceAnimation(3, 0, index));
         }
+    }
+
+    internal static DoubleAnimation CreateSurfaceAnimation(double from, double to, bool opening) =>
+        new(from, to, TimeSpan.FromMilliseconds(opening ? EntranceAnimationMilliseconds : ExitAnimationMilliseconds))
+        { EasingFunction = new CubicEase { EasingMode = opening ? EasingMode.EaseOut : ExitEasingMode } };
+
+    internal static DoubleAnimationUsingKeyFrames CreateSectionEntranceAnimation(double from, double to, int index)
+    {
+        var delay = TimeSpan.FromMilliseconds(index * 25);
+        var animation = new DoubleAnimationUsingKeyFrames { FillBehavior = FillBehavior.Stop };
+        animation.KeyFrames.Add(new DiscreteDoubleKeyFrame(from, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        animation.KeyFrames.Add(new DiscreteDoubleKeyFrame(from, KeyTime.FromTimeSpan(delay)));
+        animation.KeyFrames.Add(new EasingDoubleKeyFrame(to, KeyTime.FromTimeSpan(delay + TimeSpan.FromMilliseconds(150)),
+            new CubicEase { EasingMode = EasingMode.EaseOut }));
+        return animation;
     }
 
     internal void FitAvailableHeight(double availableDip)
@@ -144,15 +145,13 @@ public partial class QuotaPopoverWindow : Window
         }
 
         closingAnimated = true;
-        var duration = TimeSpan.FromMilliseconds(ExitAnimationMilliseconds);
-        var easing = new CubicEase { EasingMode = ExitEasingMode };
-        var opacity = new DoubleAnimation(Opacity, 0, duration) { EasingFunction = easing };
+        var opacity = CreateSurfaceAnimation(Opacity, 0, false);
         opacity.Completed += (_, _) => Close();
         BeginAnimation(OpacityProperty, opacity);
-        PopoverScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(PopoverScale.ScaleX, 0.98, duration) { EasingFunction = easing });
-        PopoverScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(PopoverScale.ScaleY, 0.98, duration) { EasingFunction = easing });
-        PopoverTranslate.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(PopoverTranslate.X, anchorOffsetX * 0.7, duration) { EasingFunction = easing });
-        PopoverTranslate.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(PopoverTranslate.Y, anchorOffsetY * 0.7, duration) { EasingFunction = easing });
+        PopoverScale.BeginAnimation(ScaleTransform.ScaleXProperty, CreateSurfaceAnimation(PopoverScale.ScaleX, 0.98, false));
+        PopoverScale.BeginAnimation(ScaleTransform.ScaleYProperty, CreateSurfaceAnimation(PopoverScale.ScaleY, 0.98, false));
+        PopoverTranslate.BeginAnimation(TranslateTransform.XProperty, CreateSurfaceAnimation(PopoverTranslate.X, anchorOffsetX * 0.7, false));
+        PopoverTranslate.BeginAnimation(TranslateTransform.YProperty, CreateSurfaceAnimation(PopoverTranslate.Y, anchorOffsetY * 0.7, false));
     }
 
     internal static (double X, double Y) CalculateEntranceOffset(ScreenRect anchor, ScreenRect popover)
@@ -183,9 +182,15 @@ public partial class QuotaPopoverWindow : Window
         ExtraCreditsText.Text = FormatExtraCredits(snapshot.ExtraCredits);
         ExtraCreditsText.Tag = snapshot.ExtraCredits is null ? "secondary" : null;
         RowsPanel.Children.Clear();
+        if (snapshot.Availability != QuotaAvailability.Available || snapshot.UnresolvedWindows.Count > 0)
+            RowsPanel.Children.Add(new TextBlock { Text = snapshot.Availability == QuotaAvailability.Stale
+                ? "连接中断 · 以下为上次数据" : snapshot.UnresolvedWindows.Count > 0
+                    ? "部分窗口字段未提供 · 未知不代表无限额度" : snapshot.StatusText,
+                TextWrapping = TextWrapping.Wrap, FontSize = 11, Margin = new Thickness(0, 0, 0, 10), Tag = "secondary" });
         if (snapshot.Windows.Count == 0)
         {
-            RowsPanel.Children.Add(CreateEmptyState());
+            if (snapshot.Availability == QuotaAvailability.Available && snapshot.UnresolvedWindows.Count == 0)
+                RowsPanel.Children.Add(CreateEmptyState());
             ApplySystemAppearance();
             return;
         }
@@ -224,7 +229,7 @@ public partial class QuotaPopoverWindow : Window
             panel.Children.Add(value);
             var reset = new TextBlock
             {
-                Text = $"{window.ResetsAt.ToLocalTime():M月d日 HH:mm} 重置",
+                Text = window.ResetsAt is { } resetsAt ? $"{resetsAt.ToLocalTime():M月d日 HH:mm} 重置" : "重置时间未提供",
                 Tag = "secondary",
                 Foreground = new SolidColorBrush(System.Windows.Media.Color.FromArgb(150, 215, 226, 236)),
                 FontFamily = OverlayTypography.Interface,
@@ -268,12 +273,9 @@ public partial class QuotaPopoverWindow : Window
         {
             var value when string.Equals(value, "codex", StringComparison.OrdinalIgnoreCase) => "Codex",
             var value when string.Equals(value, "codex_bengalfox", StringComparison.OrdinalIgnoreCase) => "Spark",
-            _ => "其他",
+            _ => window.LimitName is { } name && name != window.LimitId ? $"{name} ({window.LimitId})" : window.LimitId,
         };
-        var duration = window.WindowDurationMinutes % 1440 == 0
-            ? $"{window.WindowDurationMinutes / 1440} 天"
-            : $"{Math.Max(1, window.WindowDurationMinutes / 60)} 小时";
-        return $"{source} · {duration}额度";
+        return $"{source} · {window.DurationLabel}额度";
     }
 
     internal static int SourceRank(string limitId) => limitId switch

@@ -131,7 +131,7 @@ public partial class QuotaCapsuleWindow
     }
 
     private double BongoQuotaBodyHeight => Math.Max(48,
-        (IsUnifiedPanel ? WindowHeight + EffectivePanelBodyHeight + ResetScheduleHeight : 112)
+        (QuotaBaseHeight + (IsUnifiedPanel ? EffectivePanelBodyHeight + ResetScheduleHeight : 0))
         - GlassBorder.Margin.Top - GlassBorder.Margin.Bottom - GlassBorder.BorderThickness.Top - GlassBorder.BorderThickness.Bottom);
 
     private void RefreshBongoBodyLayout()

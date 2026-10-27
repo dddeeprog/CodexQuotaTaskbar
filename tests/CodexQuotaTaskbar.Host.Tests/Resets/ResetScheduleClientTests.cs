@@ -11,6 +11,156 @@ public sealed class ResetScheduleClientTests
     private static readonly DateTimeOffset Now = new(2026, 10, 23, 16, 0, 0, TimeSpan.Zero);
 
     [Fact]
+    public async Task Query_phase_spans_body_read_and_concurrent_cache_hits_do_not_restart_it()
+    {
+        var body = new GatedContent(Status("null"));
+        body.SetJsonHeader();
+        using var service = new ResetScheduleClient(new FakeHandler((_, _) => Task.FromResult(
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = body })), new Clock());
+        var phases = new List<ResetQueryState>();
+        service.QueryStateChanged += phases.Add;
+        var first = service.FetchAsync();
+        await body.Entered.Task;
+        Assert.Equal(ResetQueryPhase.Checking, service.QueryState.Phase);
+        var waiter = service.FetchAsync();
+        Assert.Single(phases);
+        body.Release.SetResult();
+        Assert.Null((await first).Schedule);
+        await waiter; await service.FetchAsync();
+        Assert.Equal(new[] { ResetQueryPhase.Checking, ResetQueryPhase.Idle }, phases.Select(p => p.Phase));
+        Assert.Equal(new long[] { 1, 2 }, phases.Select(p => p.Revision));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Cancellation_or_disposal_ends_checking_without_red_or_publishing_late_data(bool dispose)
+    {
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cancellation = new CancellationTokenSource();
+        using var service = new ResetScheduleClient(new FakeHandler(async (_, _) =>
+        {
+            entered.SetResult(); await release.Task; // Deliberately ignores cancellation: late result must be rejected.
+            return Json(Status(Schedule()));
+        }), new Clock());
+        var phases = new List<ResetQueryPhase>(); service.QueryStateChanged += p => phases.Add(p.Phase);
+        var task = service.FetchAsync(cancellation.Token); await entered.Task;
+        if (dispose) service.Dispose(); else cancellation.Cancel();
+        release.SetResult();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task);
+        Assert.Equal(ResetQueryPhase.Idle, service.QueryState.Phase);
+        Assert.DoesNotContain(ResetQueryPhase.Failed, phases);
+    }
+
+    [Theory]
+    [InlineData("network")]
+    [InlineData("http")]
+    [InlineData("parse")]
+    [InlineData("timeout")]
+    public async Task Real_failures_turn_red_and_successful_empty_result_clears_it(string failure)
+    {
+        var clock = new Clock(); var count = 0;
+        using var service = new ResetScheduleClient(new FakeHandler((_, _) =>
+        {
+            if (++count > 1) return Task.FromResult(Json(Status("null", clock.Now)));
+            return failure switch
+            {
+                "network" => throw new HttpRequestException("synthetic"),
+                "timeout" => throw new OperationCanceledException("synthetic timeout"),
+                "http" => Task.FromResult(new HttpResponseMessage(HttpStatusCode.BadGateway)),
+                _ => Task.FromResult(Json("not-json")),
+            };
+        }), clock);
+        Assert.NotNull((await service.FetchAsync()).ErrorMessage);
+        Assert.Equal(ResetQueryPhase.Failed, service.QueryState.Phase);
+        clock.Now += ResetScheduleClient.PollInterval;
+        Assert.Null((await service.FetchAsync()).ErrorMessage);
+        Assert.Equal(ResetQueryPhase.Idle, service.QueryState.Phase);
+    }
+
+    [Fact]
+    public async Task Revalidation_clears_failure_and_old_source_is_not_transport_failure()
+    {
+        var clock = new Clock(); var count = 0;
+        using var service = new ResetScheduleClient(new FakeHandler((_, _) => Task.FromResult(++count switch
+        {
+            1 => Json(Status(Schedule(), Now.AddMinutes(-4))),
+            2 => new HttpResponseMessage(HttpStatusCode.BadGateway),
+            _ => new HttpResponseMessage(HttpStatusCode.NotModified),
+        })), clock);
+        var original = await service.FetchAsync();
+        Assert.True(original.IsStale); Assert.Equal(ResetQueryPhase.Idle, service.QueryState.Phase);
+        clock.Now += ResetScheduleClient.PollInterval;
+        await service.FetchAsync(); Assert.Equal(ResetQueryPhase.Failed, service.QueryState.Phase);
+        clock.Now += ResetScheduleClient.PollInterval;
+        Assert.Equal(original.Schedule, (await service.FetchAsync()).Schedule);
+        Assert.Equal(ResetQueryPhase.Idle, service.QueryState.Phase);
+    }
+
+    [Theory]
+    [InlineData("success")]
+    [InlineData("304")]
+    [InlineData("cancel")]
+    [InlineData("dispose")]
+    public async Task Unresolved_failure_survives_retry_and_cancellation_until_validated_success(string outcome)
+    {
+        var clock = new Clock(); var count = 0;
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var service = new ResetScheduleClient(new FakeHandler(async (_, token) =>
+        {
+            if (++count == 1) return Json(Status(Schedule(), clock.Now));
+            if (count == 2) return new HttpResponseMessage(HttpStatusCode.BadGateway);
+            entered.SetResult(); await release.Task.WaitAsync(token);
+            return outcome == "304" ? new HttpResponseMessage(HttpStatusCode.NotModified) : Json(Status("null", clock.Now));
+        }), clock);
+        await service.FetchAsync(); clock.Now += ResetScheduleClient.PollInterval;
+        await service.FetchAsync(); clock.Now += ResetScheduleClient.PollInterval;
+        Assert.True(service.QueryState.HasUnresolvedFailure);
+        using var cancel = new CancellationTokenSource();
+        var retry = service.FetchAsync(cancel.Token); await entered.Task;
+        Assert.Equal(ResetQueryPhase.Checking, service.QueryState.Phase);
+        Assert.True(service.QueryState.HasUnresolvedFailure);
+        Assert.Equal(ResetVisualState.Failed, service.QueryState.Select(true, null, clock.Now));
+        Assert.Equal(ResetVisualState.Confirmed, service.QueryState.Select(true, clock.Now.AddHours(1), clock.Now));
+        if (outcome is "cancel" or "dispose")
+        {
+            if (outcome == "cancel") cancel.Cancel(); else service.Dispose();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => retry);
+            Assert.Equal(ResetQueryPhase.Idle, service.QueryState.Phase);
+            Assert.True(service.QueryState.HasUnresolvedFailure);
+            Assert.Equal(ResetVisualState.Failed, service.QueryState.Select(false, null, clock.Now));
+        }
+        else
+        {
+            release.SetResult(); await retry;
+            Assert.False(service.QueryState.HasUnresolvedFailure);
+            Assert.Equal(ResetQueryPhase.Idle, service.QueryState.Phase);
+            Assert.Equal(ResetVisualState.None, service.QueryState.Select(false, null, clock.Now));
+            Assert.Equal(ResetVisualState.Upcoming, service.QueryState.Select(true, null, clock.Now));
+        }
+    }
+
+    [Fact]
+    public void Checking_is_not_a_visual_state_green_keeps_priority_and_success_never_invents_recovery()
+    {
+        var checking = new ResetQueryState(1, ResetQueryPhase.Checking, Now);
+        Assert.Equal(ResetVisualState.Upcoming, checking.Select(true, null, Now.AddMilliseconds(299)));
+        Assert.Equal(ResetVisualState.Upcoming, checking.Select(true, null, Now.AddMilliseconds(300)));
+        Assert.Equal(ResetVisualState.None, checking.Select(false, null, Now.AddHours(1)));
+        Assert.Equal(ResetVisualState.None, new ResetQueryState(2, ResetQueryPhase.Idle).Select(false, null, Now.AddMilliseconds(301)));
+        var red = new ResetQueryState(3, ResetQueryPhase.Failed);
+        Assert.Equal(ResetVisualState.Failed, red.Select(true, null, Now));
+        foreach (var phase in Enum.GetValues<ResetQueryPhase>())
+        {
+            var state = new ResetQueryState(4, phase, Now.AddSeconds(-1));
+            Assert.Equal(ResetVisualState.Confirmed, state.Select(true, Now.AddHours(1), Now));
+            Assert.NotEqual(ResetVisualState.Confirmed, state.Select(false, Now, Now));
+        }
+    }
+
+    [Fact]
     public async Task Reads_only_documented_public_status_without_account_or_cache_busting_headers()
     {
         using var service = new ResetScheduleClient(new FakeHandler((request, _) =>
@@ -278,7 +428,8 @@ public sealed class ResetScheduleClientTests
         var pending = service.FetchAsync();
         await entered.Task;
         service.Dispose();
-        Assert.NotNull((await pending).ErrorMessage);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
+        Assert.Equal(ResetQueryPhase.Idle, service.QueryState.Phase);
         await Assert.ThrowsAsync<ObjectDisposedException>(() => service.FetchAsync());
         service.Dispose();
     }
@@ -365,6 +516,19 @@ public sealed class ResetScheduleClientTests
     private sealed class FakeHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> send) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) => send(request, cancellationToken);
+    }
+    private sealed class GatedContent(string json) : HttpContent
+    {
+        internal TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        protected override bool TryComputeLength(out long length) { length = 0; return false; }
+        protected override async Task SerializeToStreamAsync(Stream stream, TransportContext? context)
+        {
+            Entered.TrySetResult(); await Release.Task;
+            await stream.WriteAsync(Encoding.UTF8.GetBytes(json));
+        }
+        // ReadJsonAsync checks headers before requesting the body.
+        internal void SetJsonHeader() => Headers.ContentType = new MediaTypeHeaderValue("application/json");
     }
     private sealed class UnknownLengthContent : HttpContent
     {

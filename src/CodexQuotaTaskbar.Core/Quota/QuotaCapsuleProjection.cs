@@ -17,28 +17,23 @@ public sealed record QuotaCapsuleProjection(QuotaAvailability Availability, stri
             .ToList();
         var selected = selectedWindows.Select(ToRow).ToList();
 
-        if (selectedWindows.Count == 1 && selectedWindows[0].WindowDurationMinutes == 10080)
+        if (snapshot.UnresolvedWindows.Any(window => string.Equals(window.LimitId, "codex", StringComparison.OrdinalIgnoreCase)))
         {
-            selected.Insert(0, selected[0] with { Label = "5 小时" });
+            selected.Add(new QuotaCapsuleRow("窗口未知", "—", null, "Neutral", null));
         }
 
         if (selected.Count == 0)
         {
-            selected.Add(new QuotaCapsuleRow("额度", "—", null, "Neutral", null));
+            selected.Add(new QuotaCapsuleRow(snapshot.Availability == QuotaAvailability.Available ? "无 Codex 窗口" : "额度未知", "—", null, "Neutral", null));
         }
-
+        if (snapshot.Availability == QuotaAvailability.Stale)
+            selected = selected.Select(row => row with { Label = row.Label + " · 缓存" }).ToList();
         return new QuotaCapsuleProjection(snapshot.Availability, snapshot.StatusText, selected);
     }
 
     private static QuotaCapsuleRow ToRow(QuotaWindowSnapshot window)
     {
-        var label = window.WindowDurationMinutes switch
-        {
-            < 60 => $"{window.WindowDurationMinutes} 分钟",
-            < 1440 when window.WindowDurationMinutes % 60 == 0 => $"{window.WindowDurationMinutes / 60} 小时",
-            _ when window.WindowDurationMinutes % 1440 == 0 => $"{window.WindowDurationMinutes / 1440} 天",
-            _ => $"{window.WindowDurationMinutes} 分钟",
-        };
+        var label = window.DurationLabel;
         var token = window.RemainingPercent switch
         {
             < 10 => "Critical",

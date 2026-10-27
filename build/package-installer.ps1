@@ -2,13 +2,23 @@
 param(
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Release',
-    [string]$IsccPath = $env:ISCC_PATH
+    [string]$IsccPath = $env:ISCC_PATH,
+    [string]$ArtifactsDirectory
 )
 
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
+$artifactsRoot = [IO.Path]::GetFullPath((Join-Path $repositoryRoot 'artifacts'))
+if ($ArtifactsDirectory) {
+    $requestedRoot = [IO.Path]::GetFullPath($ArtifactsDirectory)
+    if (-not $requestedRoot.StartsWith($artifactsRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Custom installer output must remain within repository artifacts.'
+    }
+    $artifactsRoot = $requestedRoot
+}
 $publishDirectory = Join-Path $repositoryRoot "artifacts\installer-publish\$Configuration"
-$outputDirectory = Join-Path $repositoryRoot 'artifacts\installers'
+if ($ArtifactsDirectory) { $publishDirectory = Join-Path $artifactsRoot "installer-publish\$Configuration" }
+$outputDirectory = Join-Path $artifactsRoot 'installers'
 $version = (Get-Content -LiteralPath (Join-Path $repositoryRoot 'VERSION') -Raw).Trim()
 if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'VERSION must contain a three-part numeric version.' }
 

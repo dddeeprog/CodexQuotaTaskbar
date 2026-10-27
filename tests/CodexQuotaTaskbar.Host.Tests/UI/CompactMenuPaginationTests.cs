@@ -31,6 +31,9 @@ public sealed class CompactMenuPaginationTests
     public void Every_existing_control_can_scroll_wholly_into_view_at_normal_type_and_hit_size(int dpi, int height, int section) => Sta(menu =>
     {
         var content = (FrameworkElement)menu.Content;
+        // Detached content does not inherit the hidden Window's system DPI.
+        // Both roots must model the same monitor, as they do when actually shown.
+        VisualTreeHelper.SetRootDpi(menu, new DpiScale(dpi / 96d, dpi / 96d));
         VisualTreeHelper.SetRootDpi(content, new DpiScale(dpi / 96d, dpi / 96d));
         Assert.True(menu.TrySetPageHeightLimit(height));
         menu.OpenSection((MenuSection)section);
@@ -42,7 +45,9 @@ public sealed class CompactMenuPaginationTests
         Assert.Equal(ScrollBarVisibility.Auto, viewport.VerticalScrollBarVisibility);
         Assert.Equal(ScrollBarVisibility.Disabled, viewport.HorizontalScrollBarVisibility);
         Assert.InRange(viewport.ScrollableWidth, 0, .5);
-        Assert.Equal(viewport.ScrollableHeight > .5 ? Visibility.Visible : Visibility.Collapsed,
+        // Auto uses positive overflow, not our half-DIP hit-bound tolerance.
+        // Mixed-DPI template rounding can legitimately leave 1/3 DIP scrollable.
+        Assert.Equal(viewport.ScrollableHeight > 0 ? Visibility.Visible : Visibility.Collapsed,
             viewport.ComputedVerticalScrollBarVisibility);
         var saved = 0;
         menu.SettingsChangeRequested += (_, _) => saved++;
@@ -137,10 +142,10 @@ public sealed class CompactMenuPaginationTests
 
     private static string[] Expected(int section) => section switch
     {
-        0 => ["DotChatButton", "OpenCodexButton", "RefreshButton", "AppearanceButton", "PreferencesButton", "CheckUpdatesButton", "ExitButton"],
+        0 => ["OpenCodexButton", "RefreshButton", "AppearanceButton", "PreferencesButton", "CheckUpdatesButton", "ExitButton"],
         1 => ["ClassicStyleButton", "UnifiedStyleButton", "MaterialTransparencySlider", "AllTaskbarsButton",
             "CompanionWhiteBallButton", "CompanionSignalLightButton", "CompanionBongoCatButton", "BongoSize160Button", "BongoSize192Button", "BongoSize240Button",
-            "CompanionMotionButton", "CompanionTypingButton", "CompanionPreviewButton"],
+            "CompanionMotionButton", "CompanionTypingButton"],
         2 => ["DotRealtimeButton", "SubscriptionLoginButton", "TrayIconButton", "NotificationsButton", "SubscriptionDetailsButton", "AutomaticUpdatesButton", "AutostartButton"],
         _ => throw new ArgumentOutOfRangeException(nameof(section)),
     };

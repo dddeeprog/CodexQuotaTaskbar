@@ -6,6 +6,7 @@ using CodexQuotaTaskbar.Core.Overlay;
 using CodexQuotaTaskbar.Host.Platform;
 using CodexQuotaTaskbar.Host.Settings;
 using CodexQuotaTaskbar.Host.UI;
+using CodexQuotaTaskbar.Host.Update;
 
 namespace CodexQuotaTaskbar.Host.Tray;
 
@@ -20,6 +21,9 @@ internal sealed class TrayController : IDisposable
     private readonly bool restrictedDemo;
     private readonly Action<bool> setAutostart;
     private QuotaCapsuleWindow? menuIsland;
+    private bool contextRequestInProgress;
+    private UpdateStatusWindow? updateWindow;
+    private readonly UpdatePresentationState updatePresentation = new();
     private Func<QuotaCapsuleWindow, IReadOnlyList<ScreenRect>>? contextAvoidanceProvider;
 
     internal TrayController(AppSettings settings, Action<string, string, ToolTipIcon>? hiddenUpdateResult = null,
@@ -35,11 +39,9 @@ internal sealed class TrayController : IDisposable
         menu.RefreshRequested += (_, _) => RefreshRequested?.Invoke(this, EventArgs.Empty);
         menu.CheckUpdatesRequested += (_, _) => CheckUpdatesRequested?.Invoke(this, EventArgs.Empty);
         menu.OpenCodexRequested += (_, _) => OpenCodexRequested?.Invoke(this, EventArgs.Empty);
-        menu.OpenDotChatRequested += (_, _) => OpenDotChatRequested?.Invoke(this, EventArgs.Empty);
         menu.OpenSubscriptionLoginRequested += (_, _) => OpenSubscriptionLoginRequested?.Invoke(this, EventArgs.Empty);
         menu.SettingsChangeRequested += (_, value) => ChangeRequested(value);
         menu.MaterialTransparencyPreviewRequested += (_, value) => MaterialTransparencyPreviewRequested?.Invoke(this, value);
-        menu.CompanionPreviewRequested += (_, _) => CompanionPreviewRequested?.Invoke(this, EventArgs.Empty);
         menu.CoreTermsRequested += (_, _) => CoreTermsRequested?.Invoke(this, EventArgs.Empty);
         menu.ExitRequested += (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty);
         trayIconStream = typeof(TrayController).Assembly.GetManifestResourceStream("CodexQuotaTaskbar.Host.Assets.QuotaIslandIcon.ico")
@@ -63,12 +65,34 @@ internal sealed class TrayController : IDisposable
 
     internal event EventHandler? RefreshRequested;
     internal event EventHandler? OpenCodexRequested;
-    internal event EventHandler? OpenDotChatRequested;
     internal event EventHandler? OpenSubscriptionLoginRequested;
     internal event EventHandler? CheckUpdatesRequested;
+
+    internal void BeginUpdatePresentation() => updatePresentation.Begin();
+    internal void RestoreUpdatePresentation()
+    {
+        ShowUpdateWindow(updatePresentation.Restore(), manual: true);
+        updateWindow?.Activate(); // Only an explicit user request may restore focus.
+    }
+
+    internal void PresentUpdate(UpdateStatus status, bool manual)
+    {
+        if (updatePresentation.Receive(status, manual || icon.Visible || updateWindow is not null)) ShowUpdateWindow(status, manual);
+    }
+
+    private void ShowUpdateWindow(UpdateStatus status, bool manual)
+    {
+        if (updateWindow is null)
+        {
+            updateWindow = new UpdateStatusWindow(settings.EffectiveMaterialTransparencyPercent) { ShowActivated = manual };
+            updateWindow.RetryRequested += (_, _) => CheckUpdatesRequested?.Invoke(this, EventArgs.Empty);
+            updateWindow.Closed += (_, _) => { updateWindow = null; updatePresentation.Dismiss(); };
+        }
+        updateWindow.Apply(status);
+        if (!updateWindow.IsVisible) updateWindow.Show();
+    }
     internal event EventHandler<AppSettings>? SettingsChanged;
     internal event EventHandler<int>? MaterialTransparencyPreviewRequested;
-    internal event EventHandler? CompanionPreviewRequested;
     internal event EventHandler? CoreTermsRequested;
     internal event EventHandler? ExitRequested;
     internal event Action<ScreenRect?>? MenuBoundsChanged;
@@ -96,6 +120,18 @@ internal sealed class TrayController : IDisposable
     }
 
     internal void ShowContextMenu(QuotaCapsuleWindow? island = null)
+        => RunContextRequest(() => ShowContextMenuCore(island));
+
+    // Guard before detaching/reattaching owner events, not merely inside menu.ShowAt.
+    internal bool RunContextRequest(Action request)
+    {
+        if (contextRequestInProgress || menu.IsPopupRequestInProgress) return false;
+        contextRequestInProgress = true;
+        try { request(); return true; }
+        finally { contextRequestInProgress = false; }
+    }
+
+    private void ShowContextMenuCore(QuotaCapsuleWindow? island)
     {
         DetachMenuIsland();
         if ((!menu.IsVisible || menu.IsPopupClosing) && island is not null)
@@ -219,6 +255,7 @@ internal sealed class TrayController : IDisposable
 
     public void Dispose()
     {
+        updateWindow?.Close();
         DetachMenuIsland();
         icon.Visible = false;
         icon.Dispose();

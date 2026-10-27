@@ -18,7 +18,7 @@ public sealed class CompanionEmotionDirectorTests
     {
         var director = new CompanionEmotionDirector(Start, seed);
         var frames = Enumerable.Range(0, 32 * 5)
-            .Select(index => director.Evaluate(Start.AddSeconds(index * 6))).ToArray();
+            .Select(index => director.Evaluate(Start.AddSeconds(index * 12))).ToArray();
         Assert.Equal(32, CompanionEmotionDirector.EmotionIds.Length);
         Assert.Equal(32, CompanionEmotionDirector.EmotionIds.Distinct().Count());
         foreach (var round in frames.Chunk(32))
@@ -38,7 +38,7 @@ public sealed class CompanionEmotionDirectorTests
         static string[] Draw(int seed)
         {
             var director = new CompanionEmotionDirector(Start, seed);
-            return Enumerable.Range(0, 96).Select(i => director.Evaluate(Start.AddSeconds(i * 6)).Emotion).ToArray();
+            return Enumerable.Range(0, 96).Select(i => director.Evaluate(Start.AddSeconds(i * 12)).Emotion).ToArray();
         }
         var first = Draw(42);
         Assert.Equal(first, Draw(42));
@@ -50,26 +50,26 @@ public sealed class CompanionEmotionDirectorTests
     {
         var control = new CompanionEmotionDirector(Start, 42);
         control.Evaluate(Start);
-        var expectedSecond = control.Evaluate(Start.AddSeconds(6)).Emotion;
-        var expectedThird = control.Evaluate(Start.AddSeconds(12)).Emotion;
+        var expectedSecond = control.Evaluate(Start.AddSeconds(12)).Emotion;
+        var expectedThird = control.Evaluate(Start.AddSeconds(24)).Emotion;
         var director = new CompanionEmotionDirector(Start, 42);
         var firstRead = Start.AddHours(1);
         Assert.Equal(expectedSecond, director.Evaluate(firstRead).Emotion);
-        Assert.Equal(expectedSecond, director.Evaluate(firstRead.AddSeconds(6).AddTicks(-1)).Emotion);
-        Assert.Equal(expectedThird, director.Evaluate(firstRead.AddSeconds(6)).Emotion);
+        Assert.Equal(expectedSecond, director.Evaluate(firstRead.AddSeconds(12).AddTicks(-1)).Emotion);
+        Assert.Equal(expectedThird, director.Evaluate(firstRead.AddSeconds(12)).Emotion);
     }
 
     [Fact]
-    public void Automatic_expression_changes_only_at_the_six_second_boundary()
+    public void Automatic_expression_changes_only_at_the_twelve_second_boundary()
     {
         var director = new CompanionEmotionDirector(Start, 42);
         var first = director.Evaluate(Start).Emotion;
-        Assert.Equal(first, director.Evaluate(Start.AddSeconds(6).AddTicks(-1)).Emotion);
-        var second = director.Evaluate(Start.AddSeconds(6)).Emotion;
+        Assert.Equal(first, director.Evaluate(Start.AddSeconds(12).AddTicks(-1)).Emotion);
+        var second = director.Evaluate(Start.AddSeconds(12)).Emotion;
         Assert.NotEqual(first, second);
-        Assert.Equal(second, director.Evaluate(Start.AddSeconds(6)).Emotion);
-        Assert.Equal(second, director.Evaluate(Start.AddSeconds(12).AddTicks(-1)).Emotion);
-        Assert.NotEqual(second, director.Evaluate(Start.AddSeconds(12)).Emotion);
+        Assert.Equal(second, director.Evaluate(Start.AddSeconds(12)).Emotion);
+        Assert.Equal(second, director.Evaluate(Start.AddSeconds(24).AddTicks(-1)).Emotion);
+        Assert.NotEqual(second, director.Evaluate(Start.AddSeconds(24)).Emotion);
     }
 
     [Fact]
@@ -78,12 +78,12 @@ public sealed class CompanionEmotionDirectorTests
         var director = new CompanionEmotionDirector(Start, 42);
         var control = new CompanionEmotionDirector(Start, 42);
         Assert.Equal(control.Evaluate(Start).Emotion, director.Evaluate(Start).Emotion);
-        var expectedSecond = control.Evaluate(Start.AddSeconds(6)).Emotion;
-        var expectedThird = control.Evaluate(Start.AddSeconds(12)).Emotion;
+        var expectedSecond = control.Evaluate(Start.AddSeconds(12)).Emotion;
+        var expectedThird = control.Evaluate(Start.AddSeconds(24)).Emotion;
         var late = Start.AddDays(1);
         Assert.Equal(expectedSecond, director.Evaluate(late).Emotion);
-        Assert.Equal(expectedSecond, director.Evaluate(late.AddSeconds(6).AddTicks(-1)).Emotion);
-        Assert.Equal(expectedThird, director.Evaluate(late.AddSeconds(6)).Emotion);
+        Assert.Equal(expectedSecond, director.Evaluate(late.AddSeconds(12).AddTicks(-1)).Emotion);
+        Assert.Equal(expectedThird, director.Evaluate(late.AddSeconds(12)).Emotion);
     }
 
     [Fact]
@@ -102,7 +102,7 @@ public sealed class CompanionEmotionDirectorTests
         Assert.Contains($"进行中 {snapshot.RunningCount}", frame.Label);
         Assert.Contains($"等待处理 {snapshot.WaitingCount}", frame.Label);
         Assert.Contains($"已完成 {snapshot.CompletedCount}", frame.Label);
-        Assert.Equal(control.Evaluate(Start.AddSeconds(6)).Emotion, director.Evaluate(Start.AddSeconds(6)).Emotion);
+        Assert.Equal(control.Evaluate(Start.AddSeconds(12)).Emotion, director.Evaluate(Start.AddSeconds(12)).Emotion);
     }
 
     [Fact]
@@ -132,42 +132,42 @@ public sealed class CompanionEmotionDirectorTests
         director.Interact(Start.AddSeconds(3), false);
         director.Interact(Start.AddSeconds(5), false);
         Assert.Equal(first, director.Evaluate(Start.AddSeconds(5)).Emotion);
-        Assert.Equal(control.Evaluate(Start.AddSeconds(6)).Emotion, director.Evaluate(Start.AddSeconds(6)).Emotion);
+        Assert.Equal(control.Evaluate(Start.AddSeconds(12)).Emotion, director.Evaluate(Start.AddSeconds(12)).Emotion);
     }
 
     [Fact]
-    public void Taps_continue_through_the_same_32_item_bags_without_changing_session_count()
-    {
-        var director = new CompanionEmotionDirector(Start, 42);
-        var snapshot = Snapshot(Session("a", CodexSessionState.Running), Session("b", CodexSessionState.Waiting));
-        director.Apply(snapshot, Start);
-        var frames = new List<CompanionFrame>();
-        for (var index = 0; index < 32 * 3; index++)
-        {
-            var now = Start.AddSeconds(index);
-            if (index > 0) director.Interact(now, true);
-            frames.Add(director.Evaluate(now));
-        }
-        foreach (var round in frames.Chunk(32))
-            Assert.True(round.Select(frame => frame.Emotion).ToHashSet().SetEquals(CompanionEmotionDirector.EmotionIds));
-        for (var index = 1; index < frames.Count; index++)
-            Assert.NotEqual(frames[index - 1].Emotion, frames[index].Emotion);
-        Assert.All(frames, frame => { Assert.Equal(snapshot.ActiveCount, frame.Count); Assert.False(frame.Preview); });
-    }
-
-    [Fact]
-    public void A_tap_draws_once_even_after_a_long_gap_and_restarts_a_full_six_seconds()
+    public void Taps_and_hover_do_not_draw_or_extend_the_current_item()
     {
         var director = new CompanionEmotionDirector(Start, 42);
         var control = new CompanionEmotionDirector(Start, 42);
-        director.Evaluate(Start); control.Evaluate(Start);
-        var second = control.Evaluate(Start.AddSeconds(6)).Emotion;
-        var third = control.Evaluate(Start.AddSeconds(12)).Emotion;
-        var tappedAt = Start.AddHours(1);
-        director.Interact(tappedAt, true);
-        Assert.Equal(second, director.Evaluate(tappedAt).Emotion);
-        Assert.Equal(second, director.Evaluate(tappedAt.AddSeconds(6).AddTicks(-1)).Emotion);
-        Assert.Equal(third, director.Evaluate(tappedAt.AddSeconds(6)).Emotion);
+        for (var i = 0; i < 32 * 3 * 12; i++)
+        {
+            var now = Start.AddSeconds(i);
+            director.Interact(now, i % 2 == 0);
+            Assert.Equal(control.Evaluate(now), director.Evaluate(now));
+        }
+    }
+
+    [Fact]
+    public void Hidden_updates_freeze_bag_position_and_remaining_time_without_catching_up()
+    {
+        var director = new CompanionEmotionDirector(Start, 42);
+        var first = director.Evaluate(Start);
+        director.SetVisible(false, Start.AddSeconds(5));
+        for (var i = 0; i < 100; i++)
+        {
+            var now = Start.AddHours(1).AddSeconds(i * 2);
+            director.Apply(Snapshot(Session("fail", CodexSessionState.Failed)), now);
+            director.Interact(now, true);
+            var hidden = director.Evaluate(now);
+            Assert.Equal(first.Emotion, hidden.Emotion);
+            Assert.Equal(first.Draw, hidden.Draw);
+            Assert.Equal(first.Position, hidden.Position);
+        }
+        var resumed = Start.AddDays(1);
+        director.SetVisible(true, resumed);
+        Assert.Equal(first.Emotion, director.Evaluate(resumed.AddSeconds(7).AddTicks(-1)).Emotion);
+        Assert.Equal(first.Draw + 1, director.Evaluate(resumed.AddSeconds(7)).Draw);
     }
 
     [Fact]
@@ -188,8 +188,8 @@ public sealed class CompanionEmotionDirectorTests
         var resumed = director.Evaluate(tourStart.AddSeconds(96));
         Assert.False(resumed.Preview);
         Assert.Equal(original, resumed.Emotion);
-        Assert.Equal(original, director.Evaluate(tourStart.AddSeconds(102).AddTicks(-1)).Emotion);
-        Assert.NotEqual(original, director.Evaluate(tourStart.AddSeconds(102)).Emotion);
+        Assert.Equal(original, director.Evaluate(tourStart.AddSeconds(108).AddTicks(-1)).Emotion);
+        Assert.NotEqual(original, director.Evaluate(tourStart.AddSeconds(108)).Emotion);
     }
 
     [Fact]
@@ -224,8 +224,8 @@ public sealed class CompanionEmotionDirectorTests
         director.ToggleTour(Start.AddSeconds(9));
         var resumed = director.Evaluate(Start.AddSeconds(9));
         Assert.False(resumed.Preview); Assert.Equal(original, resumed.Emotion);
-        Assert.Equal(original, director.Evaluate(Start.AddSeconds(15).AddTicks(-1)).Emotion);
-        Assert.Equal(control.Evaluate(Start.AddSeconds(6)).Emotion, director.Evaluate(Start.AddSeconds(15)).Emotion);
+        Assert.Equal(original, director.Evaluate(Start.AddSeconds(21).AddTicks(-1)).Emotion);
+        Assert.Equal(control.Evaluate(Start.AddSeconds(12)).Emotion, director.Evaluate(Start.AddSeconds(21)).Emotion);
     }
 
     [Fact]
@@ -239,8 +239,8 @@ public sealed class CompanionEmotionDirectorTests
         Assert.True(director.Evaluate(Start.AddSeconds(3)).Preview);
         var late = Start.AddHours(1);
         Assert.Equal(original, director.Evaluate(late).Emotion);
-        Assert.Equal(original, director.Evaluate(late.AddSeconds(6).AddTicks(-1)).Emotion);
-        Assert.Equal(control.Evaluate(Start.AddSeconds(6)).Emotion, director.Evaluate(late.AddSeconds(6)).Emotion);
+        Assert.Equal(original, director.Evaluate(late.AddSeconds(12).AddTicks(-1)).Emotion);
+        Assert.Equal(control.Evaluate(Start.AddSeconds(12)).Emotion, director.Evaluate(late.AddSeconds(12)).Emotion);
     }
 
     [Fact]
@@ -254,7 +254,7 @@ public sealed class CompanionEmotionDirectorTests
         var resumed = director.Evaluate(Start.AddSeconds(96));
         Assert.False(resumed.Preview);
         Assert.Equal(control.Evaluate(Start).Emotion, resumed.Emotion);
-        Assert.Equal(control.Evaluate(Start.AddSeconds(6)).Emotion, director.Evaluate(Start.AddSeconds(102)).Emotion);
+        Assert.Equal(control.Evaluate(Start.AddSeconds(12)).Emotion, director.Evaluate(Start.AddSeconds(108)).Emotion);
     }
 
     public static IEnumerable<object[]> EmotionCases => CompanionEmotionDirector.EmotionIds.Select(id => new object[] { id });

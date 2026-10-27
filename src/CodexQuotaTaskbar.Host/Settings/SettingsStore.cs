@@ -69,6 +69,29 @@ internal sealed class SettingsStore(string path)
         }
     }
 
+    // No overwrite, including malformed existing settings: an upgrade must preserve the user's file.
+    internal async Task<bool> InitializeInstallerDefaultsAsync(CancellationToken token)
+    {
+        var directory = Path.GetDirectoryName(path) ?? throw new InvalidOperationException("设置路径无效。");
+        for (string? current = path; !string.IsNullOrEmpty(current); current = Path.GetDirectoryName(current))
+        {
+            try { if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0) throw new IOException("设置路径不能经过链接。"); }
+            catch (FileNotFoundException) { }
+            catch (DirectoryNotFoundException) { }
+        }
+        if (File.Exists(path)) return false;
+        Directory.CreateDirectory(directory);
+        var temporary = Path.Combine(directory, $".installer-defaults.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            await File.WriteAllTextAsync(temporary, JsonSerializer.Serialize(AppSettings.InstallerDefault, JsonOptions), token);
+            token.ThrowIfCancellationRequested();
+            try { File.Move(temporary, path, false); return true; }
+            catch (IOException) when (File.Exists(path)) { return false; }
+        }
+        finally { if (File.Exists(temporary)) File.Delete(temporary); }
+    }
+
     private static AppSettings Normalize(AppSettings settings) => settings with
     {
         MaterialTransparencyPercent = settings.EffectiveMaterialTransparencyPercent,

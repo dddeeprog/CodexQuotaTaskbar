@@ -40,6 +40,8 @@ internal sealed partial class OverlayCoordinator : IDisposable
     private CodexSessionsSnapshot sessions = CodexSessionsSnapshot.Empty;
     private ResetFeedSnapshot resetFeed = ResetFeedSnapshot.Loading;
     private ResetScheduleSnapshot resetSchedule = ResetScheduleSnapshot.Loading;
+    private ResetQueryState resetQueryState = ResetQueryState.Idle;
+    private DateTimeOffset? confirmedResetUntil;
     private WebShortcutsSnapshot webShortcuts = new([], null, true);
     private readonly Dictionary<string, WebShortcutIcon> shortcutIcons = new(StringComparer.Ordinal);
     private QuotaPopoverWindow? popover;
@@ -167,6 +169,20 @@ internal sealed partial class OverlayCoordinator : IDisposable
         popover?.SetMaterialTransparency(materialTransparency);
     }
 
+    private QuotaResetTracker? recoveryTracker;
+    internal void SetResetTracker(QuotaResetTracker tracker)
+    {
+        recoveryTracker = tracker;
+        tracker.SetNotice(resetSchedule.Schedule);
+        foreach (var window in windows.Values) window.SetResetTracker(tracker);
+    }
+
+    internal void ApplyConfirmedReset(DateTimeOffset? until)
+    {
+        confirmedResetUntil = until;
+        foreach (var window in windows.Values) window.ApplyConfirmedReset(until);
+    }
+
     internal void Apply(QuotaSnapshot value)
     {
         snapshot = value;
@@ -224,7 +240,15 @@ internal sealed partial class OverlayCoordinator : IDisposable
     {
         if (resetSchedule == value) return;
         resetSchedule = value;
+        recoveryTracker?.SetNotice(value.Schedule);
         foreach (var window in windows.Values) window.ApplyResetSchedule(value);
+    }
+
+    internal void ApplyResetQueryState(ResetQueryState value)
+    {
+        if (value.Revision < resetQueryState.Revision) return;
+        resetQueryState = value;
+        foreach (var window in windows.Values) window.ApplyResetQueryState(value);
     }
 
     private void Reconcile()
@@ -261,7 +285,10 @@ internal sealed partial class OverlayCoordinator : IDisposable
                 if (anchor.IsPrimary || dotOwnerId is null) dotOwnerId = anchor.MonitorId;
                 window.Apply(snapshot);
                 window.ApplySessions(sessions);
+                if (recoveryTracker is not null) window.SetResetTracker(recoveryTracker);
                 window.ApplyResetSchedule(resetSchedule);
+                window.ApplyResetQueryState(resetQueryState);
+                window.ApplyConfirmedReset(confirmedResetUntil);
                 window.Show();
                 if (!unifiedPanel)
                 {
@@ -592,7 +619,6 @@ internal sealed partial class OverlayCoordinator : IDisposable
         details.RestoreAutomaticWebShortcutIconRequested += id => RestoreAutomaticWebShortcutIconRequested?.Invoke(id);
         details.RefreshRequested += (_, _) => RefreshRequested?.Invoke(this, EventArgs.Empty);
         details.OpenCodexRequested += (_, _) => OpenCodexRequested?.Invoke(this, EventArgs.Empty);
-        details.OpenDotChatRequested += (_, _) => OpenDotChatRequested?.Invoke(this, EventArgs.Empty);
         details.OpenSubscriptionLoginRequested += (_, _) => OpenSubscriptionLoginRequested?.Invoke(this, EventArgs.Empty);
         details.Closed += (_, _) =>
         {

@@ -19,7 +19,7 @@ public sealed class QuotaPopoverWindowTests
     [InlineData("codex", "Codex · 7 天额度")]
     [InlineData("CODEX", "Codex · 7 天额度")]
     [InlineData("codex_bengalfox", "Spark · 7 天额度")]
-    [InlineData("other_limit", "其他 · 7 天额度")]
+    [InlineData("other_limit", "other_limit · 7 天额度")]
     public void Formats_quota_source_in_window_title(string limitId, string expected)
     {
         var window = new QuotaWindowSnapshot(

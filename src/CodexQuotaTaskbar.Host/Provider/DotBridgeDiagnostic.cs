@@ -9,6 +9,7 @@ internal sealed record DotBridgeDiagnostic
 {
     public int TotalArticles { get; init; }
     public int ReturnedMessages { get; init; }
+    public int HistoricalBodiesSkipped { get; init; }
     public int MissingIds { get; init; }
     public int DuplicateIds { get; init; }
     public int UnknownRoles { get; init; }
@@ -41,6 +42,7 @@ internal sealed record DotBridgeDiagnostic
         var rows = value.TryGetProperty("rows", out var list) && list.ValueKind == JsonValueKind.Array ?
             list.EnumerateArray().Take(14).Select(DotBridgeRowDiagnostic.Read).ToArray() : [];
         return new() { TotalArticles = Count("totalArticles"), ReturnedMessages = Count("returnedMessages"), MissingIds = Count("missingIds"),
+            HistoricalBodiesSkipped = Count("historicalBodiesSkipped"),
             DuplicateIds = Count("duplicateIds"), UnknownRoles = Count("unknownRoles"), UnsafeBodies = Count("unsafeBodies"), FullMatches = Count("fullMatches"),
             WindowMatches = Count("windowMatches"), Editors = Count("editors"), Sends = Count("sends"), Busy = Flag("busy"),
             ScanTruncated = Flag("scanTruncated"), BaselineComplete = Flag("baselineComplete"), ProbeBaselineComplete = Flag("probeBaselineComplete"),

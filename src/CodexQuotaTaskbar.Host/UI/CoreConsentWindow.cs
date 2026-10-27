@@ -45,7 +45,7 @@ internal sealed class CoreConsentWindow : Window
         layout.RowDefinitions.Add(new() { Height = GridLength.Auto });
         var summary = new TextBlock
         {
-            Text = "以下只适用于 Live2D Cubism Core。点岛 Host 及其他开源部分仍按各自许可证提供。暂不使用 Core 时，小白球和其他功能继续可用。",
+            Text = "以下只适用于 Live2D Cubism Core。点岛 Host 及其他开源部分仍按各自许可证提供。明确同意后，将从本项目 GitHub 发布页下载并校验约 2 MB 的可选 Bongo/Core 组件（已有有效缓存则复用）。拒绝或关闭不下载、不新增安装、不启用 Core，小白球和其他功能继续可用。",
             TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12),
         };
         layout.Children.Add(summary);

@@ -47,7 +47,7 @@ public sealed class CompanionDiagnosticsTests
         var diagnostics = new CompanionDiagnostics();
         for (var draw = 0; draw < 65; draw++)
         {
-            var now = Start.AddSeconds(draw * 6);
+            var now = Start.AddSeconds(draw * CompanionEmotionDirector.RotationInterval.TotalSeconds);
             var selection = director.Evaluate(now);
             Assert.True(Observe(diagnostics, selection));
             Assert.Equal(draw + 1, selection.Draw);
@@ -126,7 +126,7 @@ public sealed class CompanionDiagnosticsTests
     [Theory]
     [InlineData("01", 2101d)]
     [InlineData("07", 1601d)]
-    public void A_real_sequence_effective_definition_change_does_not_invent_another_random_draw(string requested, double settledAt)
+    public void Sequence_tail_keeps_its_selected_id_and_does_not_invent_a_diagnostic_draw(string requested, double settledAt)
     {
         var diagnostics = new CompanionDiagnostics();
         var frame = Frame(requested);
@@ -138,13 +138,13 @@ public sealed class CompanionDiagnosticsTests
             true, false, engine.GazeSample));
         engine.Sample(settledAt, true);
         Assert.Equal(requested, engine.RequestedEmotion);
-        Assert.Equal("02", engine.Definition.Id);
-        Assert.True(diagnostics.Observe(1, "presented", frame, engine.RequestedEmotion, engine.Definition.Id,
+        Assert.Equal(requested, engine.Definition.Id);
+        Assert.False(diagnostics.Observe(1, "presented", frame, engine.RequestedEmotion, engine.Definition.Id,
             true, false, engine.GazeSample));
         Assert.False(diagnostics.Observe(1, "presented", frame, engine.RequestedEmotion, engine.Definition.Id,
             true, false, engine.GazeSample));
-        Assert.Equal(2, diagnostics.Entries.Count);
-        Assert.Equal(new[] { requested, "02" }, diagnostics.Entries.Select(entry => entry.EffectiveId));
+        Assert.Single(diagnostics.Entries);
+        Assert.Equal(new[] { requested }, diagnostics.Entries.Select(entry => entry.EffectiveId));
         Assert.All(diagnostics.Entries, entry =>
         {
             Assert.Equal(requested, entry.RequestedId);

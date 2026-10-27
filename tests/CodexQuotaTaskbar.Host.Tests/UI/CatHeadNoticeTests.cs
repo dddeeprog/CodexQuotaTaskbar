@@ -4,12 +4,14 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Interop;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using CodexQuotaTaskbar.Host.Bongo;
 using CodexQuotaTaskbar.Host.Lifetime;
 using CodexQuotaTaskbar.Host.Overlay;
 using CodexQuotaTaskbar.Host.Platform;
+using CodexQuotaTaskbar.Host.Provider;
 using CodexQuotaTaskbar.Host.UI;
 using Button = System.Windows.Controls.Button;
 using Size = System.Windows.Size;
@@ -21,6 +23,154 @@ namespace CodexQuotaTaskbar.Host.Tests.UI;
 [Collection("Native UI isolation")]
 public sealed class CatHeadNoticeTests
 {
+    [Theory]
+    [MemberData(nameof(GeometryCases))]
+    public void Marker_hitbox_is_not_captured_as_cat_or_quota_even_when_disabled(bool unified, int dpi, int size) => Sta(() =>
+    {
+        var owner = Owner(unified);
+        try
+        {
+            VisualTreeHelper.SetRootDpi((Visual)owner.Content, new DpiScale(dpi / 96d, dpi / 96d));
+            owner.ConfigureBongoSurface(true, size); Present(owner);
+            foreach (var ready in new[] { true, false })
+            {
+                owner.SetDotMarker(2, canAcknowledge: ready); Layout(owner);
+                var bounds = owner.DotMarkerBoundsDip;
+                foreach (var offset in new[] { 1d, 12d, 23d })
+                {
+                    var region = PointerRegion(owner, new System.Windows.Point(bounds.Left + 12, bounds.Top + offset));
+                    Assert.Equal(IslandHitRegion.None, region);
+                    Assert.False(owner.BeginPointerGesture(MouseButton.Left, region, 100, 0, 0,
+                        () => throw new Exception("The parent must not capture the marker's pointer.")));
+                }
+            }
+            AssertHidden(owner);
+        }
+        finally { owner.Close(); }
+    });
+
+    [Fact]
+    public void Marker_geometry_to_button_to_receiver_clears_only_synthetic_batch_and_later_messages_accumulate() => Sta(() =>
+    {
+        using var fixture = new Fixture(true);
+        var parentActions = 0;
+        fixture.Owner.PrimaryInvoked += (_, _) => parentActions++;
+        fixture.Owner.ContextInvoked += (_, _) => parentActions++;
+        fixture.Owner.CompanionInvoked += (_, _) => parentActions++;
+        var inbox = new DotUnreadInbox();
+        inbox.ObserveNotification(new("first", "assistant", "Synthetic first", null));
+        inbox.ObserveNotification(new("second", "assistant", "Synthetic second", null));
+        var acknowledgements = new DotUnreadAcknowledgements(inbox);
+        var state = State() with { UnreadCount = 2, EarlierUnreadCount = 0, ReadToken = acknowledgements.Issue(7) };
+        fixture.Coordinator.ApplyInlineDotState(state); Layout(fixture.Owner);
+        var bounds = fixture.Owner.DotMarkerBoundsDip;
+        var point = new System.Windows.Point(bounds.Left + bounds.Width / 2, bounds.Top + bounds.Height / 2);
+        var region = PointerRegion(fixture.Owner, point);
+        Assert.Equal(IslandHitRegion.None, region);
+        Assert.False(fixture.Owner.BeginPointerGesture(MouseButton.Left, region, 100, 0, 0,
+            () => throw new Exception("Marker must retain normal Button routing.")));
+        Assert.False(fixture.Owner.EndPointerGesture(MouseButton.Left, region, 101));
+        // No real mouse/HWND: complete the normal Button route with a synthetic Click.
+        fixture.Owner.DotMarkerButton!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        var action = Assert.Single(fixture.Actions);
+        Assert.Equal("ack-notice", action.Kind);
+        Assert.Equal(2, inbox.UnreadCount); // No optimistic local acknowledgement.
+        Assert.True(acknowledgements.Acknowledge(action.ReadToken!, action.ReadSequence));
+        Assert.Equal(0, inbox.UnreadCount);
+        Assert.Equal(2, inbox.Messages.Count);
+        Assert.All(inbox.Messages, message => Assert.False(message.IsUnread));
+        fixture.Coordinator.ApplyInlineDotState(state with { Sequence = 42, UnreadCount = 0 });
+        Assert.False(fixture.Owner.DotMarkerVisible);
+        inbox.ObserveNotification(new("later", "assistant", "Synthetic later", null));
+        fixture.Coordinator.ApplyInlineDotState(state with { Sequence = 43, UnreadCount = inbox.UnreadCount,
+            ReadSequence = 8, ReadToken = acknowledgements.Issue(8) });
+        Assert.True(fixture.Owner.DotMarkerVisible);
+        Assert.Equal(1, inbox.UnreadCount);
+        Assert.Equal(0, fixture.OpenRequests);
+        Assert.Equal(0, parentActions);
+        AssertHidden(fixture.Owner);
+    });
+
+    private static IslandHitRegion PointerRegion(QuotaCapsuleWindow owner, System.Windows.Point point) =>
+        owner.PointerRegion(point);
+
+    [Theory]
+    [InlineData(true, true)] [InlineData(true, false)]
+    [InlineData(false, true)] [InlineData(false, false)]
+    public void Marker_right_click_preserves_context_menu_without_acknowledging(bool unified, bool ready) => Sta(() =>
+    {
+        var owner = Owner(unified);
+        try
+        {
+            owner.ConfigureBongoSurface(true, 192); Present(owner);
+            owner.SetDotMarker(2, canAcknowledge: ready); Layout(owner);
+            var menu = 0; var other = 0;
+            owner.ContextInvoked += (_, _) => menu++;
+            owner.DotMarkerInvoked += (_, _) => other++;
+            owner.PrimaryInvoked += (_, _) => other++;
+            owner.CompanionInvoked += (_, _) => other++;
+            var bounds = owner.DotMarkerBoundsDip;
+            var point = new System.Windows.Point(bounds.Left + 12, bounds.Top + 12);
+            var region = owner.PreparePointerDown(point, MouseButton.Right);
+            Assert.NotEqual(IslandHitRegion.None, region);
+            Assert.True(owner.BeginPointerGesture(MouseButton.Right, region, 100, 0, 0, () => true));
+            Assert.True(owner.EndPointerGesture(MouseButton.Right, owner.PointerRegion(point, MouseButton.Right), 101));
+            Assert.False(owner.EndPointerGesture(MouseButton.Right, owner.PointerRegion(point, MouseButton.Right), 101));
+            Assert.Equal(1, menu); Assert.Equal(0, other);
+            Assert.False(owner.HasPointerGesture);
+            AssertHidden(owner);
+        }
+        finally { owner.Close(); }
+    });
+
+    [Theory]
+    [InlineData(true, false, false)] [InlineData(true, false, true)]
+    [InlineData(true, true, false)] [InlineData(true, true, true)]
+    [InlineData(false, false, false)] [InlineData(false, false, true)]
+    [InlineData(false, true, false)] [InlineData(false, true, true)]
+    public void New_marker_down_without_move_cancels_stale_island_gesture_before_child_or_menu_route(
+        bool unified, bool oldRight, bool newRight) => Sta(() =>
+    {
+        var owner = Owner(unified);
+        try
+        {
+            owner.ConfigureBongoSurface(true, 192); Present(owner);
+            var menu = 0; var marker = 0; var other = 0;
+            owner.ContextInvoked += (_, _) => menu++;
+            owner.DotMarkerInvoked += (_, _) => marker++;
+            owner.PrimaryInvoked += (_, _) => other++;
+            owner.CompanionInvoked += (_, _) => other++;
+            Assert.True(owner.BeginPointerGesture(oldRight ? MouseButton.Right : MouseButton.Left,
+                IslandHitRegion.Bongo, 80, 0, 0, () => true));
+            // Marker appears after a lost Up; no MouseMove occurs before this new Down.
+            owner.SetDotMarker(2, canAcknowledge: true); Layout(owner);
+            var bounds = owner.DotMarkerBoundsDip;
+            var point = new System.Windows.Point(bounds.Left + 12, bounds.Top + 12);
+            var button = newRight ? MouseButton.Right : MouseButton.Left;
+            var region = owner.PreparePointerDown(point, button);
+            if (newRight)
+            {
+                Assert.NotEqual(IslandHitRegion.None, region);
+                Assert.True(owner.BeginPointerGesture(button, region, 100, 0, 0, () => true));
+                Assert.True(owner.EndPointerGesture(button, owner.PointerRegion(point, button), 101));
+            }
+            else
+            {
+                Assert.Equal(IslandHitRegion.None, region);
+                Assert.False(owner.HasPointerGesture);
+                Assert.False(owner.EndPointerGesture(button, owner.PointerRegion(point, button), 101));
+                owner.DotMarkerButton!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            }
+            Assert.False(owner.HasPointerGesture);
+            Assert.False(owner.EndPointerGesture(button, owner.PointerRegion(point, button), 101));
+            Assert.Equal(newRight ? 1 : 0, menu);
+            Assert.Equal(newRight ? 0 : 1, marker);
+            Assert.Equal(0, other);
+            AssertHidden(owner);
+        }
+        finally { owner.Close(); }
+    });
+
     public static IEnumerable<object[]> GeometryCases()
     {
         foreach (var unified in new[] { false, true })

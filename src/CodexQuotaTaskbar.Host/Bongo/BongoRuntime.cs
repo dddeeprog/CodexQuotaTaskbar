@@ -184,7 +184,7 @@ internal sealed class BongoRuntime : IAsyncDisposable
             && error is OperationCanceledException or IOException or ObjectDisposedException) { }
         catch (Exception error) when (error is IOException or InvalidDataException or InvalidOperationException
             or UnauthorizedAccessException or System.ComponentModel.Win32Exception or OperationCanceledException or JsonException
-            or ArgumentException or NotSupportedException)
+            or ArgumentException or NotSupportedException or System.Net.Http.HttpRequestException)
         {
             // Fixed categories only: never echo pipe content or physical input.
             Failed?.Invoke(error is OperationCanceledException ? "BongoCat 渲染超时，已回退小白球" : "BongoCat 暂不可用，已回退小白球");

@@ -43,20 +43,17 @@ public sealed class QuotaCapsuleProjectionTests
     }
 
     [Fact]
-    public void Seven_day_window_fills_five_hour_row_when_five_hour_limit_is_absent()
+    public void Seven_day_window_does_not_fabricate_a_five_hour_limit()
     {
         var resetsAt = DateTimeOffset.UtcNow.AddDays(7);
         var result = QuotaCapsuleProjection.Create(QuotaSnapshot.Available([
             new(QuotaWindowKind.Secondary, 50, 10080, resetsAt)], DateTimeOffset.UtcNow));
 
-        Assert.Equal(2, result.Rows.Count);
-        Assert.Equal("5 小时", result.Rows[0].Label);
+        Assert.Single(result.Rows);
+        Assert.Equal("7 天", result.Rows[0].Label);
         Assert.Equal("50%", result.Rows[0].Text);
         Assert.Equal(50, result.Rows[0].RemainingPercent);
         Assert.Equal(resetsAt, result.Rows[0].ResetsAt);
-        Assert.Equal("7 天", result.Rows[1].Label);
-        Assert.Equal(result.Rows[1].Text, result.Rows[0].Text);
-        Assert.Equal(result.Rows[1].RemainingPercent, result.Rows[0].RemainingPercent);
     }
 
     [Fact]

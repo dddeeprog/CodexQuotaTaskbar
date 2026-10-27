@@ -1,12 +1,20 @@
 [CmdletBinding()]
 param(
     [ValidateSet('Debug', 'Release')]
-    [string]$Configuration = 'Release'
+    [string]$Configuration = 'Release',
+    [string]$ArtifactsDirectory
 )
 
 $ErrorActionPreference = 'Stop'
 $repositoryRoot = [System.IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
 $artifactsRoot = [System.IO.Path]::GetFullPath((Join-Path $repositoryRoot 'artifacts'))
+if ($ArtifactsDirectory) {
+    $requestedRoot = [IO.Path]::GetFullPath($ArtifactsDirectory)
+    if (-not $requestedRoot.StartsWith($artifactsRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Custom package output must remain within repository artifacts.'
+    }
+    $artifactsRoot = $requestedRoot
+}
 $publishDirectory = [System.IO.Path]::GetFullPath((Join-Path $artifactsRoot "host-publish\$Configuration"))
 $releaseDirectory = [System.IO.Path]::GetFullPath((Join-Path $artifactsRoot 'releases'))
 $archivePath = Join-Path $releaseDirectory 'CodexQuotaTaskbar-win-x64.zip'

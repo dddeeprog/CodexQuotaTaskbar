@@ -17,13 +17,22 @@ internal sealed class CodexAppServerClient : IAsyncDisposable
     private StreamWriter? input;
     private Task? readerTask;
     private long nextId;
+    private int connectionEnded;
+    private string? initializedConnectionId;
+
+    // A namespace for this initialized transport, not proof of an account identity.
+    internal string? InitializedConnectionId => Volatile.Read(ref connectionEnded) == 0
+        ? Volatile.Read(ref initializedConnectionId) : null;
 
     internal event EventHandler<string>? Notification;
+    internal event Action? ConnectionLost;
 
     internal async Task StartAsync(CancellationToken cancellationToken)
     {
         if (process is not null)
         {
+            if (Volatile.Read(ref connectionEnded) != 0 || process.HasExited)
+                throw new InvalidOperationException("Codex App Server 连接已结束，不能沿用旧会话。");
             return;
         }
 
@@ -55,6 +64,7 @@ internal sealed class CodexAppServerClient : IAsyncDisposable
             clientInfo = new { name = "codex_quota_taskbar", title = "Codex Quota Taskbar", version = ProductVersion.Text },
         }, cancellationToken);
         await SendAsync(new { method = "initialized", @params = new { } }, cancellationToken);
+        Volatile.Write(ref initializedConnectionId, Guid.NewGuid().ToString("N"));
     }
 
     internal Task<JsonElement> RequestAsync(string method, object? parameters, CancellationToken cancellationToken)
@@ -110,7 +120,7 @@ internal sealed class CodexAppServerClient : IAsyncDisposable
         }
     }
 
-    private async Task ReadLoopAsync(StreamReader reader, CancellationToken cancellationToken)
+    internal async Task ReadLoopAsync(StreamReader reader, CancellationToken cancellationToken)
     {
         try
         {
@@ -141,6 +151,15 @@ internal sealed class CodexAppServerClient : IAsyncDisposable
             foreach (var request in pending.Values)
             {
                 request.TrySetException(new InvalidOperationException("Codex App Server 连接已中断。", exception));
+            }
+        }
+        finally
+        {
+            if (Interlocked.Exchange(ref connectionEnded, 1) == 0)
+            {
+                foreach (var request in pending.Values)
+                    request.TrySetException(new IOException("Codex App Server 连接已结束。"));
+                ConnectionLost?.Invoke();
             }
         }
     }

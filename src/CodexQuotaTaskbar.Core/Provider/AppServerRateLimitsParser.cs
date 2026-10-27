@@ -15,32 +15,39 @@ public static class AppServerRateLimitsParser
             using var document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 32 });
             var root = document.RootElement;
             var windows = new List<QuotaWindowSnapshot>();
+            var unresolved = new List<(string LimitId, QuotaWindowKind Kind)>();
+            var codexSeen = false;
 
             if (root.TryGetProperty("rateLimitsByLimitId", out var buckets) && buckets.ValueKind == JsonValueKind.Object)
             {
                 foreach (var bucket in buckets.EnumerateObject())
                 {
-                    ParseBucket(bucket.Value, bucket.Name, windows);
+                    codexSeen |= ParseBucket(bucket.Value, bucket.Name, windows, unresolved, keyed: true);
                 }
             }
 
-            if (!windows.Any(window => string.Equals(window.LimitId, "codex", StringComparison.OrdinalIgnoreCase))
+            if (!codexSeen
                 && root.TryGetProperty("rateLimits", out var fallback)
                 && fallback.ValueKind == JsonValueKind.Object)
             {
-                ParseBucket(fallback, "codex", windows);
+                codexSeen = ParseBucket(fallback, "codex", windows, unresolved);
             }
 
-            if (windows.Count == 0)
+            if (!codexSeen && windows.Count == 0)
             {
                 throw new AppServerProtocolException("额度响应不包含有效窗口。");
+            }
+            if (!codexSeen)
+            {
+                unresolved.Add(("codex", QuotaWindowKind.Primary));
+                unresolved.Add(("codex", QuotaWindowKind.Secondary));
             }
 
             return QuotaSnapshot.Available(
                 windows,
                 capturedAt,
                 subscriptionPlan,
-                extraCredits: ParseCredits(root));
+                extraCredits: ParseCredits(root)) with { UnresolvedWindows = unresolved };
         }
         catch (AppServerProtocolException)
         {
@@ -52,39 +59,86 @@ public static class AppServerRateLimitsParser
         }
     }
 
-    private static void ParseBucket(JsonElement bucket, string fallbackId, ICollection<QuotaWindowSnapshot> destination)
+    private static bool ParseBucket(JsonElement bucket, string fallbackId, ICollection<QuotaWindowSnapshot> destination,
+        ICollection<(string LimitId, QuotaWindowKind Kind)> unresolved, bool keyed = false)
     {
-        var limitId = bucket.TryGetProperty("limitId", out var id) && id.ValueKind == JsonValueKind.String
-            ? id.GetString() ?? fallbackId
+        if (bucket.ValueKind != JsonValueKind.Object)
+        {
+            if (IsKnownLimit(fallbackId)) throw new AppServerProtocolException("已知额度桶缺少有效字段。");
+            return false;
+        }
+        var limitId = !keyed && bucket.TryGetProperty("limitId", out var id) && id.ValueKind == JsonValueKind.String
+            && !string.IsNullOrWhiteSpace(id.GetString()) ? id.GetString()!
             : fallbackId;
-        ParseWindow(bucket, "primary", QuotaWindowKind.Primary, limitId, destination);
-        ParseWindow(bucket, "secondary", QuotaWindowKind.Secondary, limitId, destination);
+        if (limitId.Length > 128 || string.IsNullOrWhiteSpace(limitId) || limitId.Any(char.IsControl))
+            return false;
+        var limitName = bucket.TryGetProperty("limitName", out var name) && name.ValueKind == JsonValueKind.String
+            && name.GetString() is { Length: > 0 and <= 128 } display && !display.Any(char.IsControl) ? display : null;
+        var required = IsKnownLimit(limitId) || IsKnownLimit(fallbackId);
+        ParseWindow(bucket, "primary", QuotaWindowKind.Primary, limitId, destination, required, unresolved, limitName);
+        ParseWindow(bucket, "secondary", QuotaWindowKind.Secondary, limitId, destination, required, unresolved, limitName);
+        return string.Equals(limitId, "codex", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static void ParseWindow(JsonElement bucket, string propertyName, QuotaWindowKind kind, string limitId, ICollection<QuotaWindowSnapshot> destination)
+    private static bool IsKnownLimit(string id) => string.Equals(id, "codex", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(id, "codex_bengalfox", StringComparison.OrdinalIgnoreCase);
+
+    private static void ParseWindow(JsonElement bucket, string propertyName, QuotaWindowKind kind, string limitId,
+        ICollection<QuotaWindowSnapshot> destination, bool required,
+        ICollection<(string LimitId, QuotaWindowKind Kind)> unresolved, string? limitName)
     {
-        if (!bucket.TryGetProperty(propertyName, out var window) || window.ValueKind == JsonValueKind.Null)
+        if (!bucket.TryGetProperty(propertyName, out var window))
+        {
+            unresolved.Add((limitId, kind));
+            return;
+        }
+        if (window.ValueKind == JsonValueKind.Null)
         {
             return;
         }
 
         if (window.ValueKind != JsonValueKind.Object
             || !window.TryGetProperty("usedPercent", out var usedNode)
+            || usedNode.ValueKind != JsonValueKind.Number
             || !usedNode.TryGetDouble(out var used)
-            || !double.IsFinite(used) || used is < 0 or > 100
-            || !window.TryGetProperty("windowDurationMins", out var durationNode)
-            || !durationNode.TryGetInt32(out var duration) || duration <= 0
-            || !window.TryGetProperty("resetsAt", out var resetNode)
-            || !resetNode.TryGetInt64(out var reset))
+            || !double.IsFinite(used) || used is < 0 or > 100)
         {
-            throw new AppServerProtocolException($"额度窗口 {propertyName} 缺少有效字段。");
+            // Future/unknown meters may use nullable windows that we cannot represent.
+            // Ignore only those windows; known Codex/Spark failures still break continuity.
+            if (required) throw new AppServerProtocolException($"额度窗口 {propertyName} 缺少有效字段。");
+            unresolved.Add((limitId, kind));
+            return;
         }
 
-        destination.Add(new QuotaWindowSnapshot(kind, 100d - used, duration, DateTimeOffset.FromUnixTimeSeconds(reset), limitId));
+        int? duration = null;
+        DateTimeOffset? resets = null;
+        var valid = true;
+        if (window.TryGetProperty("windowDurationMins", out var durationNode) && durationNode.ValueKind != JsonValueKind.Null)
+        {
+            if (durationNode.ValueKind == JsonValueKind.Number && durationNode.TryGetInt32(out var minutes) && minutes > 0)
+                duration = minutes;
+            else valid = false;
+        }
+        if (window.TryGetProperty("resetsAt", out var resetNode) && resetNode.ValueKind != JsonValueKind.Null)
+        {
+            if (resetNode.ValueKind == JsonValueKind.Number && resetNode.TryGetInt64(out var seconds)
+                && seconds >= DateTimeOffset.MinValue.ToUnixTimeSeconds() && seconds <= DateTimeOffset.MaxValue.ToUnixTimeSeconds())
+                resets = DateTimeOffset.FromUnixTimeSeconds(seconds);
+            else valid = false;
+        }
+        if (!valid)
+        {
+            if (required) throw new AppServerProtocolException($"额度窗口 {propertyName} 字段格式无效。");
+            unresolved.Add((limitId, kind)); return;
+        }
+        destination.Add(new QuotaWindowSnapshot(kind, 100d - used, duration, resets, limitId, limitName));
     }
 
     private static QuotaCreditsSnapshot? ParseCredits(JsonElement root)
     {
+        if (root.TryGetProperty("rateLimitsByLimitId", out var mapped) && mapped.ValueKind == JsonValueKind.Object
+            && mapped.TryGetProperty("codex", out var current))
+            return current.ValueKind == JsonValueKind.Object && TryParseCredits(current, out var currentCredits) ? currentCredits : null;
         if (root.TryGetProperty("rateLimits", out var rateLimits)
             && rateLimits.ValueKind == JsonValueKind.Object
             && TryParseCredits(rateLimits, out var credits))
@@ -99,6 +153,7 @@ public static class AppServerRateLimitsParser
 
         foreach (var bucket in buckets.EnumerateObject())
         {
+            if (bucket.Value.ValueKind != JsonValueKind.Object) continue;
             var limitId = bucket.Value.TryGetProperty("limitId", out var idNode) && idNode.ValueKind == JsonValueKind.String
                 ? idNode.GetString()
                 : bucket.Name;

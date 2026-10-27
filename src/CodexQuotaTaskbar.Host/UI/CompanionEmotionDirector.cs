@@ -8,7 +8,7 @@ internal sealed class CompanionEmotionDirector
     internal static readonly string[] EmotionIds = ["00", "01", "02", "03", "04", "05", "06", "07",
         "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21",
         "30", "31", "32", "33", "34", "35", "36", "37", "38", "39", "40", "41"];
-    private static readonly TimeSpan RotationInterval = TimeSpan.FromSeconds(6);
+    internal static readonly TimeSpan RotationInterval = TimeSpan.FromSeconds(12);
     private readonly Random random;
     private readonly string[] cycle = (string[])EmotionIds.Clone();
     private int position = EmotionIds.Length;
@@ -17,6 +17,7 @@ internal sealed class CompanionEmotionDirector
     private string reason = "initial";
     private string current = "";
     private DateTimeOffset nextChange;
+    private DateTimeOffset? hiddenAt;
     private DateTimeOffset? tourStarted;
     private CodexSessionsSnapshot snapshot = CodexSessionsSnapshot.Empty;
 
@@ -31,10 +32,18 @@ internal sealed class CompanionEmotionDirector
 
     internal void Interact(DateTimeOffset now, bool tap)
     {
-        // A tap keeps its visual response, but consumes the same shuffled cycle.
-        if (!tap || tourStarted is not null) return;
-        current = NextEmotion(now, "tap");
-        nextChange = now + RotationInterval;
+        // Personality is decorative. Input still routes to Dot/drag/typing outside
+        // this director, but never consumes a bag item or extends its deadline.
+    }
+
+    internal void SetVisible(bool visible, DateTimeOffset now)
+    {
+        if (!visible) { hiddenAt ??= now; return; }
+        if (hiddenAt is not { } paused) return;
+        var duration = now > paused ? now - paused : TimeSpan.Zero;
+        nextChange += duration;
+        if (tourStarted is { } start) tourStarted = start + duration;
+        hiddenAt = null;
     }
 
     internal void ToggleTour(DateTimeOffset now)
@@ -49,6 +58,7 @@ internal sealed class CompanionEmotionDirector
 
     internal CompanionFrame Evaluate(DateTimeOffset now)
     {
+        if (hiddenAt is { } paused) now = paused;
         var preview = false;
         var id = current;
         if (tourStarted is { } start)
@@ -65,7 +75,7 @@ internal sealed class CompanionEmotionDirector
                 nextChange = now + RotationInterval;
             }
         }
-        else if (now >= nextChange)
+        else if (hiddenAt is null && now >= nextChange)
         {
             current = id = NextEmotion(now, "automatic");
             // A hidden/suspended interval must not skip unseen expressions or run a catch-up loop.

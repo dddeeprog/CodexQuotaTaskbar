@@ -6,6 +6,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using CodexQuotaTaskbar.Core.Sessions;
 using CodexQuotaTaskbar.Host.Platform;
+using CodexQuotaTaskbar.Host.Resets;
 using Grid = System.Windows.Controls.Grid;
 using Brushes = System.Windows.Media.Brushes;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
@@ -29,7 +30,7 @@ internal sealed class CompanionBallControl : Grid, IDisposable
     private bool reduced;
     private bool typingEnabled;
     private bool externalAppearance;
-    private bool resetNoticeActive;
+    private ResetVisualState resetState;
     private bool observePointer = true;
     private string? externalFailure;
     private bool ready;
@@ -47,6 +48,7 @@ internal sealed class CompanionBallControl : Grid, IDisposable
             Margin = new Thickness(0, 4, 2, 0), IsHitTestVisible = false, Visibility = Visibility.Collapsed };
         Children.Add(countBadge);
         timer.Tick += OnTick;
+        director.SetVisible(false, DateTimeOffset.UtcNow);
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
         IsVisibleChanged += OnVisibility;
@@ -54,17 +56,21 @@ internal sealed class CompanionBallControl : Grid, IDisposable
 
     internal bool Ready => ready && !failed;
     internal CompanionBallVisual? Visual => visual;
-    internal bool ResetNoticeActive => resetNoticeActive;
+    internal bool ResetNoticeActive => resetState != ResetVisualState.None;
+    internal ResetVisualState ResetState => resetState;
     internal bool CanAnimateTyping => Ready && IsLoaded && IsVisible && !reduced && SystemParameters.ClientAreaAnimation;
     internal event EventHandler? AvailabilityChanged;
     internal event Action<System.Windows.Point>? GazeChanged;
     internal void SetPointerObservationAllowed(bool allowed) => observePointer = allowed;
     internal void SetExternalFailure(string? reason) { externalFailure = reason; Render(); }
-    internal void SetResetNoticeActive(bool active)
+    internal void SetResetNoticeActive(bool active) => SetResetState(active ? ResetVisualState.Upcoming : ResetVisualState.None);
+
+    internal void SetResetState(ResetVisualState state)
     {
-        if (disposed || resetNoticeActive == active) return;
-        resetNoticeActive = active;
-        visual?.SetResetNoticeActive(active);
+        if (disposed || resetState == state) return;
+        if (!Enum.IsDefined(state)) throw new ArgumentOutOfRangeException(nameof(state));
+        resetState = state;
+        visual?.SetResetState(state);
     }
     internal void SetExternalAppearance(bool active)
     {
@@ -121,6 +127,7 @@ internal sealed class CompanionBallControl : Grid, IDisposable
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         timer.Stop();
+        director.SetVisible(false, DateTimeOffset.UtcNow);
         visual?.SetTypingInteraction(false);
     }
     private void OnVisibility(object sender, DependencyPropertyChangedEventArgs e)
@@ -136,7 +143,7 @@ internal sealed class CompanionBallControl : Grid, IDisposable
             try
             {
                 visual = new CompanionBallVisual();
-                visual.SetResetNoticeActive(resetNoticeActive);
+                visual.SetResetState(resetState);
                 visual.Presented += OnPresented;
                 Children.Insert(0, visual);
                 ready = true;
@@ -150,6 +157,7 @@ internal sealed class CompanionBallControl : Grid, IDisposable
 
     private void Render()
     {
+        director.SetVisible(!disposed && Ready && IsLoaded && IsVisible && !externalAppearance, DateTimeOffset.UtcNow);
         if (disposed || !Ready) return;
         if (externalAppearance)
         {
@@ -204,7 +212,7 @@ internal sealed class CompanionBallControl : Grid, IDisposable
     {
         if (disposed) return;
         disposed = true;
-        resetNoticeActive = false;
+        resetState = ResetVisualState.None;
         timer.Stop();
         timer.Tick -= OnTick;
         Loaded -= OnLoaded;

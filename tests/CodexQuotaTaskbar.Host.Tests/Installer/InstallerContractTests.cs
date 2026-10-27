@@ -4,6 +4,16 @@ namespace CodexQuotaTaskbar.Host.Tests.Installer;
 
 public sealed class InstallerContractTests
 {
+    [Fact]
+    public void Core_choice_is_interactive_after_base_install_and_before_finish_without_silent_acceptance()
+    {
+        Assert.Contains("CurStep = ssPostInstall", Script);
+        Assert.Contains("and not WizardSilent", Script);
+        Assert.Contains("'--installer-setup'", Script);
+        Assert.Contains("ewWaitUntilTerminated", Script);
+        Assert.DoesNotContain("--accept", Script);
+        Assert.DoesNotContain("payload.zip", Script);
+    }
     private static string Script => File.ReadAllText(Path.Combine(RepositoryPaths.Root, "build", "installer", "QuotaIsland.iss"));
 
     [Fact]
@@ -72,5 +82,18 @@ public sealed class InstallerContractTests
         Assert.Contains("Published executable version differs from VERSION", build);
         Assert.DoesNotContain("Remove-Item", build);
         Assert.DoesNotContain("Invoke-WebRequest", build);
+    }
+
+    [Theory]
+    [InlineData("package-host.ps1")]
+    [InlineData("package-installer.ps1")]
+    public void Versioned_output_is_opt_in_and_restricted_to_repository_artifacts(string name)
+    {
+        var build = File.ReadAllText(Path.Combine(RepositoryPaths.Root, "build", name));
+        Assert.Contains("[string]$ArtifactsDirectory", build);
+        Assert.Contains("if ($ArtifactsDirectory)", build);
+        Assert.Contains("[IO.Path]::GetFullPath($ArtifactsDirectory)", build);
+        Assert.Contains("$requestedRoot.StartsWith($artifactsRoot + [IO.Path]::DirectorySeparatorChar", build);
+        Assert.Contains("$artifactsRoot = $requestedRoot", build);
     }
 }

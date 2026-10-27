@@ -18,6 +18,8 @@ public partial class QuotaCapsuleWindow
 {
     private TextBlock? classicResetSummary;
     private TextBlock? classicResetSource;
+    private Grid? classicQuotaRows;
+    private Border? classicLogo;
 
     private void InitializeClassicLayout()
     {
@@ -47,10 +49,12 @@ public partial class QuotaCapsuleWindow
             { ViewboxUnits = BrushMappingMode.Absolute, Viewbox = new Rect(1124, 274, 1591, 1613), Stretch = Stretch.Uniform }
         };
         RenderOptions.SetBitmapScalingMode(logo, BitmapScalingMode.HighQuality);
-        QuotaHeader.Children.Add(new Border { Width = 38, Height = 38, CornerRadius = new CornerRadius(16),
-            Background = Freeze("#1AFFFFFF"), BorderBrush = Freeze("#28FFFFFF"), BorderThickness = new Thickness(0.5), Child = logo });
+        classicLogo = new Border { Width = 38, Height = 38, CornerRadius = new CornerRadius(16),
+            Background = Freeze("#1AFFFFFF"), BorderBrush = Freeze("#28FFFFFF"), BorderThickness = new Thickness(0.5), Child = logo };
+        QuotaHeader.Children.Add(classicLogo);
 
         var rows = new Grid();
+        classicQuotaRows = rows;
         rows.RowDefinitions.Add(new RowDefinition { Height = new GridLength(19) });
         rows.RowDefinitions.Add(new RowDefinition { Height = new GridLength(19) });
         Grid.SetColumn(rows, 2);

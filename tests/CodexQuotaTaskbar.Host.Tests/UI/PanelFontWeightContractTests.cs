@@ -32,8 +32,8 @@ public sealed class PanelFontWeightContractTests
                 Assert.Equal(FontWeights.SemiBold, window.FontWeight);
                 string[] buttons = section switch
                 {
-                    0 => ["DotChatButton", "OpenCodexButton", "RefreshButton", "AppearanceButton", "PreferencesButton", "CheckUpdatesButton", "ExitButton"],
-                    1 => ["ClassicStyleButton", "UnifiedStyleButton", "AllTaskbarsButton", "CompanionWhiteBallButton", "CompanionSignalLightButton", "CompanionBongoCatButton", "BongoSize160Button", "BongoSize192Button", "BongoSize240Button", "CompanionMotionButton", "CompanionTypingButton", "CompanionPreviewButton"],
+                    0 => ["OpenCodexButton", "RefreshButton", "AppearanceButton", "PreferencesButton", "CheckUpdatesButton", "ExitButton"],
+                    1 => ["ClassicStyleButton", "UnifiedStyleButton", "AllTaskbarsButton", "CompanionWhiteBallButton", "CompanionSignalLightButton", "CompanionBongoCatButton", "BongoSize160Button", "BongoSize192Button", "BongoSize240Button", "CompanionMotionButton", "CompanionTypingButton"],
                     _ => ["DotRealtimeButton", "SubscriptionLoginButton", "TrayIconButton", "NotificationsButton", "SubscriptionDetailsButton", "AutomaticUpdatesButton", "AutostartButton"],
                 };
                 foreach (var name in buttons)
@@ -99,7 +99,7 @@ public sealed class PanelFontWeightContractTests
                     Assert.Equal(FontWeights.SemiBold, window.FontWeight);
                     foreach (var name in new[] { "TitleText", "AccountSectionTitle", "PlanText", "ExpiryText", "ExtraCreditsText", "QuotaSectionTitle", "ShortcutsSectionTitle" })
                         Assert.Equal(FontWeights.SemiBold, Named<TextBlock>(window, name).FontWeight);
-                    foreach (var name in new[] { "RefreshButton", "OpenCodexButton", "DotChatButton", "SubscriptionLoginButton" })
+                    foreach (var name in new[] { "RefreshButton", "OpenCodexButton", "SubscriptionLoginButton" })
                         Assert.Equal(FontWeights.SemiBold, Named<Button>(window, name).FontWeight);
                     var rows = VisualDescendants<TextBlock>(Named<StackPanel>(window, "RowsPanel")).ToArray();
                     Assert.Equal(6, rows.Length);
@@ -126,8 +126,8 @@ public sealed class PanelFontWeightContractTests
                 window.ApplyShortcuts(new([], "Synthetic unavailable"));
                 Layout(window);
                 var empty = Assert.Single(VisualDescendants<TextBlock>(Named<StackPanel>(window, "RowsPanel")));
-                Assert.Equal("暂无可显示的额度窗口", empty.Text);
-                Assert.Equal(12, empty.FontSize);
+                Assert.Equal("Synthetic unavailable", empty.Text); // Failure is not a successful empty quota set.
+                Assert.Equal(11, empty.FontSize);
                 Assert.Equal(FontWeights.SemiBold, empty.FontWeight);
                 var status = Named<TextBlock>(window, "ShortcutsStatusText");
                 Assert.Equal(Visibility.Visible, status.Visibility);

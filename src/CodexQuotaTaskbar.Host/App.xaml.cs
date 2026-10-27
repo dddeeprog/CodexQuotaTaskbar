@@ -46,10 +46,23 @@ public partial class App : System.Windows.Application
         base.OnStartup(eventArgs);
         try
         {
+            if (eventArgs.Args is ["--installer-setup"])
+            {
+                await RunInstallerSetupAsync();
+                return;
+            }
             if (DotChatProcess.TryOpen(eventArgs.Args, this)) return;
             if (UpdateApplyOptions.TryParse(eventArgs.Args, out var updateOptions))
             {
-                await UpdateApplier.ApplyAsync(updateOptions!, CancellationToken.None);
+                try { await UpdateApplier.ApplyAsync(updateOptions!, CancellationToken.None); }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException
+                    or System.ComponentModel.Win32Exception or TimeoutException)
+                {
+                    var result = new UpdateStatusWindow();
+                    result.Apply(UpdateStatus.Failure(error, retryAllowed: false) with
+                    { Title = "安装未完成", Message = "更新程序未能完成替换或启动。请保留当前文件并检查以下原因；不会自动再次执行安装。" });
+                    result.ShowDialog();
+                }
                 Shutdown();
                 return;
             }
@@ -102,14 +115,31 @@ public partial class App : System.Windows.Application
             tray.MenuBoundsChanged += coordinator.SetMenuBounds;
             coordinator.CloseContextRequested += (_, _) => tray?.CloseContextMenu();
             tray.MaterialTransparencyPreviewRequested += (_, value) => coordinator?.SetMaterialTransparency(value);
-            tray.CompanionPreviewRequested += (_, _) => coordinator?.ToggleCompanionTour();
             browserStore = options.Demo ? null : new BrowserSubscriptionStore();
             subscriptionService = options.Demo ? null : new CodexSubscriptionMetadataService(browserStore: browserStore);
-            provider = options.Demo ? new DemoQuotaProvider() : new CodexRateLimitProvider(settings.SubscriptionDetailsEnabled, subscriptionService);
+            var recoveryTracker = new QuotaResetTracker(options.Demo ? null : ResetConfirmationStore.CreateDefault());
+            coordinator.SetResetTracker(recoveryTracker);
+            provider = options.Demo ? new DemoQuotaProvider() : new CodexRateLimitProvider(settings.SubscriptionDetailsEnabled, subscriptionService,
+                recoveryTracker);
+            if (provider is CodexRateLimitProvider liveProvider)
+                liveProvider.ResetConfirmationChanged += until => Dispatcher.BeginInvoke(() =>
+                {
+                    if (!shuttingDown) coordinator?.ApplyConfirmedReset(until);
+                });
             provider.SetSubscriptionDetailsEnabled(settings.SubscriptionDetailsEnabled);
             updateService = options.Demo ? null : new GitHubUpdateService();
             resetFeedClient = options.Demo ? null : new CodexResetFeedClient();
             resetScheduleClient = options.Demo ? null : new ResetScheduleClient();
+            if (resetScheduleClient is { } scheduleSource)
+                scheduleSource.QueryStateChanged += state =>
+                {
+                    if (Dispatcher.HasShutdownStarted) return;
+                    _ = Dispatcher.InvokeAsync(() =>
+                    {
+                        if (!shuttingDown && !lifetime.IsCancellationRequested && scheduleSource.QueryState == state)
+                            coordinator?.ApplyResetQueryState(state);
+                    });
+                };
 
             coordinator.RefreshRequested += OnRefreshRequested;
             coordinator.OpenCodexRequested += OnOpenCodexRequested;
@@ -122,7 +152,6 @@ public partial class App : System.Windows.Application
             tray.RefreshRequested += OnRefreshRequested;
             tray.OpenCodexRequested += OnOpenCodexRequested;
             tray.OpenSubscriptionLoginRequested += OnOpenSubscriptionLoginRequested;
-            tray.OpenDotChatRequested += OnOpenDotChatRequested;
             tray.CheckUpdatesRequested += OnCheckUpdatesRequested;
             tray.SettingsChanged += OnSettingsChanged;
             tray.ExitRequested += async (_, _) => await RequestShutdownAsync();
@@ -286,56 +315,18 @@ public partial class App : System.Windows.Application
         {
             if (manual)
             {
-                tray?.ShowUpdateNotification("正在检查更新", "已有更新检查正在进行。", showWhenTrayHidden: true);
+                tray?.RestoreUpdatePresentation();
             }
             return;
         }
 
         try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (manual)
-            {
-                tray?.ShowUpdateNotification("检查更新", "正在连接 GitHub 正式发行版…");
-            }
-
-            var release = await updateService.CheckAsync(cancellationToken);
-            if (release is null)
-            {
-                if (manual)
-                {
-                    tray?.ShowUpdateNotification("暂无可用更新", $"当前版本为 v{ProductVersion.Text}，没有更高版本的正式更新。", showWhenTrayHidden: true);
-                }
-                return;
-            }
-
-            tray?.ShowUpdateNotification("发现新版本", $"正在下载 {release.Tag}…");
-            var staged = await updateService.DownloadAndStageAsync(release, cancellationToken);
-            if (!updateService.LaunchInstaller(staged))
-            {
-                throw new InvalidOperationException("无法启动更新程序。");
-            }
-
-            tray?.ShowUpdateNotification("正在安装更新", $"即将重启到 {release.Tag}。");
-            await RequestShutdownAsync();
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
-        catch (Exception exception) when (exception is HttpRequestException or IOException or InvalidDataException or UnauthorizedAccessException or InvalidOperationException or System.Text.Json.JsonException or System.ComponentModel.Win32Exception or OperationCanceledException)
-        {
-            var message = exception switch
-            {
-                OperationCanceledException => "更新请求超时或中断，请稍后重试。",
-                InvalidDataException => "发行信息或更新包校验失败，请稍后重试。",
-                System.Text.Json.JsonException => "发行信息无效，请稍后重试。",
-                _ => "无法从 GitHub 获取或安装更新，请稍后重试。",
-            };
-            tray?.ShowUpdateNotification(
-                "更新失败",
-                manual ? message : "自动更新暂时失败，稍后会重试。",
-                System.Windows.Forms.ToolTipIcon.Warning,
-                showWhenTrayHidden: manual);
+            tray?.BeginUpdatePresentation();
+            var workflow = new UpdateWorkflow(updateService.CheckAsync,
+                (release, token, progress) => updateService.DownloadAndStageAsync(release, token, progress),
+                updateService.LaunchInstaller, (status, requested) => tray?.PresentUpdate(status, requested), RequestShutdownAsync);
+            await workflow.RunAsync(manual, cancellationToken);
         }
         finally
         {

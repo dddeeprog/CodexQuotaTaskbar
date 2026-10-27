@@ -218,13 +218,16 @@ public partial class TrayMenuWindow
         int milliseconds, Action? completed = null)
     {
         target.SetValue(property, to);
-        var animation = new DoubleAnimation(from, to, TimeSpan.FromMilliseconds(milliseconds))
-        {
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
-            FillBehavior = FillBehavior.Stop,
-        };
+        var animation = CreatePopupAnimation(from, to, milliseconds);
         if (completed is not null) animation.Completed += (_, _) => completed();
         if (target is UIElement element) element.BeginAnimation(property, animation, HandoffBehavior.SnapshotAndReplace);
         else if (target is Animatable animatable) animatable.BeginAnimation(property, animation, HandoffBehavior.SnapshotAndReplace);
     }
+
+    internal static DoubleAnimation CreatePopupAnimation(double from, double to, int milliseconds) =>
+        new(from, to, TimeSpan.FromMilliseconds(milliseconds))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+            FillBehavior = FillBehavior.Stop,
+        };
 }

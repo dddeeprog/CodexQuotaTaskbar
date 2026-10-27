@@ -46,7 +46,7 @@ internal sealed class GitHubUpdateService : IDisposable
         return release is { Version: var version } && version > ProductVersion.Value ? release : null;
     }
 
-    internal async Task<string> DownloadAndStageAsync(GitHubRelease release, CancellationToken cancellationToken)
+    internal async Task<string> DownloadAndStageAsync(GitHubRelease release, CancellationToken cancellationToken, IProgress<UpdateStatus>? progress = null)
     {
         ArgumentNullException.ThrowIfNull(release);
         var releaseDirectory = GetReleaseDirectory(release.Tag);
@@ -70,6 +70,7 @@ internal sealed class GitHubUpdateService : IDisposable
             {
                 var buffer = new byte[81920];
                 long total = 0;
+                var lastPercent = -1;
                 while (true)
                 {
                     var read = await input.ReadAsync(buffer, cancellationToken);
@@ -85,11 +86,21 @@ internal sealed class GitHubUpdateService : IDisposable
                     }
                     hash.AppendData(buffer.AsSpan(0, read));
                     await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                    if (response.Content.Headers.ContentLength is > 0 and var length)
+                    {
+                        var percent = (int)Math.Min(100, total * 100 / length);
+                        if (percent != lastPercent)
+                        {
+                            lastPercent = percent;
+                            progress?.Report(new(UpdateStage.Downloading, "正在下载更新", $"版本 {release.Tag}", percent));
+                        }
+                    }
                 }
                 await output.FlushAsync(cancellationToken);
             }
 
             var actualHash = Convert.ToHexString(hash.GetHashAndReset());
+            progress?.Report(new(UpdateStage.Verifying, "正在校验更新", "确认文件完整性后再启动安装。"));
             if (!actualHash.Equals(release.Sha256, StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidDataException("更新包 SHA-256 校验失败。");

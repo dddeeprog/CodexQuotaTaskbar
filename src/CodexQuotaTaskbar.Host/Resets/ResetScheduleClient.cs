@@ -16,11 +16,27 @@ public sealed class ResetScheduleClient : IDisposable
     private readonly HttpClient client;
     private readonly TimeProvider clock;
     private readonly SemaphoreSlim gate = new(1, 1);
+    private readonly CancellationTokenSource stopping = new();
     private ResetScheduleSnapshot? lastSuccess;
     private ResetScheduleSnapshot current = ResetScheduleSnapshot.Loading;
     private string? entityTag;
     private DateTimeOffset nextRequestAt;
     private int disposed;
+    private ResetQueryState queryState = ResetQueryState.Idle;
+    internal ResetQueryState QueryState => Volatile.Read(ref queryState);
+    internal event Action<ResetQueryState>? QueryStateChanged;
+
+    private void PublishPhase(ResetQueryPhase phase, DateTimeOffset? startedAt = null, bool successful = false)
+    {
+        var previous = QueryState;
+        var value = new ResetQueryState(previous.Revision + 1, phase, startedAt)
+        {
+            HasUnresolvedFailure = !successful && (phase == ResetQueryPhase.Failed
+                || previous.HasUnresolvedFailure || previous.Phase == ResetQueryPhase.Failed),
+        };
+        Volatile.Write(ref queryState, value);
+        QueryStateChanged?.Invoke(value);
+    }
 
     public ResetScheduleClient() : this(CodexResetFeedClient.CreateHandler(), TimeProvider.System) { }
 
@@ -35,6 +51,8 @@ public sealed class ResetScheduleClient : IDisposable
         ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         var requestStarted = false;
+        var failed = false;
+        var succeeded = false;
         try
         {
             ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
@@ -43,7 +61,7 @@ public sealed class ResetScheduleClient : IDisposable
             // A waiting concurrent caller reuses the result, rather than queuing another HTTP request.
             if (now < nextRequestAt) return WithCurrentAge(current, now);
             nextRequestAt = now + PollInterval;
-            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, stopping.Token);
             timeout.CancelAfter(TimeSpan.FromSeconds(8));
             using var request = new HttpRequestMessage(HttpMethod.Get, StatusUri);
             request.Headers.Accept.ParseAdd("application/json");
@@ -52,7 +70,11 @@ public sealed class ResetScheduleClient : IDisposable
             // Conditional revalidation follows the public status endpoint; no cache-busting query,
             // no-store header, cookies or account fields are sent.
             requestStarted = true;
+            PublishPhase(ResetQueryPhase.Checking, clock.GetUtcNow());
             using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
+            timeout.Token.ThrowIfCancellationRequested();
+            cancellationToken.ThrowIfCancellationRequested();
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
             now = clock.GetUtcNow();
             nextRequestAt = now + PollInterval;
             if (response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.ServiceUnavailable)
@@ -62,6 +84,7 @@ public sealed class ResetScheduleClient : IDisposable
                 if (retry is null)
                     retry = delay > DateTimeOffset.MaxValue - now ? DateTimeOffset.MaxValue : now + delay;
                 if (retry is { } permittedAt && permittedAt > nextRequestAt) nextRequestAt = permittedAt;
+                failed = true;
                 return Failure("重置预告服务繁忙，请稍后刷新");
             }
             if (response.StatusCode == HttpStatusCode.NotModified)
@@ -69,33 +92,52 @@ public sealed class ResetScheduleClient : IDisposable
                 if (lastSuccess is null) throw new InvalidDataException("Missing conditional status baseline.");
                 // The server has explicitly confirmed this baseline; a 304 has no new JSON timestamp.
                 lastSuccess = lastSuccess with { LastUpdatedAt = now, IsStale = false, ErrorMessage = null };
+                succeeded = true;
                 return current = lastSuccess;
             }
             response.EnsureSuccessStatusCode();
             if (response.StatusCode != HttpStatusCode.OK) throw new InvalidDataException("Unexpected status response code.");
             var bytes = await ReadJsonAsync(response, timeout.Token).ConfigureAwait(false);
             var parsed = Parse(bytes, clock.GetUtcNow());
+            timeout.Token.ThrowIfCancellationRequested();
+            cancellationToken.ThrowIfCancellationRequested();
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
             var tag = response.Headers.ETag?.ToString();
             entityTag = tag is { Length: <= 128 } ? tag : null;
             lastSuccess = parsed;
+            succeeded = true;
             return current = parsed;
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (Exception error) when ((cancellationToken.IsCancellationRequested || Volatile.Read(ref disposed) != 0)
+            && error is OperationCanceledException or HttpRequestException or ObjectDisposedException or IOException)
         {
             // Cancellation does not schedule a retry. A later, independent caller may start its
             // own read instead of being given a permanently Loading first-call snapshot.
             if (requestStarted) nextRequestAt = clock.GetUtcNow();
-            throw;
+            throw new OperationCanceledException("Public reset query stopped.", error, cancellationToken);
         }
         catch (OperationCanceledException)
         {
+            failed = true;
             return Failure("重置预告查询超时，稍后会自动重试");
         }
         catch (Exception error) when (error is HttpRequestException or IOException or InvalidDataException or JsonException or FormatException)
         {
+            failed = true;
             return Failure("暂时无法获取重置预告");
         }
-        finally { gate.Release(); }
+        finally
+        {
+            // In-flight/Idle do not prove recovery: retain a previous real failure
+            // through retries and cancellation, until a validated 200/304 succeeds.
+            try
+            {
+                if (requestStarted) PublishPhase(failed && Volatile.Read(ref disposed) == 0 && !cancellationToken.IsCancellationRequested
+                    ? ResetQueryPhase.Failed : ResetQueryPhase.Idle,
+                    successful: succeeded && Volatile.Read(ref disposed) == 0 && !cancellationToken.IsCancellationRequested);
+            }
+            finally { gate.Release(); }
+        }
     }
 
     private ResetScheduleSnapshot Failure(string message) => current = lastSuccess is null
@@ -224,7 +266,10 @@ public sealed class ResetScheduleClient : IDisposable
 
     public void Dispose()
     {
-        if (Interlocked.Exchange(ref disposed, 1) == 0) client.Dispose();
+        if (Interlocked.Exchange(ref disposed, 1) == 0)
+        {
+            stopping.Cancel(); client.Dispose(); stopping.Dispose();
+        }
         // Only async waits are used (no WaitHandle). Keep this managed gate alive while
         // canceled in-flight/waiting calls unwind, so their finally blocks remain safe.
     }

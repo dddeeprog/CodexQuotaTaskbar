@@ -4,6 +4,7 @@
     if (!probe || typeof probe !== 'object') probe = {};
     const normalize = value => value.trim().replace(/\s+/gu, ' ');
     const pending = typeof probe.pendingText === 'string' && probe.pendingText.trim() ? normalize(probe.pendingText) : null;
+    const notificationOnly = action === 'read' && probe.notificationOnly === true && pending === null;
     const suppliedIds = Array.isArray(probe.beforeIds) ? probe.beforeIds : [];
     const suppliedValid = Array.isArray(probe.beforeIds) && suppliedIds.length <= limit &&
         suppliedIds.every(id => typeof id === 'string' && id.trim() && id.length <= 256) && new Set(suppliedIds).size === suppliedIds.length;
@@ -81,6 +82,11 @@
         const id = ids.length === 1 ? ids[0] : '';
         const idSource = ids.length > 1 ? 'conflict' : !id ? 'missing' :
             article.getAttribute('data-message-id') === id ? 'article' : 'descendant';
+        // Notifications only consume the last twelve bodies. Keep scanning ALL
+        // identities so off-window duplicates/missing IDs still fail closed.
+        // Receipt recovery and prepare/submit always take the original full path.
+        if (notificationOnly && index < windowStart)
+            return {id, idSource, index, bodySkipped:true, hasText:false, pendingMatch:false};
         const roleNodes = [article, ...article.querySelectorAll('[data-message-author-role]')];
         const attributeRoles = [...new Set(roleNodes.map(node => node.getAttribute('data-message-author-role')).filter(Boolean))];
         const rows = [...(article.classList?.contains('message-row') ? [article] : []), ...article.querySelectorAll('.message-row')];
@@ -165,28 +171,30 @@
         confirmable:record.confirmable, idSource:record.idSource, roleSource:record.roleSource, textSource:record.textSource
     }));
     const fullMatches = records.filter(record => record.pendingMatch);
+    const bodyRecords = notificationOnly ? records.filter(record => !record.bodySkipped) : records;
     const windowMatches = fullMatches.filter(record => record.index >= windowStart);
     const rows = [...records.slice(-12), ...fullMatches.filter(record => record.index < windowStart).slice(0, 2)];
     const diagnostics = {baselineComplete, totalArticles:articles.length, returnedMessages:messages.length,
         missingIds:records.filter(record => record.idSource === 'missing' || record.idSource === 'conflict').length,
         duplicateIds:records.filter(record => record.id && idCounts.get(record.id) > 1).length,
-        unknownRoles:records.filter(record => record.role === 'unknown').length,
-        unsafeBodies:records.filter(record => record.unsafeBody).length,
+        historicalBodiesSkipped:records.length - bodyRecords.length,
+        unknownRoles:bodyRecords.filter(record => record.role === 'unknown').length,
+        unsafeBodies:bodyRecords.filter(record => record.unsafeBody).length,
         fullMatches:fullMatches.length, windowMatches:windowMatches.length,
         editors:editors.length, sends:sends.length, busy, scanTruncated:articles.length > limit,
         idConflicts:records.filter(record => record.idSource === 'conflict').length,
         oversizedIds:records.filter(record => record.id.length > 256).length,
-        emptyActionContainers:records.reduce((count, record) => count + record.emptyActionContainers, 0),
-        nonemptyActionContainers:records.reduce((count, record) => count + record.nonemptyActionContainers, 0),
-        ignoredEmptyIconControls:records.reduce((count, record) => count + record.ignoredEmptyIconControls, 0),
-        unsafeControls:records.filter(record => record.unsafeControls).length,
-        emptyBodies:records.filter(record => !record.hasText).length,
-        domFallbacks:records.filter(record => record.domFallbackUsed).length,
-        domTraversalUnsafe:records.filter(record => record.innerTextLength === 0 && !record.domTraversalSafe).length,
-        excludedHidden:records.reduce((count, record) => count + record.excludedHidden, 0),
-        excludedActions:records.reduce((count, record) => count + record.excludedActions, 0),
-        unsupportedNodes:records.reduce((count, record) => count + record.unsupportedNodes, 0),
-        domScanTruncatedCount:records.filter(record => record.domScanTruncated).length,
+        emptyActionContainers:bodyRecords.reduce((count, record) => count + record.emptyActionContainers, 0),
+        nonemptyActionContainers:bodyRecords.reduce((count, record) => count + record.nonemptyActionContainers, 0),
+        ignoredEmptyIconControls:bodyRecords.reduce((count, record) => count + record.ignoredEmptyIconControls, 0),
+        unsafeControls:bodyRecords.filter(record => record.unsafeControls).length,
+        emptyBodies:bodyRecords.filter(record => !record.hasText).length,
+        domFallbacks:bodyRecords.filter(record => record.domFallbackUsed).length,
+        domTraversalUnsafe:bodyRecords.filter(record => record.innerTextLength === 0 && !record.domTraversalSafe).length,
+        excludedHidden:bodyRecords.reduce((count, record) => count + record.excludedHidden, 0),
+        excludedActions:bodyRecords.reduce((count, record) => count + record.excludedActions, 0),
+        unsupportedNodes:bodyRecords.reduce((count, record) => count + record.unsupportedNodes, 0),
+        domScanTruncatedCount:bodyRecords.filter(record => record.domScanTruncated).length,
         newWindowMatches:windowMatches.filter(record => record.confirmable && !before.has(record.id)).length,
         probeBaselineComplete:suppliedValid && probe.baselineComplete === true,
         rows:rows.map(record => ({domIndex:articles.length - scanned.length + record.index,

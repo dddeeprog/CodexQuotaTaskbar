@@ -25,6 +25,8 @@ internal sealed class DotUnreadInbox
     private long readVersion;
 
     internal IReadOnlyList<DotUnreadItem> Messages { get { lock (gate) return messages.ToArray(); } }
+    internal HashSet<string> CaptureKnownIds() { lock (gate) return new(known, StringComparer.Ordinal); }
+    internal DotUnreadItem? Find(string id) { lock (gate) return messages.Find(item => item.Id == id); }
     internal int EarlierUnreadCount { get { lock (gate) return earlierUnreadCount; } }
     internal int UnreadCount { get { lock (gate) return (int)Math.Min(int.MaxValue,
         (long)earlierUnreadCount + messages.Count(message => message.IsUnread)); } }
@@ -50,7 +52,9 @@ internal sealed class DotUnreadInbox
                 if (index >= 0)
                 {
                     var prior = messages[index];
-                    messages[index] = prior with { Text = text, Time = message.Time ?? prior.Time };
+                    var time = message.Time ?? prior.Time;
+                    if (prior.Text != text || prior.Time != time)
+                        messages[index] = prior with { Text = text, Time = time };
                 }
                 return false;
             }

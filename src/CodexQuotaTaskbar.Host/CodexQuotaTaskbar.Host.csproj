@@ -47,8 +47,7 @@
     </Resource>
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="Assets\Bongo\payload.zip" LogicalName="CodexQuotaTaskbar.Host.Assets.Bongo.payload.zip"
-                      Condition="Exists('$(MSBuildProjectDirectory)\Assets\Bongo\payload.zip')" />
+    <!-- Core-containing renderer is a consent-gated optional release asset, never part of the base Host. -->
     <EmbeddedResource Include="Assets\Bongo\payload-manifest.json" LogicalName="CodexQuotaTaskbar.Host.Assets.Bongo.payload-manifest.json"
                       Condition="Exists('$(MSBuildProjectDirectory)\Assets\Bongo\payload-manifest.json')" />
   </ItemGroup>

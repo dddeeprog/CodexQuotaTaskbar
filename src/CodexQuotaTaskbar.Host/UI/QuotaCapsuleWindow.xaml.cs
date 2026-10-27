@@ -48,6 +48,7 @@ public partial class QuotaCapsuleWindow : Window
     private int runningCount;
     private int completedCount;
     private int badgeAnimationGeneration;
+    private int visibleQuotaRows = 2;
 
     internal QuotaCapsuleWindow(string monitorId, bool unifiedPanel = true)
     {
@@ -73,22 +74,19 @@ public partial class QuotaCapsuleWindow : Window
         AddHandler(Mouse.PreviewMouseMoveEvent, new System.Windows.Input.MouseEventHandler(OnMouseMove), true);
         AddHandler(Mouse.PreviewMouseUpEvent, new MouseButtonEventHandler(OnMouseLeftButtonUp), true);
         LostMouseCapture += (_, _) => ResetDragState();
-        MouseRightButtonUp += (_, _) =>
-        {
-            if (!DotTopExtensionVisible || dotTopContent?.IsMouseOver != true) ContextInvoked?.Invoke(this, EventArgs.Empty);
-        };
         SystemParameters.StaticPropertyChanged += OnSystemParametersChanged;
         IsVisibleChanged += (_, _) =>
         {
             // Resize/Bongo cleanup can reenter rendering before this callback returns.
             // Match the visibility gate before any native geometry mutation.
             RefreshCompanionResetNotice();
-            if (!IsVisible) { FinishExtensionTransitions(); ClearBongoFrame(); }
+            if (!IsVisible) { CancelPointerGesture("hidden"); FinishExtensionTransitions(); ClearBongoFrame(); }
             RefreshCompanionResetNotice();
         };
         Closing += (_, _) =>
         {
             bongoWindowClosing = true;
+            CancelPointerGesture("closing");
             RefreshCompanionResetNotice();
             FinishExtensionTransitions();
             RefreshCompanionResetNotice();
@@ -100,7 +98,8 @@ public partial class QuotaCapsuleWindow : Window
     internal string MonitorId { get; }
     internal bool IsUnifiedPanel { get; }
     internal double LayoutWidth => IsUnifiedPanel ? WindowWidth : 306;
-    internal double LayoutBaseHeight => (IsUnifiedPanel ? WindowHeight : 112) + BongoStageHeight;
+    private double QuotaBaseHeight => IsUnifiedPanel ? WindowHeight : visibleQuotaRows > 1 ? 112 : 100;
+    internal double LayoutBaseHeight => QuotaBaseHeight + BongoStageHeight;
     internal event Action<Uri>? OpenResetSourceRequested;
     internal void SetMaterialTransparency(int value)
     {
@@ -153,13 +152,29 @@ public partial class QuotaCapsuleWindow : Window
         var snapshot = quotaSnapshot;
         var projection = QuotaCapsuleProjection.Create(snapshot);
         ApplyRow(projection.Rows[0], FirstLabel, FirstBar, FirstValue);
+        if (!IsUnifiedPanel) FirstRow.ColumnDefinitions[0].Width = new GridLength(projection.Rows[0].Label.Length > 9 ? 85 : projection.Rows[0].Label.Length > 4 ? 70 : 45);
         var hasSecondRow = projection.Rows.Count > 1;
-        if (IsUnifiedPanel) System.Windows.Controls.Grid.SetColumnSpan(FirstRow, hasSecondRow ? 1 : 2);
-        else System.Windows.Controls.Grid.SetRowSpan(FirstRow, hasSecondRow ? 1 : 2);
+        var rowCount = hasSecondRow ? 2 : 1;
+        var quotaLayoutChanged = visibleQuotaRows != rowCount;
+        visibleQuotaRows = rowCount;
+        if (IsUnifiedPanel)
+        {
+            System.Windows.Controls.Grid.SetColumnSpan(FirstRow, 1);
+            QuotaHeader.ColumnDefinitions[1].Width = hasSecondRow ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        }
+        else if (classicQuotaRows is { } rows && classicLogo is { } logo)
+        {
+            System.Windows.Controls.Grid.SetRowSpan(FirstRow, 1);
+            rows.RowDefinitions[0].Height = new GridLength(hasSecondRow ? 19 : 26);
+            rows.RowDefinitions[1].Height = new GridLength(hasSecondRow ? 19 : 0);
+            QuotaHeader.RowDefinitions[0].Height = new GridLength(hasSecondRow ? 38 : 26);
+            logo.Width = logo.Height = hasSecondRow ? 38 : 26;
+        }
         SecondRow.Visibility = hasSecondRow ? Visibility.Visible : Visibility.Collapsed;
         if (hasSecondRow)
         {
             ApplyRow(projection.Rows[1], SecondLabel, SecondBar, SecondValue);
+            if (!IsUnifiedPanel) SecondRow.ColumnDefinitions[0].Width = new GridLength(projection.Rows[1].Label.Length > 4 ? 70 : 45);
         }
 
         // Keep the material itself stable. Staleness is communicated by the status text,
@@ -172,6 +187,14 @@ public partial class QuotaCapsuleWindow : Window
         AutomationProperties.SetName(this,
             $"点岛，{rowSummary}，待授权 {sessionsSnapshot.WaitingCount}，进行中 {sessionsSnapshot.RunningCount}，已完成 {sessionsSnapshot.CompletedCount}，{projection.StatusText}");
         ApplySystemAppearance();
+        if (quotaLayoutChanged)
+        {
+            RefreshBongoBodyLayout();
+            RefreshStandaloneWindowHeight();
+            UpdateCompanionSpacing();
+            RefreshDotMarkerPlacement();
+            PresentationChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     internal static double NumberTransitionOffset(int previous, int current) =>
@@ -347,75 +370,6 @@ public partial class QuotaCapsuleWindow : Window
         bounds.Right + deltaX,
         bounds.Bottom + deltaY);
 
-    private void OnMouseLeftButtonDown(object sender, MouseButtonEventArgs eventArgs)
-    {
-        companionPointerDown = BongoHasFrame && bongoSurface?.IsModelStageMouseOver == true
-            || CompanionReady && companion!.IsMouseOver;
-        if ((!companionPointerDown && (!QuotaHeader.IsMouseOver || SessionToggle.IsMouseOver || classicResetSource?.IsMouseOver == true)) || eventArgs.ChangedButton != MouseButton.Left || !WindowInteropPolicy.TryGetCursorPosition(out dragOriginX, out dragOriginY))
-        {
-            return;
-        }
-
-        // A drag owns placement from this point; do not let changing extension
-        // geometry race its captured physical origin. Other clicks never settle it.
-        FinishExtensionTransitions();
-        dragOriginBounds = physicalBounds;
-        pointerDown = true;
-        userDragging = false;
-        Mouse.Capture(this);
-        eventArgs.Handled = true;
-    }
-
-    private void OnMouseMove(object sender, System.Windows.Input.MouseEventArgs eventArgs)
-    {
-        if (companion is not null) companion.Gaze(eventArgs.GetPosition(companion));
-        if (!pointerDown || eventArgs.LeftButton != MouseButtonState.Pressed
-            || !WindowInteropPolicy.TryGetCursorPosition(out var cursorX, out var cursorY))
-        {
-            return;
-        }
-
-        var deltaX = cursorX - dragOriginX;
-        var deltaY = cursorY - dragOriginY;
-        if (!userDragging && !ExceedsDragThreshold(deltaX, deltaY))
-        {
-            return;
-        }
-
-        userDragging = true;
-        Cursor = System.Windows.Input.Cursors.SizeAll;
-        var moved = TranslateBounds(dragOriginBounds, deltaX, deltaY);
-        MoveByUser(moved);
-        eventArgs.Handled = true;
-    }
-
-    private void OnMouseLeftButtonUp(object sender, MouseButtonEventArgs eventArgs)
-    {
-        if (!pointerDown || eventArgs.ChangedButton != MouseButton.Left)
-        {
-            return;
-        }
-
-        var invokePrimary = !userDragging;
-        pointerDown = false;
-        userDragging = false;
-        Cursor = System.Windows.Input.Cursors.Arrow;
-        ReleaseMouseCapture();
-        eventArgs.Handled = true;
-        if (invokePrimary)
-        {
-            if (companionPointerDown) { companion?.Tap(); CompanionInvoked?.Invoke(this, EventArgs.Empty); }
-            else PrimaryInvoked?.Invoke(this, EventArgs.Empty);
-        }
-        companionPointerDown = false;
-    }
-
-    private void ResetDragState()
-    {
-        pointerDown = false;
-        userDragging = false;
-        Cursor = System.Windows.Input.Cursors.Arrow;
-    }
 
     private static void ApplyRow(QuotaCapsuleRow row, System.Windows.Controls.TextBlock label, System.Windows.Controls.ProgressBar bar, System.Windows.Controls.TextBlock value)
     {

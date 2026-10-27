@@ -65,6 +65,19 @@ Name: "{autodesktop}\点岛"; Filename: "{app}\CodexQuotaTaskbar.exe"; WorkingDi
 Filename: "{app}\CodexQuotaTaskbar.exe"; Description: "启动 点岛"; Flags: nowait postinstall skipifsilent
 
 [Code]
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ResultCode: Integer;
+begin
+  { The base EXE contains no Core payload. Only this explicit interactive choice may fetch it. }
+  if (CurStep = ssPostInstall) and not WizardSilent then
+  begin
+    if not Exec(ExpandConstant('{app}\CodexQuotaTaskbar.exe'), '--installer-setup',
+      ExpandConstant('{app}'), SW_SHOWNORMAL, ewWaitUntilTerminated, ResultCode) then
+      MsgBox('基础点岛已安装，可选 Core 设置未能启动。可稍后在外观菜单中主动选择。', mbInformation, MB_OK);
+  end;
+end;
+
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   StartupCommand: String;
