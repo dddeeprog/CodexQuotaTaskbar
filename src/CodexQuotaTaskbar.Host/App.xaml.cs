@@ -109,6 +109,7 @@ public partial class App : System.Windows.Application
             dotChat.OpenInlineRequested += (_, _) => coordinator?.OpenInlineDot();
             coordinator.InlineDotActionRequested += action => _ = dotChat.SendInlineActionAsync(action);
             tray = new TrayController(settings, restrictedDemo: RestrictedDemo);
+            StartWorkbench(options.Demo, settings);
             tray.SetCoreConsentStatus(coreConsent?.State ?? Bongo.CoreConsentState.Undecided, coreTerms is not null);
             tray.CoreTermsRequested += OnCoreTermsRequested;
             tray.SetContextAvoidanceProvider(coordinator.GetMenuObstacles);
@@ -564,6 +565,7 @@ public partial class App : System.Windows.Application
         }
 
         shuttingDown = true;
+        await StopWorkbenchAsync();
         CloseCoreConsentWindow();
         WriteDemoShutdownStage("request-start");
         StopTypingInteraction();

@@ -14,6 +14,7 @@ namespace CodexQuotaTaskbar.Host.UI;
 
 public partial class TrayMenuWindow : Window
 {
+    internal event EventHandler? OpenWorkbenchRequested;
     private static readonly MediaBrush ToggleOn = Freeze("#E9E9EE");
     private static readonly MediaBrush ToggleOff = Freeze("#35FFFFFF");
     private readonly MediaBrush normalGlassBackground;
@@ -66,6 +67,7 @@ public partial class TrayMenuWindow : Window
         RefreshButton.Click += (_, _) => InvokeAndHide(RefreshRequested);
         CheckUpdatesButton.Click += (_, _) => InvokeAndHide(CheckUpdatesRequested);
         OpenCodexButton.Click += (_, _) => InvokeAndHide(OpenCodexRequested);
+        OpenWorkbenchButton.Click += (_, _) => InvokeAndHide(OpenWorkbenchRequested);
         DotRealtimeButton.Click += (_, _) => RequestSettings(this.settings with { DotRealtime = !this.settings.DotRealtime });
         SubscriptionLoginButton.Click += (_, _) => InvokeAndHide(OpenSubscriptionLoginRequested);
         ExitButton.Click += (_, _) => InvokeAndHide(ExitRequested);

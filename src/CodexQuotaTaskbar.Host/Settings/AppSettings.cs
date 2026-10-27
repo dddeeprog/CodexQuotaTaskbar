@@ -16,7 +16,8 @@ internal sealed record AppSettings(
     bool CompanionTyping = false,
     string CompanionAppearance = "white-ball",
     int BongoSizeDip = 192,
-    bool? BongoCatVisible = null)
+    bool? BongoCatVisible = null,
+    Workbench.WorkbenchSettings? Workbench = null)
 {
     internal static AppSettings Default { get; } = new(true, false, true, 10, true, true);
     // Public appearance template only. Core acceptance never opts into input, Dot, or autostart.
