@@ -68,7 +68,7 @@ internal sealed class WorkbenchCoordinator : IAsyncDisposable
         view.Top = Math.Clamp(settings.Top ?? bounds.Top + (bounds.Height - view.Height) / 2, bounds.Top, Math.Max(bounds.Top, bounds.Bottom - view.Height));
     }
     internal void UpdateSelection(string? directory, string? repository)
-    { settings = settings with { Directory = directory, Repository = repository }; Persist(); }
+    { if (settings.Directory == directory && settings.Repository == repository) return; settings = settings with { Directory = directory, Repository = repository }; Persist(); }
     private void Persist()
     {
         if (disposed || window is null) return;
