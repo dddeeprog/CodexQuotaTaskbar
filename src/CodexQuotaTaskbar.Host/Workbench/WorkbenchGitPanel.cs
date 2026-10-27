@@ -1,7 +1,6 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Markup;
 using System.Windows.Threading;
 using Button = System.Windows.Controls.Button;
 using ListBox = System.Windows.Controls.ListBox;
@@ -82,7 +81,8 @@ internal sealed partial class WorkbenchGitPanel : IDisposable
         var panel = new DockPanel();
         var heading = new TextBlock { Text = $"{repository.Changes.Count} 项改动" + (repository.OperationInProgress ? " · 合并或变基进行中，仅浏览" : ""), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(8, 6, 8, 12) };
         DockPanel.SetDock(heading, Dock.Top); panel.Children.Add(heading);
-        list = new ListBox { ItemsSource = repository.Changes, SelectionMode = System.Windows.Controls.SelectionMode.Extended };
+        list = new ListBox { ItemsSource = repository.Changes, SelectionMode = System.Windows.Controls.SelectionMode.Extended,
+            ItemTemplate = (DataTemplate)view.Resources["WorkbenchGitChange"] };
         list.SelectionChanged += async (_, _) =>
         {
             if (list.SelectedItem is GitChange change) await ShowDiffAsync(repository, change);
@@ -115,15 +115,10 @@ internal sealed partial class WorkbenchGitPanel : IDisposable
             if (diff.Notice is { } notice) panel.Children.Add(new TextBlock { Text = notice, TextWrapping = TextWrapping.Wrap });
             else
             {
-                var rows = new ListBox { ItemsSource = diff.Rows, HorizontalContentAlignment = System.Windows.HorizontalAlignment.Stretch };
+                var rows = new ListBox { ItemsSource = diff.Rows, HorizontalContentAlignment = System.Windows.HorizontalAlignment.Stretch,
+                    ItemContainerStyle = (Style)view.Resources["WorkbenchDiffItem"] };
                 ScrollViewer.SetHorizontalScrollBarVisibility(rows, ScrollBarVisibility.Disabled);
-                rows.ItemTemplate = (DataTemplate)XamlReader.Parse("""
-                    <DataTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
-                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="36"/><ColumnDefinition Width="*"/><ColumnDefinition Width="36"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                    <TextBlock Text="{Binding OldLine}" Foreground="{DynamicResource WorkbenchMuted}"/><Border Grid.Column="1" Background="{Binding OldBackground}" Padding="4,1"><TextBlock Text="{Binding OldText}" FontFamily="Cascadia Mono, Consolas" TextTrimming="CharacterEllipsis" ToolTip="{Binding OldText}"/></Border>
-                    <TextBlock Grid.Column="2" Text="{Binding NewLine}" Foreground="{DynamicResource WorkbenchMuted}"/><Border Grid.Column="3" Background="{Binding NewBackground}" Padding="4,1"><TextBlock Text="{Binding NewText}" FontFamily="Cascadia Mono, Consolas" TextTrimming="CharacterEllipsis" ToolTip="{Binding NewText}"/></Border>
-                    </Grid></DataTemplate>
-                    """);
+                rows.ItemTemplate = (DataTemplate)view.Resources["WorkbenchDiffRow"];
                 panel.Children.Add(rows);
             }
             view.PreviewHost.Children.Clear(); view.PreviewHost.Children.Add(panel);
@@ -136,6 +131,7 @@ internal sealed partial class WorkbenchGitPanel : IDisposable
         try
         {
             var menu = new System.Windows.Controls.ContextMenu();
+            menu.Resources.MergedDictionaries.Add(view.Resources);
             if (snapshot is { } repository)
                 foreach (var path in await git.WorktreesAsync(repository, reads.Token))
                 {

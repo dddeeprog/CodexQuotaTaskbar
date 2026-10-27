@@ -13,11 +13,7 @@ internal sealed record GitChange(GitArea Area, string Path, string? OriginalPath
 }
 internal sealed record GitWorkspace(string Root, string GitDirectory, string? Head, string Branch,
     string Version, bool OperationInProgress, IReadOnlyList<GitChange> Changes);
-internal sealed record GitDiffRow(string? OldLine, string? NewLine, string OldText, string NewText, string Kind)
-{
-    public string OldBackground => !System.Windows.SystemParameters.HighContrast && Kind is "delete" or "replace" ? "#452D31" : "Transparent";
-    public string NewBackground => !System.Windows.SystemParameters.HighContrast && Kind is "add" or "replace" ? "#263E35" : "Transparent";
-}
+internal sealed record GitDiffRow(string? OldLine, string? NewLine, string OldText, string NewText, string Kind);
 internal sealed record GitDiff(IReadOnlyList<GitDiffRow> Rows, string? Notice);
 internal sealed record GitCommandResult(int ExitCode, string Output, string Error);
 

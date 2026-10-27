@@ -158,14 +158,14 @@ internal sealed partial class WorkbenchBrowser : IDisposable
     }
     partial void ConfigureFileActions(TreeView tree);
 
-    private void ShowSearch()
+    internal void ShowSearch()
     {
         var panel = new DockPanel();
         var controls = new StackPanel { Margin = new Thickness(6) };
         view.SetViewMode("search");
         var input = new TextBox { Text = searchQuery, ToolTip = "按 Enter 搜索所选工作区" };
         input.TextChanged += (_, _) => searchQuery = input.Text;
-        var content = new System.Windows.Controls.CheckBox { Content = "搜索文本内容", IsChecked = searchContent, Foreground = view.Foreground, Margin = new Thickness(0, 10, 0, 10) };
+        var content = new System.Windows.Controls.CheckBox { Content = "搜索文本内容", IsChecked = searchContent, Margin = new Thickness(0, 10, 0, 10) };
         content.Checked += (_, _) => searchContent = true; content.Unchecked += (_, _) => searchContent = false;
         var go = new Button { Content = "搜索", HorizontalAlignment = System.Windows.HorizontalAlignment.Left };
         controls.Children.Add(input); controls.Children.Add(content); controls.Children.Add(go);
@@ -200,26 +200,28 @@ internal sealed partial class WorkbenchBrowser : IDisposable
         {
             var preview = await files.PreviewAsync(Root, path, token);
             if (current != generation || path != selectedFile || !view.IsVisible) return;
-            var panel = new DockPanel(); var tools = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
-            var open = new Button { Content = "用默认程序打开" }; var reveal = new Button { Content = "在资源管理器中定位" };
-            open.Click += (_, _) => OpenExternal(path, false); reveal.Click += (_, _) => OpenExternal(path, true);
-            tools.Children.Add(open); tools.Children.Add(reveal); DockPanel.SetDock(tools, Dock.Top); panel.Children.Add(tools);
-            var title = new TextBlock { Text = Path.GetRelativePath(Root, path), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) };
-            DockPanel.SetDock(title, Dock.Top); panel.Children.Add(title);
-            if (preview.Text is { } text)
-                panel.Children.Add(new TextBox { Text = text, IsReadOnly = true, AcceptsReturn = true, FontFamily = new FontFamily("Cascadia Mono, Consolas"), HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, BorderThickness = new Thickness(0) });
-            else if (preview.Image is { } bytes)
-            {
-                var bitmap = await WorkspaceFiles.DecodeImageAsync(bytes, token);
-                if (current != generation || path != selectedFile || !view.IsVisible) return;
-                panel.Children.Add(new System.Windows.Controls.Image { Source = bitmap, Stretch = Stretch.Uniform });
-            }
-            else panel.Children.Add(new TextBlock { Text = preview.Notice, TextWrapping = TextWrapping.Wrap });
-            view.PreviewHost.Children.Clear(); view.PreviewHost.Children.Add(panel);
+            var bitmap = preview.Image is { } bytes ? await WorkspaceFiles.DecodeImageAsync(bytes, token) : null;
+            if (current != generation || path != selectedFile || !view.IsVisible) return;
+            RenderPreview(preview, bitmap);
         }
         catch (OperationCanceledException) { }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException or FileFormatException)
         { if (current == generation && path == selectedFile) view.SetStatus("无法预览：" + error.Message); }
+    }
+    internal void RenderPreview(WorkspacePreview preview, System.Windows.Media.Imaging.BitmapSource? image = null)
+    {
+        var path = preview.Path;
+        var panel = new DockPanel(); var tools = new System.Windows.Controls.WrapPanel { Margin = new Thickness(0, 0, 0, 12) };
+        var open = new Button { Content = "用默认程序打开" }; var reveal = new Button { Content = "在资源管理器中定位" };
+        open.Click += (_, _) => OpenExternal(path, false); reveal.Click += (_, _) => OpenExternal(path, true);
+        tools.Children.Add(open); tools.Children.Add(reveal); DockPanel.SetDock(tools, Dock.Top); panel.Children.Add(tools);
+        var title = new TextBlock { Text = Path.GetRelativePath(Root!, path), FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) };
+        DockPanel.SetDock(title, Dock.Top); panel.Children.Add(title);
+        if (preview.Text is { } text)
+            panel.Children.Add(new TextBox { Text = text, IsReadOnly = true, AcceptsReturn = true, FontFamily = new FontFamily("Cascadia Mono, Consolas"), HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, BorderThickness = new Thickness(0) });
+        else if (image is not null) panel.Children.Add(new System.Windows.Controls.Image { Source = image, Stretch = Stretch.Uniform });
+        else panel.Children.Add(new TextBlock { Text = preview.Notice, TextWrapping = TextWrapping.Wrap });
+        view.PreviewHost.Children.Clear(); view.PreviewHost.Children.Add(panel);
     }
     private void OpenExternal(string path, bool reveal)
     {

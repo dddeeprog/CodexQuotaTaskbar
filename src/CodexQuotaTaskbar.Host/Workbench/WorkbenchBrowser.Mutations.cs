@@ -13,6 +13,7 @@ internal sealed partial class WorkbenchBrowser
     partial void ConfigureFileActions(TreeView tree)
     {
         var menu = new System.Windows.Controls.ContextMenu();
+        menu.Resources.MergedDictionaries.Add(view.Resources);
         void Add(string label, Action action)
         { var item = new MenuItem { Header = label }; item.Click += (_, _) => action(); menu.Items.Add(item); }
         Add("新建文件…", () => Create(false)); Add("新建文件夹…", () => Create(true));

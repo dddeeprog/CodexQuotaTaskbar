@@ -1,12 +1,9 @@
 using Button = System.Windows.Controls.Button;
 using TextBox = System.Windows.Controls.TextBox;
-using Color = System.Windows.Media.Color;
-using SystemColors = System.Windows.SystemColors;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace CodexQuotaTaskbar.Host.Workbench;
@@ -37,6 +34,8 @@ internal partial class WorkbenchWindow : Window
         ChooseDirectoryButton.Click += (_, _) => { if (CanStartInteraction) DirectoryRequested?.Invoke(); };
         ChooseRepositoryButton.Click += (_, _) => { if (CanStartInteraction) RepositoryRequested?.Invoke(); };
         RefreshButton.Click += (_, _) => RefreshRequested?.Invoke();
+        CloseWorkbenchButton.Click += (_, _) => HideSafely();
+        MinimizeButton.Click += (_, _) => { if (CanStartInteraction) SystemCommands.MinimizeWindow(this); };
         FilesButton.Click += (_, _) => ViewRequested?.Invoke("files");
         SearchButton.Click += (_, _) => ViewRequested?.Invoke("search");
         GitButton.Click += (_, _) => ViewRequested?.Invoke("git");
@@ -90,17 +89,16 @@ internal partial class WorkbenchWindow : Window
     {
         if (!CanStartInteraction) return null;
         using var scope = ProtectInteraction();
-        var dialog = new Window { Owner = this, Title = title, Width = 430, Height = 165,
+        var dialog = new Window { Owner = this, Title = title, Width = 430, Height = 210,
             WindowStartupLocation = WindowStartupLocation.CenterOwner, ResizeMode = ResizeMode.NoResize,
             Background = Background, Foreground = Foreground, FontFamily = FontFamily, ShowInTaskbar = false };
         var input = new TextBox { Text = initial, Margin = new Thickness(0, 0, 0, 12) };
         var confirm = new Button { Content = "确定", IsDefault = true, HorizontalAlignment = System.Windows.HorizontalAlignment.Right, Padding = new Thickness(18, 5, 18, 5) };
         confirm.Click += (_, _) => { if (CanStartInteraction) dialog.DialogResult = true; };
-        foreach (var key in Resources.Keys) dialog.Resources[key] = Resources[key];
         var cancel = new Button { Content = "取消", IsCancel = true, Padding = new Thickness(18, 5, 18, 5) };
         var actions = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment = System.Windows.HorizontalAlignment.Right };
         actions.Children.Add(cancel); actions.Children.Add(confirm);
-        var panel = new StackPanel { Margin = new Thickness(18) }; panel.Children.Add(input); panel.Children.Add(actions); dialog.Content = panel;
+        var panel = new StackPanel { Margin = new Thickness(18) }; panel.Children.Add(input); panel.Children.Add(actions); StyleDialog(dialog, panel);
         dialog.Loaded += (_, _) => { input.Focus(); input.SelectAll(); };
         return dialog.ShowDialog() == true ? input.Text : null;
     }
@@ -114,17 +112,6 @@ internal partial class WorkbenchWindow : Window
     }
     internal void CloseForShutdown()
     { closing = true; SystemParameters.StaticPropertyChanged -= SystemAppearanceChanged; Close(); }
-    private void SystemAppearanceChanged(object? sender, PropertyChangedEventArgs args) => ApplyAppearance();
-    private void ApplyAppearance()
-    {
-        Resources["WorkbenchBackground"] = SystemParameters.HighContrast ? SystemColors.WindowBrush : new SolidColorBrush(Color.FromRgb(41, 41, 44));
-        Resources["WorkbenchPane"] = SystemParameters.HighContrast ? SystemColors.WindowBrush : new SolidColorBrush(Color.FromRgb(34, 34, 37));
-        Resources["WorkbenchText"] = SystemParameters.HighContrast ? SystemColors.WindowTextBrush : new SolidColorBrush(Color.FromRgb(242, 242, 244));
-        Resources["WorkbenchMuted"] = SystemParameters.HighContrast ? SystemColors.WindowTextBrush : new SolidColorBrush(Color.FromRgb(182, 182, 190));
-        Resources["WorkbenchButton"] = SystemParameters.HighContrast ? SystemColors.ControlBrush : new SolidColorBrush(Color.FromRgb(65, 65, 70));
-        Resources["WorkbenchHover"] = SystemParameters.HighContrast ? SystemColors.ControlBrush : new SolidColorBrush(Color.FromRgb(83, 83, 90));
-        Resources["WorkbenchActive"] = SystemParameters.HighContrast ? SystemColors.ControlBrush : new SolidColorBrush(Color.FromRgb(102, 102, 113));
-    }
     private sealed class InteractionScope(Action dispose) : IDisposable
     { private Action? callback = dispose; public void Dispose() => Interlocked.Exchange(ref callback, null)?.Invoke(); }
 }

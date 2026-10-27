@@ -39,7 +39,6 @@ internal sealed partial class WorkbenchGitPanel
             Height = Math.Min(510, view.ActualHeight), MinWidth = 400, MinHeight = 360,
             WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false,
             Background = view.Background, Foreground = view.Foreground, FontFamily = view.FontFamily };
-        foreach (var key in view.Resources.Keys) dialog.Resources[key] = view.Resources[key];
         var body = new DockPanel { Margin = new Thickness(18) };
         var heading = new TextBlock { Text = $"{repository.Branch} · {repository.Root}", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) };
         DockPanel.SetDock(heading, Dock.Top); body.Children.Add(heading);
@@ -54,7 +53,7 @@ internal sealed partial class WorkbenchGitPanel
         scope.Children.Add(new TextBlock { Text = string.Join("\n", paths), TextWrapping = TextWrapping.Wrap });
         body.Children.Add(new ScrollViewer { Content = scope, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         confirm.Click += (_, _) => { if (!view.CanStartInteraction) return; if (!string.IsNullOrWhiteSpace(message.Text)) dialog.DialogResult = true; else message.Focus(); };
-        dialog.Content = body; dialog.Loaded += (_, _) => message.Focus();
+        view.StyleDialog(dialog, body); dialog.Loaded += (_, _) => message.Focus();
         if (dialog.ShowDialog() == true) BeginGitWrite(repository, () => git.CommitAsync(repository, message.Text, default), true);
     }
     private void BeginGitWrite(GitWorkspace reviewed, Func<Task<GitWorkspace>> operation, bool commit)
