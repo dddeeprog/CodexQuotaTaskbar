@@ -36,6 +36,8 @@ public sealed class WorkspaceFilesTests : IDisposable
     {
         Assert.Throws<IOException>(() => WorkspacePaths.Validate(root, Path.Combine(root, "..", "outside.txt")));
         Assert.Throws<IOException>(() => WorkspacePaths.Validate(root, Path.Combine(root, ".git", "index")));
+        var internalRoot = Path.Combine(root, ".git"); Directory.CreateDirectory(internalRoot);
+        Assert.Throws<IOException>(() => WorkspacePaths.Validate(internalRoot, internalRoot));
         using var cancel = new CancellationTokenSource(); cancel.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => files.ListAsync(root, root, cancel.Token));
     }

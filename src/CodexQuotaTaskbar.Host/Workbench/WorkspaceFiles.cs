@@ -18,7 +18,8 @@ internal static class WorkspacePaths
         var relative = System.IO.Path.GetRelativePath(root, path);
         if (System.IO.Path.IsPathRooted(relative) || relative == ".." || relative.StartsWith(".." + System.IO.Path.DirectorySeparatorChar, StringComparison.Ordinal)
             || (!allowRoot && relative == ".")) throw new IOException("操作路径不在所选工作区内，或正在操作工作区根目录。");
-        if (relative.Split(System.IO.Path.DirectorySeparatorChar).Any(p => p.Equals(".git", StringComparison.OrdinalIgnoreCase)))
+        if (root.Split(System.IO.Path.DirectorySeparatorChar, System.IO.Path.AltDirectorySeparatorChar).Any(p => p.Equals(".git", StringComparison.OrdinalIgnoreCase))
+            || relative.Split(System.IO.Path.DirectorySeparatorChar).Any(p => p.Equals(".git", StringComparison.OrdinalIgnoreCase)))
             throw new IOException("Git 内部目录不能从工作台直接操作。");
         for (var current = path; !string.IsNullOrEmpty(current); current = System.IO.Path.GetDirectoryName(current))
         {
