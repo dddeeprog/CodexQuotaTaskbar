@@ -5,12 +5,14 @@ namespace CodexQuotaTaskbar.Host;
 public partial class App
 {
     private WorkbenchCoordinator? workbench;
+    private WorkbenchBrowser? workbenchBrowser;
     private void StartWorkbench(bool demo, Settings.AppSettings settings)
     {
         if (demo || tray is null) return;
         workbench = new WorkbenchCoordinator(settings.Workbench ?? new(), value => tray?.SetWorkbenchSettings(value));
+        workbench.WindowCreated += view => workbenchBrowser = new WorkbenchBrowser(view, workbench, tray.Settings.Workbench ?? new());
         tray.OpenWorkbenchRequested += (_, _) => workbench?.Open();
     }
     private async Task StopWorkbenchAsync()
-    { if (workbench is not null) { await workbench.DisposeAsync(); workbench = null; } }
+    { if (workbench is not null) { await workbench.DisposeAsync(); workbenchBrowser?.Dispose(); workbench = null; } }
 }
