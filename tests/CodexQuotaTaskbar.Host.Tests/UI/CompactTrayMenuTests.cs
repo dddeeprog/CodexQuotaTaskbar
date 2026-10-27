@@ -25,12 +25,12 @@ public sealed class CompactTrayMenuTests
         true, false, 37, true, true, false, false, false, false, "bongo-cat", 192);
 
     [Fact]
-    public void Primary_page_has_six_actions_without_dot_or_preview_entries() => Sta(menu =>
+    public void Primary_page_includes_workbench_without_dot_or_preview_entries() => Sta(menu =>
     {
         var primary = Named<StackPanel>(menu, "MenuItems");
         Assert.Equal(new[]
         {
-            "OpenCodexButton", "RefreshButton", "AppearanceButton",
+            "OpenCodexButton", "OpenWorkbenchButton", "RefreshButton", "AppearanceButton",
             "PreferencesButton", "CheckUpdatesButton", "ExitButton",
         }, primary.Children.OfType<Button>().Select(button => button.Name));
 

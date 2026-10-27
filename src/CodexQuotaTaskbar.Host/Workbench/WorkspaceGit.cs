@@ -15,8 +15,8 @@ internal sealed record GitWorkspace(string Root, string GitDirectory, string? He
     string Version, bool OperationInProgress, IReadOnlyList<GitChange> Changes);
 internal sealed record GitDiffRow(string? OldLine, string? NewLine, string OldText, string NewText, string Kind)
 {
-    public string OldBackground => Kind is "delete" or "replace" ? "#452D31" : "Transparent";
-    public string NewBackground => Kind is "add" or "replace" ? "#263E35" : "Transparent";
+    public string OldBackground => !System.Windows.SystemParameters.HighContrast && Kind is "delete" or "replace" ? "#452D31" : "Transparent";
+    public string NewBackground => !System.Windows.SystemParameters.HighContrast && Kind is "add" or "replace" ? "#263E35" : "Transparent";
 }
 internal sealed record GitDiff(IReadOnlyList<GitDiffRow> Rows, string? Notice);
 internal sealed record GitCommandResult(int ExitCode, string Output, string Error);
@@ -27,7 +27,9 @@ internal sealed partial class WorkspaceGit
     private readonly string executable;
     internal WorkspaceGit(string executable = "git.exe") => this.executable = executable;
 
-    internal async Task<GitWorkspace> ReadAsync(string directory, CancellationToken token)
+    internal Task<GitWorkspace> ReadAsync(string directory, CancellationToken token)
+        => Task.Run(() => ReadCoreAsync(directory, token), token);
+    private async Task<GitWorkspace> ReadCoreAsync(string directory, CancellationToken token)
     {
         WorkspacePaths.Validate(directory, directory);
         var identity = await CheckedAsync(directory, ["rev-parse", "--path-format=absolute", "--show-toplevel", "--absolute-git-dir"], token);
@@ -44,7 +46,7 @@ internal sealed partial class WorkspaceGit
         var changes = ParseStatus(status);
         var busy = new[] { "MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "rebase-apply", "rebase-merge" }
             .Any(name => File.Exists(Path.Combine(gitDirectory, name)) || Directory.Exists(Path.Combine(gitDirectory, name)));
-        var version = new StringBuilder(root).Append('\0').Append(gitDirectory).Append('\0').Append(head).Append('\0').Append(index).Append(status).Append(busy);
+        var version = new StringBuilder(root).Append('\0').Append(gitDirectory).Append('\0').Append(head).Append('\0').Append(branch).Append('\0').Append(index).Append(status).Append(busy);
         foreach (var path in changes.Select(c => c.Path).Distinct(StringComparer.Ordinal))
         {
             var info = new FileInfo(Path.Combine(root, path));
@@ -80,7 +82,9 @@ internal sealed partial class WorkspaceGit
         return output.Split('\0').Where(s => s.StartsWith("worktree ", StringComparison.Ordinal)).Select(s => Path.GetFullPath(s[9..])).ToArray();
     }
 
-    internal async Task<GitDiff> DiffAsync(GitWorkspace repository, GitChange change, CancellationToken token)
+    internal Task<GitDiff> DiffAsync(GitWorkspace repository, GitChange change, CancellationToken token)
+        => Task.Run(() => DiffCoreAsync(repository, change, token), token);
+    private async Task<GitDiff> DiffCoreAsync(GitWorkspace repository, GitChange change, CancellationToken token)
     {
         if (!repository.Changes.Contains(change)) throw new IOException("所选改动已过期，请刷新。");
         if (change.Area == GitArea.Untracked) return new([], "新文件尚无 Git 历史，可在文件视图中预览后暂存。");
@@ -146,7 +150,11 @@ internal sealed partial class WorkspaceGit
         try { if (!process.Start()) throw new IOException("无法启动 Git。"); }
         catch (System.ComponentModel.Win32Exception error) { throw new IOException("无法启动本机 Git，请检查是否已安装。", error); }
         var output = DrainAsync(process.StandardOutput); var errors = DrainAsync(process.StandardError);
-        if (input is not null) { await process.StandardInput.WriteAsync(input); process.StandardInput.Close(); }
+        if (input is not null)
+        {
+            try { await process.StandardInput.WriteAsync(input); process.StandardInput.Close(); }
+            catch (IOException) { /* Git may reject before reading stdin. Await its actual exit and stderr below. */ }
+        }
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
         if (!mutation) timeout.CancelAfter(TimeSpan.FromSeconds(25));
         try { await process.WaitForExitAsync(mutation ? CancellationToken.None : timeout.Token); }

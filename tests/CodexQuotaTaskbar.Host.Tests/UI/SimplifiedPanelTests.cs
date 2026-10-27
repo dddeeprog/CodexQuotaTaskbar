@@ -32,7 +32,7 @@ public sealed class SimplifiedPanelTests
             var root = Layout(menu);
             var primary = (StackPanel)menu.FindName("MenuItems");
             var actions = primary.Children.OfType<Button>().ToArray();
-            Assert.Equal(6, actions.Length); Assert.Equal("OpenCodexButton", actions[0].Name);
+            Assert.Equal(7, actions.Length); Assert.Equal("OpenCodexButton", actions[0].Name);
             Assert.Equal(0, actions[0].TranslatePoint(default, primary).Y, 3);
             Assert.Equal(32, actions[1].TranslatePoint(default, primary).Y, 3);
             menu.OpenSection(MenuSection.Appearance); Layout(menu);

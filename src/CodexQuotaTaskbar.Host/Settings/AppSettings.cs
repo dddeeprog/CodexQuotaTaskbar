@@ -17,6 +17,7 @@ internal sealed record AppSettings(
     string CompanionAppearance = "white-ball",
     int BongoSizeDip = 192,
     bool? BongoCatVisible = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     Workbench.WorkbenchSettings? Workbench = null)
 {
     internal static AppSettings Default { get; } = new(true, false, true, 10, true, true);

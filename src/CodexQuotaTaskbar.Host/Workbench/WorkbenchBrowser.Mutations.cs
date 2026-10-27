@@ -37,7 +37,7 @@ internal sealed partial class WorkbenchBrowser
         : Selection is { } file ? Path.GetDirectoryName(file.Path)! : Root!;
     private void Create(bool directory)
     {
-        if (Root is null || IsWriting || view.CaptureActive) return;
+        if (Root is null || IsWriting || !view.CanStartInteraction) return;
         var name = view.Prompt(directory ? "新建文件夹" : "新建文件");
         if (name is null) return;
         var root = Root; var parent = MutationParent();
@@ -45,14 +45,14 @@ internal sealed partial class WorkbenchBrowser
     }
     private void Rename()
     {
-        if (Root is null || Selection is not { } selected || IsWriting || view.CaptureActive) return;
+        if (Root is null || Selection is not { } selected || IsWriting || !view.CanStartInteraction) return;
         var name = view.Prompt("重命名", selected.Name); if (name is null) return;
         var root = Root;
         BeginFileWrite(async () => { await files.RenameAsync(root, selected.Path, name, CancellationToken.None); });
     }
     private void Recycle()
     {
-        if (Root is null || Selection is not { } selected || IsWriting || view.CaptureActive) return;
+        if (Root is null || Selection is not { } selected || IsWriting || !view.CanStartInteraction) return;
         using var scope = view.ProtectInteraction();
         if (System.Windows.MessageBox.Show(view, $"将此项目移到回收站？\n\n{selected.Path}", "移到回收站", MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK) return;
         var root = Root;
@@ -60,6 +60,7 @@ internal sealed partial class WorkbenchBrowser
     }
     private void BeginFileWrite(Func<Task> operation)
     {
+        if (!view.CanStartInteraction || IsWriting) return;
         async Task Run()
         {
             try { await operation(); view.SetStatus("文件操作已完成，未自动暂存。"); }

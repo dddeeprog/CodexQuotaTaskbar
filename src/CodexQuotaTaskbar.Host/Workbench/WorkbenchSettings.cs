@@ -9,7 +9,7 @@ internal sealed record WorkbenchSettings(
     {
         Hotkey = WorkbenchHotkey.TryParse(Hotkey, out _, out _) ? Hotkey : "Ctrl+Alt+G",
         Width = double.IsFinite(Width) ? Math.Clamp(Width, 640, 3000) : 1100,
-        Height = double.IsFinite(Height) ? Math.Clamp(Height, 400, 2400) : 720,
+        Height = double.IsFinite(Height) ? Math.Clamp(Height, 480, 2400) : 720,
         Left = Left is { } x && double.IsFinite(x) ? x : null,
         Top = Top is { } y && double.IsFinite(y) ? y : null,
     };

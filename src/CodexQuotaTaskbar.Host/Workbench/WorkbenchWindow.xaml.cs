@@ -17,7 +17,9 @@ internal partial class WorkbenchWindow : Window
     private int ownedInteraction;
     private long activation;
     internal bool CaptureActive { get; private set; }
+    internal Func<bool> CaptureProbe { get; set; } = WorkbenchCoordinator.IsCaptured;
     internal bool Pinned { get; private set; }
+    internal bool CanStartInteraction => !closing && IsVisible && !CaptureActive && !CaptureProbe();
     internal event Action? PreferencesChanged;
     internal event Action? HotkeyChangeRequested;
     internal event Action? DirectoryRequested;
@@ -31,9 +33,9 @@ internal partial class WorkbenchWindow : Window
         Width = settings.Width; Height = settings.Height; Pinned = settings.Pinned; Topmost = Pinned;
         PinButton.Content = Pinned ? "置顶：开" : "置顶：关";
         PinButton.Click += (_, _) => SetPinned(!Pinned);
-        HotkeyButton.Click += (_, _) => HotkeyChangeRequested?.Invoke();
-        ChooseDirectoryButton.Click += (_, _) => DirectoryRequested?.Invoke();
-        ChooseRepositoryButton.Click += (_, _) => RepositoryRequested?.Invoke();
+        HotkeyButton.Click += (_, _) => { if (CanStartInteraction) HotkeyChangeRequested?.Invoke(); };
+        ChooseDirectoryButton.Click += (_, _) => { if (CanStartInteraction) DirectoryRequested?.Invoke(); };
+        ChooseRepositoryButton.Click += (_, _) => { if (CanStartInteraction) RepositoryRequested?.Invoke(); };
         RefreshButton.Click += (_, _) => RefreshRequested?.Invoke();
         FilesButton.Click += (_, _) => ViewRequested?.Invoke("files");
         SearchButton.Click += (_, _) => ViewRequested?.Invoke("search");
@@ -59,7 +61,10 @@ internal partial class WorkbenchWindow : Window
     {
         var generation = activation;
         _ = Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
-        { if (CanAutoHide(generation, IsActive)) HideSafely(); });
+        {
+            if (IsVisible) CaptureActive = CaptureProbe();
+            if (CanAutoHide(generation, IsActive)) HideSafely();
+        });
     }
     private bool HasOpenContextMenu() => ContextMenuService.GetContextMenu(this)?.IsOpen == true
         || Mouse.Captured is System.Windows.Controls.Primitives.MenuBase
@@ -71,11 +76,11 @@ internal partial class WorkbenchWindow : Window
     }
     internal void SetPinned(bool value)
     {
-        if (CaptureActive) return;
+        if (CaptureActive || (IsVisible && CaptureProbe())) return;
         Pinned = value; Topmost = value; PinButton.Content = value ? "置顶：开" : "置顶：关";
         PreferencesChanged?.Invoke();
     }
-    internal void HideSafely() { if (!CaptureActive && !closing) Hide(); }
+    internal void HideSafely() { if (!CaptureActive && !closing && (!IsVisible || !CaptureProbe())) Hide(); }
     internal IDisposable ProtectInteraction()
     {
         ownedInteraction++;
@@ -83,18 +88,25 @@ internal partial class WorkbenchWindow : Window
     }
     internal string? Prompt(string title, string initial = "")
     {
+        if (!CanStartInteraction) return null;
         using var scope = ProtectInteraction();
         var dialog = new Window { Owner = this, Title = title, Width = 430, Height = 165,
             WindowStartupLocation = WindowStartupLocation.CenterOwner, ResizeMode = ResizeMode.NoResize,
             Background = Background, Foreground = Foreground, FontFamily = FontFamily, ShowInTaskbar = false };
         var input = new TextBox { Text = initial, Margin = new Thickness(0, 0, 0, 12) };
         var confirm = new Button { Content = "确定", IsDefault = true, HorizontalAlignment = System.Windows.HorizontalAlignment.Right, Padding = new Thickness(18, 5, 18, 5) };
-        confirm.Click += (_, _) => dialog.DialogResult = true;
-        var panel = new StackPanel { Margin = new Thickness(18) }; panel.Children.Add(input); panel.Children.Add(confirm); dialog.Content = panel;
+        confirm.Click += (_, _) => { if (CanStartInteraction) dialog.DialogResult = true; };
+        foreach (var key in Resources.Keys) dialog.Resources[key] = Resources[key];
+        var cancel = new Button { Content = "取消", IsCancel = true, Padding = new Thickness(18, 5, 18, 5) };
+        var actions = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, HorizontalAlignment = System.Windows.HorizontalAlignment.Right };
+        actions.Children.Add(cancel); actions.Children.Add(confirm);
+        var panel = new StackPanel { Margin = new Thickness(18) }; panel.Children.Add(input); panel.Children.Add(actions); dialog.Content = panel;
         dialog.Loaded += (_, _) => { input.Focus(); input.SelectAll(); };
         return dialog.ShowDialog() == true ? input.Text : null;
     }
     internal void SetStatus(string text) => StatusLabel.Text = text;
+    internal void SetViewMode(string mode)
+    { FilesButton.IsChecked = mode == "files"; SearchButton.IsChecked = mode == "search"; GitButton.IsChecked = mode == "git"; }
     private void OnClosing(object? sender, CancelEventArgs args)
     {
         if (closing) return;
@@ -109,6 +121,9 @@ internal partial class WorkbenchWindow : Window
         Resources["WorkbenchPane"] = SystemParameters.HighContrast ? SystemColors.WindowBrush : new SolidColorBrush(Color.FromRgb(34, 34, 37));
         Resources["WorkbenchText"] = SystemParameters.HighContrast ? SystemColors.WindowTextBrush : new SolidColorBrush(Color.FromRgb(242, 242, 244));
         Resources["WorkbenchMuted"] = SystemParameters.HighContrast ? SystemColors.WindowTextBrush : new SolidColorBrush(Color.FromRgb(182, 182, 190));
+        Resources["WorkbenchButton"] = SystemParameters.HighContrast ? SystemColors.ControlBrush : new SolidColorBrush(Color.FromRgb(65, 65, 70));
+        Resources["WorkbenchHover"] = SystemParameters.HighContrast ? SystemColors.ControlBrush : new SolidColorBrush(Color.FromRgb(83, 83, 90));
+        Resources["WorkbenchActive"] = SystemParameters.HighContrast ? SystemColors.ControlBrush : new SolidColorBrush(Color.FromRgb(102, 102, 113));
     }
     private sealed class InteractionScope(Action dispose) : IDisposable
     { private Action? callback = dispose; public void Dispose() => Interlocked.Exchange(ref callback, null)?.Invoke(); }

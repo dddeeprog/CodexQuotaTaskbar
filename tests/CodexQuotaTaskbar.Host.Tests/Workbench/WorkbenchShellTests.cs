@@ -6,6 +6,25 @@ namespace CodexQuotaTaskbar.Host.Tests.Workbench;
 
 public sealed class WorkbenchShellTests
 {
+    [Fact]
+    public void Native_shortcut_conflict_is_reported_and_dispose_releases_only_its_own_registration()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            using var first = new WorkbenchHotkey(); using var second = new WorkbenchHotkey();
+            try
+            {
+                Assert.True(first.Register("Ctrl+Alt+F24"), first.Error);
+                Assert.False(second.Register("Ctrl+Alt+F24")); Assert.NotNull(second.Error);
+                first.Dispose(); Assert.True(second.Register("Ctrl+Alt+F24"), second.Error);
+            }
+            catch (Exception error) { failure = error; }
+            finally { System.Windows.Threading.Dispatcher.CurrentDispatcher.InvokeShutdown(); }
+        });
+        thread.SetApartmentState(ApartmentState.STA); thread.Start(); Assert.True(thread.Join(TimeSpan.FromSeconds(10)));
+        if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+    }
     [Theory]
     [InlineData("Ctrl+Alt+G", true)] [InlineData("Win+Shift+F12", true)]
     [InlineData("G", false)] [InlineData("Shift+G", false)]
@@ -45,6 +64,7 @@ public sealed class WorkbenchShellTests
                 view.SetCaptureActive(true); view.SetPinned(true); Assert.False(view.Pinned);
                 view.SetCaptureActive(false); view.SetPinned(true); Assert.True(view.Topmost);
                 Assert.Equal(0, new System.Windows.Interop.WindowInteropHelper(view).Handle);
+                Assert.False(view.CanStartInteraction);
                 Assert.NotNull(view.FindName("ChooseDirectoryButton"));
             }
             catch (Exception error) { failure = error; }

@@ -17,11 +17,11 @@ internal sealed class WorkbenchCoordinator : IAsyncDisposable
     internal event Action<WorkbenchWindow>? WindowCreated;
     internal Task PendingWrite { get; set; } = Task.CompletedTask;
 
-    internal WorkbenchCoordinator(WorkbenchSettings settings, Action<WorkbenchSettings> save)
+    internal WorkbenchCoordinator(WorkbenchSettings settings, Action<WorkbenchSettings> save, bool enableShortcut = true)
     {
         this.settings = settings.Normalize(); this.save = save;
         hotkey.Pressed += Toggle;
-        hotkey.Register(this.settings.Hotkey);
+        if (enableShortcut) hotkey.Register(this.settings.Hotkey);
         captureTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(750) };
         captureTimer.Tick += (_, _) => window?.SetCaptureActive(IsCaptured());
     }

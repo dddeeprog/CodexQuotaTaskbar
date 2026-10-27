@@ -76,8 +76,9 @@ internal sealed partial class WorkbenchGitPanel : IDisposable
             if (showing) { view.SidebarHost.Children.Clear(); view.SidebarHost.Children.Add(new TextBlock { Text = "无法读取 Git 仓库。\n文件浏览仍可使用。\n\n" + error.Message, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(12) }); }
         }
     }
-    private void Render(GitWorkspace repository)
+    internal void Render(GitWorkspace repository)
     {
+        view.SetViewMode("git");
         var panel = new DockPanel();
         var heading = new TextBlock { Text = $"{repository.Changes.Count} 项改动" + (repository.OperationInProgress ? " · 合并或变基进行中，仅浏览" : ""), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(8, 6, 8, 12) };
         DockPanel.SetDock(heading, Dock.Top); panel.Children.Add(heading);
@@ -101,6 +102,13 @@ internal sealed partial class WorkbenchGitPanel : IDisposable
             { await browser.ShowPreviewAsync(Path.Combine(repository.Root, change.Path)); return; }
             var diff = await git.DiffAsync(repository, change, token);
             if (request != diffGeneration || snapshot != repository || !view.IsVisible) return;
+            RenderDiff(diff, change);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { if (request == diffGeneration) view.SetStatus(error.Message); }
+    }
+    internal void RenderDiff(GitDiff diff, GitChange change)
+    {
             var panel = new DockPanel();
             var heading = new TextBlock { Text = change.Path + (change.Area == GitArea.Staged ? "   HEAD → 已暂存" : "   已暂存 → 工作区"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 12) };
             DockPanel.SetDock(heading, Dock.Top); panel.Children.Add(heading);
@@ -112,16 +120,13 @@ internal sealed partial class WorkbenchGitPanel : IDisposable
                 rows.ItemTemplate = (DataTemplate)XamlReader.Parse("""
                     <DataTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
                     <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="36"/><ColumnDefinition Width="*"/><ColumnDefinition Width="36"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                    <TextBlock Text="{Binding OldLine}" Foreground="#B6B6BE"/><Border Grid.Column="1" Background="{Binding OldBackground}" Padding="4,1"><TextBlock Text="{Binding OldText}" FontFamily="Cascadia Mono, Consolas" TextTrimming="CharacterEllipsis" ToolTip="{Binding OldText}"/></Border>
-                    <TextBlock Grid.Column="2" Text="{Binding NewLine}" Foreground="#B6B6BE"/><Border Grid.Column="3" Background="{Binding NewBackground}" Padding="4,1"><TextBlock Text="{Binding NewText}" FontFamily="Cascadia Mono, Consolas" TextTrimming="CharacterEllipsis" ToolTip="{Binding NewText}"/></Border>
+                    <TextBlock Text="{Binding OldLine}" Foreground="{DynamicResource WorkbenchMuted}"/><Border Grid.Column="1" Background="{Binding OldBackground}" Padding="4,1"><TextBlock Text="{Binding OldText}" FontFamily="Cascadia Mono, Consolas" TextTrimming="CharacterEllipsis" ToolTip="{Binding OldText}"/></Border>
+                    <TextBlock Grid.Column="2" Text="{Binding NewLine}" Foreground="{DynamicResource WorkbenchMuted}"/><Border Grid.Column="3" Background="{Binding NewBackground}" Padding="4,1"><TextBlock Text="{Binding NewText}" FontFamily="Cascadia Mono, Consolas" TextTrimming="CharacterEllipsis" ToolTip="{Binding NewText}"/></Border>
                     </Grid></DataTemplate>
                     """);
                 panel.Children.Add(rows);
             }
             view.PreviewHost.Children.Clear(); view.PreviewHost.Children.Add(panel);
-        }
-        catch (OperationCanceledException) { }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { if (request == diffGeneration) view.SetStatus(error.Message); }
     }
 
     private async void ChooseRepository()

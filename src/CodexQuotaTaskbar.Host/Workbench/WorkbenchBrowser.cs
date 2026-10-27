@@ -26,6 +26,11 @@ internal sealed partial class WorkbenchBrowser : IDisposable
     private bool disposed;
     private string mode = "files";
     private string? selectedFile;
+    private string searchQuery = "";
+    private bool searchContent;
+    private FrameworkElement? searchPanel;
+    private CancellationTokenSource? searchReads;
+    private long searchGeneration;
     internal string? Root { get; private set; }
     internal event Action? WorkspaceChanged;
     internal event Action? RefreshGitRequested;
@@ -53,12 +58,15 @@ internal sealed partial class WorkbenchBrowser : IDisposable
         view.ChooseRepositoryButton.IsEnabled = false;
     }
 
-    private void ChooseDirectory()
+    private async void ChooseDirectory()
     {
         if (IsWriting) { view.SetStatus("写操作尚未结束，请完成后再切换工作区。"); return; }
         using var scope = view.ProtectInteraction();
         var picker = new Microsoft.Win32.OpenFolderDialog { Title = "选择工作区目录", Multiselect = false };
-        if (picker.ShowDialog(view) == true) _ = SelectRootAsync(picker.FolderName);
+        if (picker.ShowDialog(view) != true) return;
+        try { await SelectRootAsync(picker.FolderName); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException)
+        { view.SetStatus(error.Message); }
     }
     internal async Task SelectRootAsync(string root)
     {
@@ -66,14 +74,15 @@ internal sealed partial class WorkbenchBrowser : IDisposable
         WorkspacePaths.Validate(root, root);
         if (!Directory.Exists(root)) throw new DirectoryNotFoundException("工作区目录不存在。");
         StopReading(); Root = Path.GetFullPath(root); selectedFile = null; Selection = null;
+        view.PreviewHost.Children.Clear(); view.SidebarHost.Children.Clear(); searchPanel = null;
         view.DirectoryLabel.Text = Root; view.DirectoryLabel.ToolTip = Root;
         coordinator.UpdateSelection(Root, null); WorkspaceChanged?.Invoke();
         StartWatching(); await RefreshAsync();
     }
     private void ShowView(string requested)
-    { mode = requested; if (mode == "git") ShowGit?.Invoke(); else _ = RefreshAsync(); }
+    { mode = requested; view.SetViewMode(mode); if (mode == "git") ShowGit?.Invoke(); else _ = RefreshAsync(); }
     private void StopReading()
-    { generation++; reads.Cancel(); reads.Dispose(); reads = new(); watcher?.Dispose(); watcher = null; debounce.Stop(); }
+    { generation++; searchGeneration++; reads.Cancel(); reads.Dispose(); reads = new(); searchReads?.Dispose(); searchReads = null; watcher?.Dispose(); watcher = null; debounce.Stop(); }
     private void StartWatching()
     {
         watcher?.Dispose(); watcher = null;
@@ -102,24 +111,30 @@ internal sealed partial class WorkbenchBrowser : IDisposable
         var current = generation; var token = reads.Token;
         try
         {
-            if (mode == "git") { ShowGit?.Invoke(); return; }
-            if (mode == "search") { ShowSearch(); return; }
+            if (mode == "git") return;
+            if (mode == "search") { if (searchPanel is null || !view.SidebarHost.Children.Contains(searchPanel)) ShowSearch(); return; }
             var entries = await files.ListAsync(Root, Root, token);
             if (current != generation || !view.IsVisible || mode != "files") return;
-            var tree = new TreeView { Background = System.Windows.Media.Brushes.Transparent, BorderThickness = new Thickness(0) };
-            foreach (var entry in entries) tree.Items.Add(TreeItem(entry, current, token));
-            tree.SelectedItemChanged += (_, args) =>
-            {
-                if (args.NewValue is not TreeViewItem { Tag: WorkspaceEntry item }) return;
-                Selection = item;
-                if (!item.IsDirectory && !item.IsLink) _ = ShowPreviewAsync(item.Path);
-            };
-            ConfigureFileActions(tree);
-            view.SidebarHost.Children.Clear(); view.SidebarHost.Children.Add(tree);
+            RenderDirectory(entries, current, token);
         }
         catch (OperationCanceledException) { }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException)
         { if (current == generation) view.SetStatus("无法读取工作区：" + error.Message); }
+    }
+    internal void RenderDirectory(IReadOnlyList<WorkspaceEntry> entries, long current, CancellationToken token)
+    {
+        var tree = new TreeView { Background = System.Windows.Media.Brushes.Transparent, BorderThickness = new Thickness(0) };
+        view.SetViewMode("files");
+        foreach (var entry in entries.Take(2000)) tree.Items.Add(TreeItem(entry, current, token));
+        if (entries.Count > 2000) view.SetStatus("此目录显示前 2000 项，请用搜索查找其他文件，或直接打开子文件夹。");
+        tree.SelectedItemChanged += (_, args) =>
+        {
+            if (args.NewValue is not TreeViewItem { Tag: WorkspaceEntry item }) return;
+            Selection = item;
+            if (!item.IsDirectory && !item.IsLink) _ = ShowPreviewAsync(item.Path);
+        };
+        ConfigureFileActions(tree);
+        view.SidebarHost.Children.Clear(); view.SidebarHost.Children.Add(tree);
     }
     private TreeViewItem TreeItem(WorkspaceEntry entry, long current, CancellationToken token)
     {
@@ -148,8 +163,11 @@ internal sealed partial class WorkbenchBrowser : IDisposable
     {
         var panel = new DockPanel();
         var controls = new StackPanel { Margin = new Thickness(6) };
-        var input = new TextBox { ToolTip = "按 Enter 搜索所选工作区" };
-        var content = new System.Windows.Controls.CheckBox { Content = "搜索文本内容", Foreground = view.Foreground, Margin = new Thickness(0, 10, 0, 10) };
+        view.SetViewMode("search");
+        var input = new TextBox { Text = searchQuery, ToolTip = "按 Enter 搜索所选工作区" };
+        input.TextChanged += (_, _) => searchQuery = input.Text;
+        var content = new System.Windows.Controls.CheckBox { Content = "搜索文本内容", IsChecked = searchContent, Foreground = view.Foreground, Margin = new Thickness(0, 10, 0, 10) };
+        content.Checked += (_, _) => searchContent = true; content.Unchecked += (_, _) => searchContent = false;
         var go = new Button { Content = "搜索", HorizontalAlignment = System.Windows.HorizontalAlignment.Left };
         controls.Children.Add(input); controls.Children.Add(content); controls.Children.Add(go);
         DockPanel.SetDock(controls, Dock.Top); panel.Children.Add(controls);
@@ -157,11 +175,12 @@ internal sealed partial class WorkbenchBrowser : IDisposable
         async Task Search()
         {
             if (Root is null || string.IsNullOrWhiteSpace(input.Text)) return;
-            var current = generation; var token = reads.Token; go.IsEnabled = false;
+            searchReads?.Cancel(); searchReads?.Dispose(); searchReads = CancellationTokenSource.CreateLinkedTokenSource(reads.Token);
+            var request = ++searchGeneration; var current = generation; var token = searchReads.Token; go.IsEnabled = false;
             try
             {
                 var found = await files.SearchAsync(Root, input.Text, content.IsChecked == true, token);
-                if (current != generation || !view.IsVisible) return;
+                if (current != generation || request != searchGeneration || !view.IsVisible) return;
                 results.ItemsSource = found.Hits;
                 view.SetStatus(found.Truncated ? "显示前 500 条结果，请缩小搜索范围。" : $"找到 {found.Hits.Count} 条结果。");
             }
@@ -172,7 +191,7 @@ internal sealed partial class WorkbenchBrowser : IDisposable
         go.Click += async (_, _) => await Search();
         input.KeyDown += async (_, args) => { if (args.Key == Key.Enter) { args.Handled = true; await Search(); } };
         results.SelectionChanged += (_, _) => { if (results.SelectedItem is WorkspaceSearchHit hit) _ = ShowPreviewAsync(hit.Path); };
-        view.SidebarHost.Children.Clear(); view.SidebarHost.Children.Add(panel);
+        searchPanel = panel; view.SidebarHost.Children.Clear(); view.SidebarHost.Children.Add(panel);
     }
     internal async Task ShowPreviewAsync(string path)
     {
@@ -205,6 +224,7 @@ internal sealed partial class WorkbenchBrowser : IDisposable
     }
     private void OpenExternal(string path, bool reveal)
     {
+        if (!view.CanStartInteraction) return;
         try
         {
             path = WorkspacePaths.Validate(Root!, path);

@@ -41,23 +41,22 @@ internal sealed partial class WorkspaceFiles
     private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase) { ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".ico" };
     private static readonly HashSet<string> SearchExcludedDirectories = new(StringComparer.OrdinalIgnoreCase) { ".git", "node_modules", "bin", "obj", "target", ".vs" };
 
-    internal Task<IReadOnlyList<WorkspaceEntry>> ListAsync(string root, string path, CancellationToken token) => Task.Run<IReadOnlyList<WorkspaceEntry>>(() =>
+    private static IEnumerable<WorkspaceEntry> EnumerateEntries(string root, string path, CancellationToken token)
     {
         path = WorkspacePaths.Validate(root, path);
-        var entries = new List<WorkspaceEntry>();
         foreach (var entry in Directory.EnumerateFileSystemEntries(path))
         {
             token.ThrowIfCancellationRequested();
             if (System.IO.Path.GetFileName(entry).Equals(".git", StringComparison.OrdinalIgnoreCase)) continue;
-            try
-            {
-                var attributes = File.GetAttributes(entry);
-                entries.Add(new(entry, System.IO.Path.GetFileName(entry), (attributes & FileAttributes.Directory) != 0, (attributes & FileAttributes.ReparsePoint) != 0));
-            }
-            catch (IOException) { } catch (UnauthorizedAccessException) { }
+            FileAttributes attributes;
+            try { attributes = File.GetAttributes(entry); }
+            catch (IOException) { continue; } catch (UnauthorizedAccessException) { continue; }
+            yield return new(entry, System.IO.Path.GetFileName(entry), (attributes & FileAttributes.Directory) != 0, (attributes & FileAttributes.ReparsePoint) != 0);
         }
-        return entries.OrderByDescending(e => e.IsDirectory).ThenBy(e => e.Name, StringComparer.CurrentCultureIgnoreCase).ToArray();
-    }, token);
+    }
+    internal Task<IReadOnlyList<WorkspaceEntry>> ListAsync(string root, string path, CancellationToken token)
+        => Task.Run<IReadOnlyList<WorkspaceEntry>>(() => EnumerateEntries(root, path, token).Take(2001)
+            .OrderByDescending(e => e.IsDirectory).ThenBy(e => e.Name, StringComparer.CurrentCultureIgnoreCase).ToArray(), token);
 
     internal Task<WorkspacePreview> PreviewAsync(string root, string path, CancellationToken token) => Task.Run(async () =>
     {
@@ -93,11 +92,12 @@ internal sealed partial class WorkspaceFiles
         while (pending.TryPop(out var directory))
         {
             token.ThrowIfCancellationRequested();
-            IReadOnlyList<WorkspaceEntry> entries;
-            try { entries = await ListAsync(root, directory, token); }
-            catch (IOException) { continue; } catch (UnauthorizedAccessException) { continue; }
-            foreach (var entry in entries)
+            using var entries = EnumerateEntries(root, directory, token).GetEnumerator();
+            while (true)
             {
+                try { if (!entries.MoveNext()) break; }
+                catch (IOException) { break; } catch (UnauthorizedAccessException) { break; }
+                var entry = entries.Current;
                 token.ThrowIfCancellationRequested();
                 if (entry.IsLink) continue;
                 if (entry.IsDirectory) { if (!SearchExcludedDirectories.Contains(entry.Name)) pending.Push(entry.Path); continue; }
@@ -108,6 +108,7 @@ internal sealed partial class WorkspaceFiles
                 }
                 else
                 {
+                    if (ImageExtensions.Contains(System.IO.Path.GetExtension(entry.Path))) continue;
                     try
                     {
                         var preview = await PreviewAsync(root, entry.Path, token);
