@@ -49,7 +49,7 @@ internal sealed class WorkbenchCoordinator : IAsyncDisposable
             WindowCreated?.Invoke(window);
         }
         window.SetCaptureActive(false);
-        window.SetStatus(hotkey.Error ?? $"{settings.Hotkey} 打开或收起 · 目录由你手动选择并固定");
+        window.SetStatus(hotkey.Error ?? "");
         if (!window.IsVisible) window.Show();
         if (window.WindowState == WindowState.Minimized) window.WindowState = WindowState.Normal;
         window.Activate();
@@ -83,6 +83,7 @@ internal sealed class WorkbenchCoordinator : IAsyncDisposable
         if (!WorkbenchHotkey.TryParse(requested, out _, out _)) { window.SetStatus("快捷键格式无效，例如 Ctrl+Alt+G。原快捷键保持不变。"); return; }
         hotkey.Register(requested);
         settings = settings with { Hotkey = requested };
+        window.HotkeyButton.ToolTip = $"修改工作台快捷键（当前：{requested}）";
         Persist(); window.SetStatus(hotkey.Error ?? $"快捷键已更新：{requested}");
     }
     public async ValueTask DisposeAsync()

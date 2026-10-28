@@ -66,6 +66,14 @@ public sealed class WorkbenchShellTests
                 Assert.Equal(0, new System.Windows.Interop.WindowInteropHelper(view).Handle);
                 Assert.False(view.CanStartInteraction);
                 Assert.NotNull(view.FindName("ChooseDirectoryButton"));
+                Assert.Equal(System.Windows.Visibility.Collapsed, view.StatusBorder.Visibility);
+                Assert.Empty(view.StatusLabel.Text);
+                Assert.Contains("Ctrl+Alt+G", Assert.IsType<string>(view.HotkeyButton.ToolTip));
+                Assert.NotNull(view.PinButton.ToolTip);
+                view.SetStatus("快捷键已被其他应用占用。");
+                Assert.Equal(System.Windows.Visibility.Visible, view.StatusBorder.Visibility);
+                view.SetStatus("");
+                Assert.Equal(System.Windows.Visibility.Collapsed, view.StatusBorder.Visibility);
             }
             catch (Exception error) { failure = error; }
             finally { view.CloseForShutdown(); System.Windows.Threading.Dispatcher.CurrentDispatcher.InvokeShutdown(); }

@@ -29,6 +29,8 @@ internal partial class WorkbenchWindow : Window
         InitializeComponent();
         Width = settings.Width; Height = settings.Height; Pinned = settings.Pinned; Topmost = Pinned;
         PinButton.Content = Pinned ? "置顶：开" : "置顶：关";
+        PinButton.ToolTip = "切换置顶；开启后工作台保持显示";
+        HotkeyButton.ToolTip = $"修改工作台快捷键（当前：{settings.Hotkey}）";
         PinButton.Click += (_, _) => SetPinned(!Pinned);
         HotkeyButton.Click += (_, _) => { if (CanStartInteraction) HotkeyChangeRequested?.Invoke(); };
         ChooseDirectoryButton.Click += (_, _) => { if (CanStartInteraction) DirectoryRequested?.Invoke(); };
@@ -102,7 +104,8 @@ internal partial class WorkbenchWindow : Window
         dialog.Loaded += (_, _) => { input.Focus(); input.SelectAll(); };
         return dialog.ShowDialog() == true ? input.Text : null;
     }
-    internal void SetStatus(string text) => StatusLabel.Text = text;
+    internal void SetStatus(string text)
+    { StatusLabel.Text = text; StatusBorder.Visibility = string.IsNullOrWhiteSpace(text) ? Visibility.Collapsed : Visibility.Visible; }
     internal void SetViewMode(string mode)
     { FilesButton.IsChecked = mode == "files"; SearchButton.IsChecked = mode == "search"; GitButton.IsChecked = mode == "git"; }
     private void OnClosing(object? sender, CancelEventArgs args)
