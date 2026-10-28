@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using Button = System.Windows.Controls.Button;
 using TextBox = System.Windows.Controls.TextBox;
 using ListBox = System.Windows.Controls.ListBox;
+using MenuItem = System.Windows.Controls.MenuItem;
 
 namespace CodexQuotaTaskbar.Host.Workbench;
 
@@ -20,15 +21,54 @@ internal sealed partial class WorkbenchGitPanel
         footer.Children.Add(commit);
         var allowed = !repository.OperationInProgress && repository.Changes.All(c => c.Area != GitArea.Conflict);
         stage.IsEnabled = allowed; unstage.IsEnabled = allowed; commit.IsEnabled = allowed && count != 0;
-        stage.Click += (_, _) => Start(changes.SelectedItems.Cast<GitChange>().Where(c => c.Area is GitArea.Worktree or GitArea.Untracked).ToArray(), false);
-        unstage.Click += (_, _) => Start(changes.SelectedItems.Cast<GitChange>().Where(c => c.Area == GitArea.Staged).ToArray(), true);
-        void Start(GitChange[] selection, bool remove)
-        {
-            if (selection.Length == 0) { view.SetStatus("请先在列表中选择对应分区的文件。"); return; }
-            BeginGitWrite(repository, () => remove ? git.UnstageAsync(repository, selection, default) : git.StageAsync(repository, selection, default), false);
-        }
+        stage.Click += (_, _) => StartSelection(repository, changes.SelectedItems.Cast<GitChange>().Where(c => c.Area is GitArea.Worktree or GitArea.Untracked).ToArray(), false);
+        unstage.Click += (_, _) => StartSelection(repository, changes.SelectedItems.Cast<GitChange>().Where(c => c.Area == GitArea.Staged).ToArray(), true);
+        ConfigureContextMenu(changes, repository, allowed);
         commit.Click += (_, _) => ReviewCommit(repository);
         DockPanel.SetDock(footer, Dock.Bottom); panel.Children.Add(footer);
+    }
+    private void StartSelection(GitWorkspace repository, GitChange[] selection, bool remove)
+    {
+        if (selection.Length == 0) { view.SetStatus("请先在列表中选择对应分区的文件。"); return; }
+        BeginGitWrite(repository, () => remove ? git.UnstageAsync(repository, selection, default) : git.StageAsync(repository, selection, default), false);
+    }
+    private void ConfigureContextMenu(ListBox changes, GitWorkspace repository, bool allowed)
+    {
+        var menu = view.CreateContextMenu();
+        GitChange[] selection = [];
+        bool Current() => view.GitButton.IsChecked == true && snapshot == repository && list == changes
+            && changes.SelectedItems.Cast<GitChange>().SequenceEqual(selection);
+        MenuItem Add(string label, Action action)
+        {
+            var item = new MenuItem { Header = label };
+            item.Click += (_, _) => { if (item.IsEnabled && view.CanStartInteraction && Current()) action(); };
+            menu.Items.Add(item); return item;
+        }
+        var diff = Add("查看差异", () => { view.BeginPreviewSelection(); _ = ShowDiffAsync(repository, selection[0]); });
+        menu.Items.Add(new Separator { Style = (Style)view.Resources[typeof(Separator)] });
+        var stage = Add("暂存所选", () => StartSelection(repository, selection.Where(c => c.Area is GitArea.Worktree or GitArea.Untracked).ToArray(), false));
+        var unstage = Add("取消暂存", () => StartSelection(repository, selection.Where(c => c.Area == GitArea.Staged).ToArray(), true));
+        menu.Opened += (_, _) =>
+        {
+            selection = changes.SelectedItems.Cast<GitChange>().ToArray();
+            diff.IsEnabled = selection.Length == 1;
+            stage.IsEnabled = allowed && !browser.IsWriting && selection.Any(c => c.Area is GitArea.Worktree or GitArea.Untracked);
+            unstage.IsEnabled = allowed && !browser.IsWriting && selection.Any(c => c.Area == GitArea.Staged);
+        };
+        changes.ContextMenu = menu;
+        changes.PreviewMouseRightButtonDown += (_, args) => SelectContextTarget(changes,
+            ItemsControl.ContainerFromElement(changes, args.OriginalSource as DependencyObject) as ListBoxItem);
+    }
+    internal void SelectContextTarget(ListBox changes, ListBoxItem? item)
+    {
+        view.CloseContextMenu(); diffGeneration++; view.BeginPreviewSelection();
+        selectingContextTarget = true;
+        try
+        {
+            if (item is null) changes.SelectedItems.Clear();
+            else { if (!item.IsSelected) { changes.SelectedItems.Clear(); item.IsSelected = true; } item.Focus(); }
+        }
+        finally { selectingContextTarget = false; }
     }
     private void ReviewCommit(GitWorkspace repository)
     {

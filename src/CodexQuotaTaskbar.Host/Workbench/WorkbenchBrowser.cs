@@ -25,6 +25,7 @@ internal sealed partial class WorkbenchBrowser : IDisposable
     private bool disposed;
     private string mode = "files";
     private string? selectedFile;
+    private bool selectingContextTarget;
     private string searchQuery = "";
     private bool searchContent;
     private FrameworkElement? searchPanel;
@@ -73,7 +74,7 @@ internal sealed partial class WorkbenchBrowser : IDisposable
         if (IsWriting) throw new InvalidOperationException("写操作期间不能切换工作区。");
         WorkspacePaths.Validate(root, root);
         if (!Directory.Exists(root)) throw new DirectoryNotFoundException("工作区目录不存在。");
-        StopReading(); Root = Path.GetFullPath(root); selectedFile = null; Selection = null;
+        view.CloseContextMenu(); StopReading(); Root = Path.GetFullPath(root); selectedFile = null; Selection = null;
         view.ResetPreview(); view.SidebarHost.Children.Clear(); searchPanel = null;
         view.DirectoryLabel.Text = Root; view.DirectoryLabel.ToolTip = Root;
         coordinator.UpdateSelection(Root, null); WorkspaceChanged?.Invoke();
@@ -131,8 +132,10 @@ internal sealed partial class WorkbenchBrowser : IDisposable
         {
             if (args.NewValue is not TreeViewItem { Tag: WorkspaceEntry item }) return;
             Selection = item;
-            if (!item.IsDirectory && !item.IsLink) _ = ShowPreviewAsync(item.Path);
+            view.CloseContextMenu();
+            if (!selectingContextTarget && !item.IsDirectory && !item.IsLink) _ = ShowPreviewAsync(item.Path);
         };
+        Selection = null;
         ConfigureFileActions(tree);
         view.SidebarHost.Children.Clear(); view.SidebarHost.Children.Add(tree);
         view.FitCompactContent();

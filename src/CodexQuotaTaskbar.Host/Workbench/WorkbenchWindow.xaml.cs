@@ -12,6 +12,8 @@ internal partial class WorkbenchWindow : Window
 {
     private bool closing;
     private int ownedInteraction;
+    private System.Windows.Controls.ContextMenu? activeContextMenu;
+    private IDisposable? menuInteraction;
     private long activation;
     internal bool CaptureActive { get; private set; }
     internal Func<bool> CaptureProbe { get; set; } = WorkbenchCoordinator.IsCaptured;
@@ -50,7 +52,7 @@ internal partial class WorkbenchWindow : Window
             if (args.Key == Key.Escape && ownedInteraction == 0 && !HasOpenContextMenu())
             { HideSafely(); args.Handled = true; }
         };
-        IsVisibleChanged += (_, _) => { if (!IsVisible) { ResetPreview(); PreferencesChanged?.Invoke(); } };
+        IsVisibleChanged += (_, _) => { if (!IsVisible) { CloseContextMenu(); ResetPreview(); PreferencesChanged?.Invoke(); } };
         ApplyAppearance();
         SystemParameters.StaticPropertyChanged += SystemAppearanceChanged;
     }
@@ -68,7 +70,7 @@ internal partial class WorkbenchWindow : Window
             if (CanAutoHide(generation, IsActive)) HideSafely();
         });
     }
-    private bool HasOpenContextMenu() => ContextMenuService.GetContextMenu(this)?.IsOpen == true
+    private bool HasOpenContextMenu() => activeContextMenu is not null || ContextMenuService.GetContextMenu(this)?.IsOpen == true
         || Mouse.Captured is System.Windows.Controls.Primitives.MenuBase
         || OwnedWindows.Cast<Window>().Any(w => w.IsVisible);
     internal void SetCaptureActive(bool value)
@@ -83,6 +85,29 @@ internal partial class WorkbenchWindow : Window
         PreferencesChanged?.Invoke();
     }
     internal void HideSafely() { if (!CaptureActive && !closing && (!IsVisible || !CaptureProbe())) { Hide(); ResetPreview(); } }
+    internal System.Windows.Controls.ContextMenu CreateContextMenu()
+    {
+        var menu = new System.Windows.Controls.ContextMenu { StaysOpen = false };
+        menu.Resources.MergedDictionaries.Add(Resources);
+        menu.Opened += (_, _) => BeginContextMenu(menu);
+        menu.Closed += (_, _) => EndContextMenu(menu);
+        return menu;
+    }
+    internal void BeginContextMenu(System.Windows.Controls.ContextMenu menu)
+    {
+        if (ReferenceEquals(activeContextMenu, menu)) return;
+        CloseContextMenu(); activeContextMenu = menu; menuInteraction = ProtectInteraction();
+    }
+    internal void EndContextMenu(System.Windows.Controls.ContextMenu menu)
+    {
+        if (!ReferenceEquals(activeContextMenu, menu)) return;
+        activeContextMenu = null; menuInteraction?.Dispose(); menuInteraction = null;
+    }
+    internal void CloseContextMenu()
+    {
+        if (activeContextMenu is not { } menu) return;
+        menu.IsOpen = false; EndContextMenu(menu);
+    }
     internal IDisposable ProtectInteraction()
     {
         ownedInteraction++;
@@ -108,14 +133,14 @@ internal partial class WorkbenchWindow : Window
     internal void SetStatus(string text)
     { StatusLabel.Text = text; StatusBorder.Visibility = string.IsNullOrWhiteSpace(text) ? Visibility.Collapsed : Visibility.Visible; FitCompactContent(); }
     internal void SetViewMode(string mode)
-    { FilesButton.IsChecked = mode == "files"; SearchButton.IsChecked = mode == "search"; GitButton.IsChecked = mode == "git"; }
+    { CloseContextMenu(); FilesButton.IsChecked = mode == "files"; SearchButton.IsChecked = mode == "search"; GitButton.IsChecked = mode == "git"; }
     private void OnClosing(object? sender, CancelEventArgs args)
     {
         if (closing) return;
         args.Cancel = true; HideSafely();
     }
     internal void CloseForShutdown()
-    { closing = true; SystemParameters.StaticPropertyChanged -= SystemAppearanceChanged; Close(); }
+    { CloseContextMenu(); closing = true; SystemParameters.StaticPropertyChanged -= SystemAppearanceChanged; Close(); }
     private sealed class InteractionScope(Action dispose) : IDisposable
     { private Action? callback = dispose; public void Dispose() => Interlocked.Exchange(ref callback, null)?.Invoke(); }
 }

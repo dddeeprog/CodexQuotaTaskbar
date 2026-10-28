@@ -24,6 +24,7 @@ internal sealed partial class WorkbenchGitPanel : IDisposable
     private bool disposed;
     private bool showing;
     private ListBox? list;
+    private bool selectingContextTarget;
 
     internal WorkbenchGitPanel(WorkbenchWindow view, WorkbenchBrowser browser, WorkbenchCoordinator coordinator, WorkbenchSettings settings)
     {
@@ -92,7 +93,8 @@ internal sealed partial class WorkbenchGitPanel : IDisposable
         UpdateListAppearance();
         list.SelectionChanged += async (_, _) =>
         {
-            if (list.SelectedItem is GitChange change) { view.BeginPreviewSelection(); await ShowDiffAsync(repository, change); }
+            view.CloseContextMenu();
+            if (!selectingContextTarget && list.SelectedItem is GitChange change) { view.BeginPreviewSelection(); await ShowDiffAsync(repository, change); }
         };
         ConfigureWrites(panel, list, repository);
         panel.Children.Add(list); view.SidebarHost.Children.Clear(); view.SidebarHost.Children.Add(panel);
@@ -145,8 +147,7 @@ internal sealed partial class WorkbenchGitPanel : IDisposable
         using var interaction = view.ProtectInteraction();
         try
         {
-            var menu = new System.Windows.Controls.ContextMenu();
-            menu.Resources.MergedDictionaries.Add(view.Resources);
+            var menu = view.CreateContextMenu();
             if (snapshot is { } repository)
                 foreach (var path in await git.WorktreesAsync(repository, reads.Token))
                 {
@@ -164,7 +165,7 @@ internal sealed partial class WorkbenchGitPanel : IDisposable
                 catch (IOException error) { view.SetStatus(error.Message); }
             };
             menu.Items.Add(choose);
-            var protection = view.ProtectInteraction(); menu.Closed += (_, _) => protection.Dispose();
+            if (!view.CanStartInteraction || disposed) return;
             menu.PlacementTarget = view.ChooseRepositoryButton; menu.IsOpen = true;
         }
         catch (OperationCanceledException) { }
