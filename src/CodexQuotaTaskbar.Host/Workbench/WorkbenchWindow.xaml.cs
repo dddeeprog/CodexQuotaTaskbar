@@ -26,11 +26,11 @@ internal partial class WorkbenchWindow : Window
 
     internal WorkbenchWindow(WorkbenchSettings settings)
     {
+        settings = settings.Normalize();
         InitializeComponent();
         Width = settings.Width; Height = settings.Height; Pinned = settings.Pinned; Topmost = Pinned;
         InitializePreviewLayout(settings);
-        PinButton.Content = Pinned ? "置顶：开" : "置顶：关";
-        PinButton.ToolTip = "切换置顶；开启后工作台保持显示";
+        SizeChanged += (_, args) => { if (args.WidthChanged && !IsPreviewExpanded) FitCompactContent(); };
         HotkeyButton.ToolTip = $"修改工作台快捷键（当前：{settings.Hotkey}）";
         PinButton.Click += (_, _) => SetPinned(!Pinned);
         HotkeyButton.Click += (_, _) => { if (CanStartInteraction) HotkeyChangeRequested?.Invoke(); };
@@ -79,7 +79,7 @@ internal partial class WorkbenchWindow : Window
     internal void SetPinned(bool value)
     {
         if (CaptureActive || (IsVisible && CaptureProbe())) return;
-        Pinned = value; Topmost = value; PinButton.Content = value ? "置顶：开" : "置顶：关";
+        Pinned = value; Topmost = value; UpdatePreviewChrome(); FitCompactContent();
         PreferencesChanged?.Invoke();
     }
     internal void HideSafely() { if (!CaptureActive && !closing && (!IsVisible || !CaptureProbe())) { Hide(); ResetPreview(); } }
@@ -106,7 +106,7 @@ internal partial class WorkbenchWindow : Window
         return dialog.ShowDialog() == true ? input.Text : null;
     }
     internal void SetStatus(string text)
-    { StatusLabel.Text = text; StatusBorder.Visibility = string.IsNullOrWhiteSpace(text) ? Visibility.Collapsed : Visibility.Visible; }
+    { StatusLabel.Text = text; StatusBorder.Visibility = string.IsNullOrWhiteSpace(text) ? Visibility.Collapsed : Visibility.Visible; FitCompactContent(); }
     internal void SetViewMode(string mode)
     { FilesButton.IsChecked = mode == "files"; SearchButton.IsChecked = mode == "search"; GitButton.IsChecked = mode == "git"; }
     private void OnClosing(object? sender, CancelEventArgs args)

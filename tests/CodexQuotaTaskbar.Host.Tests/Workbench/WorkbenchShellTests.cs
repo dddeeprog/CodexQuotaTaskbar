@@ -39,7 +39,10 @@ public sealed class WorkbenchShellTests
         Assert.Null(old.Workbench);
         var normalized = new WorkbenchSettings(Width: double.NaN, Height: double.PositiveInfinity, Left: double.NaN).Normalize();
         Assert.Equal(1100, normalized.Width); Assert.Equal(720, normalized.Height); Assert.Null(normalized.Left);
-        Assert.Equal(640, normalized.CompactWidth); Assert.Equal(480, normalized.CompactHeight);
+        Assert.Equal(400, normalized.CompactWidth); Assert.Equal(280, normalized.CompactHeight);
+        var migrated = JsonSerializer.Deserialize<WorkbenchSettings>("{\"CompactWidth\":960,\"CompactHeight\":720,\"Width\":1200}")!.Normalize();
+        Assert.Equal(400, migrated.CompactWidth); Assert.Equal(2, migrated.CompactLayoutVersion); Assert.Equal(1200, migrated.Width);
+        Assert.Equal(410, new WorkbenchSettings(CompactWidth: 410, CompactLayoutVersion: 2).Normalize().CompactWidth);
     }
 
     [Theory]
@@ -107,7 +110,7 @@ public sealed class WorkbenchShellTests
                 Assert.Same(second, Assert.Single(view.PreviewHost.Children)); Assert.Equal(1020, view.Width);
                 var requestRevision = view.PreviewRevision;
                 view.CollapsePreviewButton.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
-                Assert.False(view.IsPreviewExpanded); Assert.Equal(640, view.Width);
+                Assert.False(view.IsPreviewExpanded); Assert.Equal(400, view.Width);
                 Assert.True(view.PreviewRevision > requestRevision); // Pending reads cannot reopen a deliberately closed pane.
                 Assert.Equal(System.Windows.Visibility.Visible, view.ReopenPreviewButton.Visibility);
                 view.ReopenPreviewButton.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
@@ -118,10 +121,10 @@ public sealed class WorkbenchShellTests
                 Assert.False(view.IsPreviewExpanded); Assert.Empty(view.PreviewHost.Children);
                 Assert.Equal(System.Windows.Visibility.Collapsed, view.ReopenPreviewButton.Visibility);
                 view.ResetPreview(); // The same entry preparation used on reopening.
-                Assert.False(view.IsPreviewExpanded); Assert.Equal(640, view.Width);
-                view.Width = 700; view.Height = 500;
+                Assert.False(view.IsPreviewExpanded); Assert.Equal(400, view.Width);
+                view.Width = 410; view.Height = 320;
                 var saved = view.CaptureLayout(new());
-                Assert.Equal(700, saved.CompactWidth); Assert.Equal(500, saved.CompactHeight);
+                Assert.Equal(410, saved.CompactWidth); Assert.Equal(320, saved.CompactHeight); Assert.Equal(2, saved.CompactLayoutVersion);
                 Assert.Equal(1020, saved.Width); Assert.Equal(660, saved.Height);
                 Assert.Equal(0, new System.Windows.Interop.WindowInteropHelper(view).Handle);
             }
@@ -131,4 +134,14 @@ public sealed class WorkbenchShellTests
         thread.SetApartmentState(ApartmentState.STA); thread.Start(); Assert.True(thread.Join(TimeSpan.FromSeconds(15)));
         if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
+
+    [Theory]
+    [InlineData(1870, 1040, 400, 440, 0, 0, 1920, 1080, 1520, 640, 400, 440)]
+    [InlineData(-1500, -200, 400, 300, -1280, 0, 1280, 720, -1280, 0, 400, 300)]
+    [InlineData(1900, 1000, 1100, 720, 0, 0, 1920, 1080, 820, 360, 1100, 720)]
+    [InlineData(50, 50, 400, 440, 0, 0, 320, 240, 0, 0, 320, 240)]
+    public void Preview_size_changes_stay_inside_the_target_work_area(double x, double y, double width, double height,
+        double ax, double ay, double aw, double ah, double ex, double ey, double ew, double eh)
+        => Assert.Equal(new System.Windows.Rect(ex, ey, ew, eh), WorkbenchWindow.ConstrainPreviewBounds(
+            new System.Windows.Rect(x, y, width, height), new System.Windows.Rect(ax, ay, aw, ah)));
 }

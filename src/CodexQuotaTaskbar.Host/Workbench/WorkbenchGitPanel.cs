@@ -28,6 +28,7 @@ internal sealed partial class WorkbenchGitPanel : IDisposable
     internal WorkbenchGitPanel(WorkbenchWindow view, WorkbenchBrowser browser, WorkbenchCoordinator coordinator, WorkbenchSettings settings)
     {
         this.view = view; this.browser = browser; this.coordinator = coordinator; selectedRepository = settings.Repository;
+        view.PreviewLayoutChanged += UpdateListAppearance;
         debounce = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(450) };
         debounce.Tick += (_, _) => { debounce.Stop(); _ = RefreshAsync(); };
         browser.ShowGit = () => { showing = true; _ = RefreshAsync(); };
@@ -80,18 +81,25 @@ internal sealed partial class WorkbenchGitPanel : IDisposable
         view.ResetPreview();
         view.SetViewMode("git");
         var panel = new DockPanel();
-        var heading = new TextBlock { Text = $"{repository.Changes.Count} 项改动" + (repository.OperationInProgress ? " · 合并或变基进行中，仅浏览" : ""), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(8, 6, 8, 12) };
+        var heading = new TextBlock { Text = (repository.Changes.Count == 0 ? "没有未提交改动" : $"{repository.Changes.Count} 项改动") + (repository.OperationInProgress ? " · 合并或变基进行中，仅浏览" : ""), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(8, 4, 8, 6) };
         DockPanel.SetDock(heading, Dock.Top); panel.Children.Add(heading);
+        if (repository.Changes.Count == 0)
+        {
+            list = null; view.SidebarHost.Children.Clear(); view.SidebarHost.Children.Add(panel); view.SetStatus(""); view.FitCompactContent(); return;
+        }
         list = new ListBox { ItemsSource = repository.Changes, SelectionMode = System.Windows.Controls.SelectionMode.Extended,
             ItemTemplate = (DataTemplate)view.Resources["WorkbenchGitChange"] };
+        UpdateListAppearance();
         list.SelectionChanged += async (_, _) =>
         {
             if (list.SelectedItem is GitChange change) { view.BeginPreviewSelection(); await ShowDiffAsync(repository, change); }
         };
         ConfigureWrites(panel, list, repository);
         panel.Children.Add(list); view.SidebarHost.Children.Clear(); view.SidebarHost.Children.Add(panel);
-        if (repository.Changes.Count == 0) view.SetStatus("此仓库没有未提交改动。");
+        view.FitCompactContent();
     }
+    private void UpdateListAppearance()
+    { if (list is not null) list.ItemTemplate = (DataTemplate)view.Resources[view.IsPreviewExpanded ? "WorkbenchGitChange" : "WorkbenchGitCompactChange"]; }
     partial void ConfigureWrites(DockPanel panel, ListBox changes, GitWorkspace repository);
 
     private async Task ShowDiffAsync(GitWorkspace repository, GitChange change)
@@ -176,5 +184,5 @@ internal sealed partial class WorkbenchGitPanel : IDisposable
     }
     private void StopReads()
     { generation++; diffGeneration++; reads.Cancel(); reads.Dispose(); reads = new(); indexWatcher?.Dispose(); indexWatcher = null; debounce.Stop(); }
-    public void Dispose() { if (disposed) return; disposed = true; StopReads(); reads.Dispose(); }
+    public void Dispose() { if (disposed) return; disposed = true; view.PreviewLayoutChanged -= UpdateListAppearance; StopReads(); reads.Dispose(); }
 }

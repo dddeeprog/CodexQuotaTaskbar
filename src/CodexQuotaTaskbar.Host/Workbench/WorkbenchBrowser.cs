@@ -54,6 +54,7 @@ internal sealed partial class WorkbenchBrowser : IDisposable
             else { StopReading(); view.PreviewHost.Children.Clear(); }
         };
         view.DirectoryLabel.Text = Root ?? "选择一个本机文件夹开始";
+        view.DirectoryLabel.ToolTip = Root;
         view.ChooseRepositoryButton.IsEnabled = false;
     }
 
@@ -134,6 +135,7 @@ internal sealed partial class WorkbenchBrowser : IDisposable
         };
         ConfigureFileActions(tree);
         view.SidebarHost.Children.Clear(); view.SidebarHost.Children.Add(tree);
+        view.FitCompactContent();
     }
     private TreeViewItem TreeItem(WorkspaceEntry entry, long current, CancellationToken token)
     {
@@ -149,6 +151,7 @@ internal sealed partial class WorkbenchBrowser : IDisposable
                     var children = await files.ListAsync(Root!, entry.Path, token);
                     if (current != generation || !view.IsVisible) return;
                     item.Items.Clear(); foreach (var child in children) item.Items.Add(TreeItem(child, current, token));
+                    view.FitCompactContent();
                 }
                 catch (OperationCanceledException) { }
                 catch (Exception error) when (error is IOException or UnauthorizedAccessException) { item.Items.Clear(); item.Items.Add("无法读取：" + error.Message); }
@@ -181,6 +184,7 @@ internal sealed partial class WorkbenchBrowser : IDisposable
                 var found = await files.SearchAsync(Root, input.Text, content.IsChecked == true, token);
                 if (current != generation || request != searchGeneration || !view.IsVisible) return;
                 results.ItemsSource = found.Hits;
+                view.FitCompactContent();
                 view.SetStatus(found.Truncated ? "显示前 500 条结果，请缩小搜索范围。" : $"找到 {found.Hits.Count} 条结果。");
             }
             catch (OperationCanceledException) { }
@@ -191,6 +195,7 @@ internal sealed partial class WorkbenchBrowser : IDisposable
         input.KeyDown += async (_, args) => { if (args.Key == Key.Enter) { args.Handled = true; await Search(); } };
         results.SelectionChanged += (_, _) => { if (results.SelectedItem is WorkspaceSearchHit hit) _ = ShowPreviewAsync(hit.Path); };
         searchPanel = panel; view.SidebarHost.Children.Clear(); view.SidebarHost.Children.Add(panel);
+        view.FitCompactContent();
     }
     internal async Task ShowPreviewAsync(string path)
     {

@@ -47,16 +47,37 @@ public sealed class WorkbenchPresentationTests
                 var allocationBefore = GC.GetAllocatedBytesForCurrentThread();
                 browser.RenderDirectory(entries, 0, default);
                 Assert.False(view.IsPreviewExpanded);
-                Assert.Equal(640, view.Width); Assert.Equal(480, view.Height);
+                Assert.Equal(400, view.Width); Assert.InRange(view.Height, 200, 440);
                 Assert.Equal(Visibility.Collapsed, view.PreviewPane.Visibility);
-                Render(root, "initial-compact", 640, 480, 1);
+                RenderCompact(root, view, "initial-compact", 400);
+                foreach (var width in new[] { 360, 420 }) RenderCompact(root, view, $"files-compact-{width}", width);
+                RenderCompact(root, view, "files-compact-400", 400);
                 var tree = Assert.IsType<TreeView>(Assert.Single(view.SidebarHost.Children));
                 tree.Items.Cast<TreeViewItem>().Single(item => item.Tag is WorkspaceEntry entry && entry.Path == readme).IsSelected = true;
                 browser.RenderPreview(preview);
                 Render(root, "files-1100", 1100, 720, 1);
                 Render(root, "files-640", 640, 480, 1);
                 panel.Render(state);
-                Render(root, "git-collapsed", 640, 480, 1);
+                RenderCompact(root, view, "git-collapsed", 400);
+                Assert.DoesNotContain(Descendants<System.Windows.Controls.Button>(root), button => button.Visibility == Visibility.Visible && button.Content is string label && label.StartsWith("提交…"));
+                panel.Render(state with { Changes = [] });
+                RenderCompact(root, view, "git-empty", 400);
+                Assert.InRange(view.Height, 200, 300);
+                Assert.Empty(Descendants<System.Windows.Controls.ListBox>(view.SidebarHost));
+                var longPath = "C:\\合成示例项目\\很长的工作区名称和嵌套目录\\用于验证文字省略和完整路径提示";
+                view.DirectoryLabel.Text = longPath; view.DirectoryLabel.ToolTip = longPath;
+                view.RepositoryLabel.Text = "feature/合成分支 · " + longPath; view.RepositoryLabel.ToolTip = longPath;
+                var many = state with { Changes = Enumerable.Range(1, 24).Select(index => new GitChange(index == 1 ? GitArea.Staged : GitArea.Worktree, $"src/合成目录/long-file-name-{index:00}.cs", null, "M")).ToArray() };
+                panel.Render(many);
+                RenderCompact(root, view, "git-many-long-360", 360);
+                RenderCompact(root, view, "git-many-long-420", 420);
+                RenderCompact(root, view, "git-many-long-400-150", 400, 1.5);
+                var changeList = Assert.Single(Descendants<System.Windows.Controls.ListBox>(view.SidebarHost));
+                Assert.Contains(Descendants<ScrollViewer>(changeList), scroll => scroll.ScrollableHeight > 0);
+                Assert.Equal(longPath, view.DirectoryLabel.ToolTip);
+                view.DirectoryLabel.Text = "示例项目 · 合成验证数据";
+                view.RepositoryLabel.Text = "main · C:\\示例项目（合成路径）";
+                panel.Render(state); RenderCompact(root, view, "git-collapsed", 400);
                 panel.RenderDiff(diff, change);
                 foreach (var (width, height, scale) in new[] { (1100, 720, 1d), (760, 480, 1d), (640, 480, 1d), (1100, 720, 1.5d) })
                 {
@@ -70,6 +91,11 @@ public sealed class WorkbenchPresentationTests
                         viewport.ScrollToLeftEnd();
                     }
                 }
+                view.CollapsePreviewButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                RenderCompact(root, view, "git-collapsed-again", 400);
+                view.ReopenPreviewButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                Assert.True(view.IsPreviewExpanded); Assert.Equal(1100, view.Width);
+                Render(root, "git-reopened", 1100, 720, 1);
                 Assert.Same(OverlayGlassMaterial.Surface, view.GlassBorder.Background);
                 Assert.Equal(new CornerRadius(16), view.GlassBorder.CornerRadius);
                 Assert.Equal(OverlayTypography.Interface.Source, view.FilesButton.FontFamily.Source);
@@ -144,6 +170,31 @@ public sealed class WorkbenchPresentationTests
         });
         thread.SetApartmentState(ApartmentState.STA); thread.Start(); Assert.True(thread.Join(TimeSpan.FromSeconds(30)));
         if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
+    private static void RenderCompact(Grid root, WorkbenchWindow view, string name, int width, double scale = 1)
+    {
+        view.Width = width; view.FitCompactContent();
+        Assert.False(view.IsPreviewExpanded); Assert.Equal(width, view.Width);
+        Assert.InRange(view.Height, 200, 440); Assert.Equal(13, view.FontSize);
+        Render(root, name, width, (int)view.Height, scale);
+        Assert.Equal(Visibility.Collapsed, view.PreviewPane.Visibility);
+        Assert.Equal(0, view.PreviewColumn.Width.Value);
+        foreach (var button in Descendants<System.Windows.Controls.Button>(root).Where(button => button.ActualWidth > 0 && VisibleWithin(button, root)))
+        {
+            var bounds = button.TransformToAncestor(root).TransformBounds(new Rect(0, 0, button.ActualWidth, button.ActualHeight));
+            Assert.InRange(bounds.Left, -1, root.ActualWidth); Assert.True(bounds.Right <= root.ActualWidth + 1, $"Clipped action: {button.Content}");
+            Assert.InRange(bounds.Top, -1, root.ActualHeight); Assert.True(bounds.Bottom <= root.ActualHeight + 1, $"Clipped action: {button.Content}");
+        }
+    }
+    private static bool VisibleWithin(DependencyObject item, DependencyObject root)
+    {
+        while (item != root)
+        {
+            if (item is FrameworkElement element && element.Visibility != Visibility.Visible) return false;
+            item = VisualTreeHelper.GetParent(item); if (item is null) return false;
+        }
+        return true;
     }
 
     private static void RenderIncumbentSurfaces()

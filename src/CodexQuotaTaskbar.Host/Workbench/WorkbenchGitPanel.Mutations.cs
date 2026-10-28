@@ -12,12 +12,11 @@ internal sealed partial class WorkbenchGitPanel
     private readonly Dictionary<string, string> commitDrafts = new(StringComparer.OrdinalIgnoreCase);
     partial void ConfigureWrites(DockPanel panel, ListBox changes, GitWorkspace repository)
     {
-        var footer = new StackPanel { Margin = new Thickness(6, 10, 0, 2) };
-        var actions = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
+        var footer = new WrapPanel { Margin = new Thickness(4, 6, 0, 2) };
         var stage = new Button { Content = "暂存所选" }; var unstage = new Button { Content = "取消暂存" };
-        actions.Children.Add(stage); actions.Children.Add(unstage); footer.Children.Add(actions);
+        footer.Children.Add(stage); footer.Children.Add(unstage);
         var count = repository.Changes.Count(c => c.Area == GitArea.Staged);
-        var commit = new Button { Content = $"提交…（{count} 个已暂存文件）", Margin = new Thickness(0, 10, 0, 0) };
+        var commit = new Button { Content = $"提交…（{count}）", ToolTip = $"核对并提交完整的 {count} 个已暂存文件", Visibility = count == 0 ? Visibility.Collapsed : Visibility.Visible };
         footer.Children.Add(commit);
         var allowed = !repository.OperationInProgress && repository.Changes.All(c => c.Area != GitArea.Conflict);
         stage.IsEnabled = allowed; unstage.IsEnabled = allowed; commit.IsEnabled = allowed && count != 0;

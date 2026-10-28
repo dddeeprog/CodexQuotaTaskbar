@@ -1,7 +1,7 @@
 <Window x:Class="CodexQuotaTaskbar.Host.Workbench.WorkbenchWindow" x:ClassModifier="internal"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
  xmlns:ui="clr-namespace:CodexQuotaTaskbar.Host.UI" xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
- Title="点岛 · 项目工作台" Width="1100" Height="720" MinWidth="640" MinHeight="480"
+ Title="点岛 · 项目工作台" Width="1100" Height="720" MinWidth="360" MinHeight="200"
  WindowStyle="None" AllowsTransparency="True" Background="Transparent" ResizeMode="CanResizeWithGrip"
  Foreground="{DynamicResource WorkbenchText}" FontFamily="{x:Static ui:OverlayTypography.Interface}" FontSize="13"
  WindowStartupLocation="Manual" UseLayoutRounding="True" SnapsToDevicePixels="True" TextOptions.TextRenderingMode="Grayscale">
@@ -10,33 +10,35 @@
       Grammar: shared glass tint/border, 16 DIP shell, 9 DIP controls, 13 DIP Windows UI type.
       States: quiet hover/selection, visible keyboard focus, system contrast fallback.
       Proof: actual WPF presenters with synthetic files and incumbent menu/detail controls. -->
- <shell:WindowChrome.WindowChrome><shell:WindowChrome CaptionHeight="56" ResizeBorderThickness="6" CornerRadius="16" GlassFrameThickness="0" UseAeroCaptionButtons="False"/></shell:WindowChrome.WindowChrome>
+ <shell:WindowChrome.WindowChrome><shell:WindowChrome CaptionHeight="44" ResizeBorderThickness="6" CornerRadius="16" GlassFrameThickness="0" UseAeroCaptionButtons="False"/></shell:WindowChrome.WindowChrome>
  <Window.Resources><ResourceDictionary><ResourceDictionary.MergedDictionaries><ResourceDictionary Source="WorkbenchTheme.xaml"/></ResourceDictionary.MergedDictionaries></ResourceDictionary></Window.Resources>
- <Grid Margin="8">
+ <Grid x:Name="LayoutRoot" Margin="8">
   <Border x:Name="SurfaceShadow" Background="Transparent" CornerRadius="16" IsHitTestVisible="False"><Border.Effect><DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.2"/></Border.Effect></Border>
   <Border x:Name="GlassBorder" Background="{x:Static ui:OverlayGlassMaterial.Surface}" BorderBrush="{x:Static ui:OverlayGlassMaterial.Border}" BorderThickness="0.5" CornerRadius="16">
    <Grid>
     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-    <Grid Margin="18,12,12,12">
+    <Grid Margin="12,8,8,8">
      <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-     <StackPanel Orientation="Horizontal" VerticalAlignment="Center"><Image Source="/CodexQuotaTaskbar;component/Assets/QuotaIslandIcon.png" Width="23" Height="23" Margin="0,0,9,0"/><TextBlock Text="点岛 · 项目工作台" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/></StackPanel>
+     <StackPanel Orientation="Horizontal" VerticalAlignment="Center"><Image Source="/CodexQuotaTaskbar;component/Assets/QuotaIslandIcon.png" Width="20" Height="20" Margin="0,0,7,0"/><TextBlock x:Name="ShellTitle" Text="工作台" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/></StackPanel>
      <StackPanel Grid.Column="1" Orientation="Horizontal" shell:WindowChrome.IsHitTestVisibleInChrome="True">
-      <Button x:Name="PinButton" Content="置顶：关" Style="{StaticResource WorkbenchQuietButton}" AutomationProperties.Name="切换工作台置顶"/>
-      <Button x:Name="HotkeyButton" Content="快捷键" Style="{StaticResource WorkbenchQuietButton}" ToolTip="修改工作台快捷键"/>
-      <Button x:Name="RefreshButton" Content="刷新" Style="{StaticResource WorkbenchQuietButton}"/>
-      <Button x:Name="MinimizeButton" Width="32" Padding="0" Margin="6,0,2,0" Style="{StaticResource WorkbenchQuietButton}" AutomationProperties.Name="最小化工作台"><Path Style="{StaticResource WorkbenchIcon}" Data="M4,10 L16,10"/></Button>
-      <Button x:Name="CloseWorkbenchButton" Width="32" Padding="0" Margin="0" Style="{StaticResource WorkbenchQuietButton}" AutomationProperties.Name="收起工作台"><Path Style="{StaticResource WorkbenchIcon}" Data="M5,5 L15,15 M15,5 L5,15"/></Button>
+      <Button x:Name="PinButton" Content="置顶" Style="{StaticResource WorkbenchHeaderButton}" AutomationProperties.Name="切换工作台置顶"/>
+      <Button x:Name="HotkeyButton" Content="快捷键" Style="{StaticResource WorkbenchHeaderButton}" ToolTip="修改工作台快捷键"/>
+      <Button x:Name="RefreshButton" Content="刷新" Style="{StaticResource WorkbenchHeaderButton}" ToolTip="刷新当前目录和仓库"/>
+      <Button x:Name="MinimizeButton" Width="30" Padding="0" Margin="3,0,1,0" Style="{StaticResource WorkbenchHeaderButton}" AutomationProperties.Name="最小化工作台"><Path Style="{StaticResource WorkbenchIcon}" Data="M4,10 L16,10"/></Button>
+      <Button x:Name="CloseWorkbenchButton" Width="30" Padding="0" Margin="0" Style="{StaticResource WorkbenchHeaderButton}" AutomationProperties.Name="收起工作台"><Path Style="{StaticResource WorkbenchIcon}" Data="M5,5 L15,15 M15,5 L5,15"/></Button>
      </StackPanel>
     </Grid>
-    <Border Grid.Row="1" BorderBrush="{DynamicResource WorkbenchLine}" BorderThickness="0,0.5,0,0.5" Padding="18,12">
-     <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-      <StackPanel VerticalAlignment="Center"><TextBlock x:Name="DirectoryLabel" Text="选择一个本机文件夹开始" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/><TextBlock x:Name="RepositoryLabel" Text="尚未选择仓库" Foreground="{DynamicResource WorkbenchMuted}" FontSize="11" Margin="0,5,14,0" TextTrimming="CharacterEllipsis"/></StackPanel>
-      <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"><Button x:Name="ChooseDirectoryButton" Content="打开文件夹…" ContentTemplate="{StaticResource WorkbenchFolderAction}"/><Button x:Name="ChooseRepositoryButton" Content="选择 Git 仓库…" ContentTemplate="{StaticResource WorkbenchRepositoryAction}" Margin="0"/></StackPanel>
+    <Border Grid.Row="1" BorderBrush="{DynamicResource WorkbenchLine}" BorderThickness="0,0.5,0,0.5" Padding="12,4">
+     <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><Grid.RowDefinitions><RowDefinition Height="28"/><RowDefinition Height="28"/></Grid.RowDefinitions>
+      <TextBlock x:Name="DirectoryLabel" Text="选择一个本机文件夹开始" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,8,0"/>
+      <TextBlock x:Name="RepositoryLabel" Grid.Row="1" Text="尚未选择仓库" Foreground="{DynamicResource WorkbenchMuted}" FontSize="11" VerticalAlignment="Center" Margin="0,0,8,0" TextTrimming="CharacterEllipsis"/>
+      <Button x:Name="ChooseDirectoryButton" Grid.Column="1" Content="目录…" ContentTemplate="{StaticResource WorkbenchFolderAction}" Style="{StaticResource WorkbenchLocationButton}" AutomationProperties.Name="选择文件工作区目录"/>
+      <Button x:Name="ChooseRepositoryButton" Grid.Column="1" Grid.Row="1" Content="仓库…" ContentTemplate="{StaticResource WorkbenchRepositoryAction}" Style="{StaticResource WorkbenchLocationButton}" AutomationProperties.Name="选择 Git 仓库"/>
      </Grid>
     </Border>
     <Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition x:Name="SidebarColumn" Width="*" MinWidth="210"/><ColumnDefinition x:Name="SplitterColumn" Width="0"/><ColumnDefinition x:Name="PreviewColumn" Width="0"/></Grid.ColumnDefinitions>
      <Grid Background="{DynamicResource WorkbenchPane}"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/></Grid.RowDefinitions>
-      <DockPanel Margin="12,14,12,12"><Button x:Name="ReopenPreviewButton" Content="展开预览" Visibility="Collapsed" DockPanel.Dock="Right" Margin="12,0,0,0" ToolTip="重新展开当前文件的预览" AutomationProperties.Name="重新展开当前文件预览"/><Border Background="{DynamicResource WorkbenchInput}" CornerRadius="9" Padding="3"><UniformGrid Columns="3"><RadioButton x:Name="FilesButton" Content="文件" GroupName="WorkbenchView" IsChecked="True" Style="{StaticResource WorkbenchMode}"/><RadioButton x:Name="SearchButton" Content="搜索" GroupName="WorkbenchView" Style="{StaticResource WorkbenchMode}"/><RadioButton x:Name="GitButton" Content="Git" GroupName="WorkbenchView" Style="{StaticResource WorkbenchMode}"/></UniformGrid></Border></DockPanel>
+      <DockPanel Margin="10,6,10,6"><Button x:Name="ReopenPreviewButton" Content="展开预览" Visibility="Collapsed" DockPanel.Dock="Right" Margin="6,0,0,0" MinHeight="28" Padding="8,0" ToolTip="重新展开当前文件的预览" AutomationProperties.Name="重新展开当前文件预览"/><Border Background="{DynamicResource WorkbenchInput}" CornerRadius="9" Padding="2"><UniformGrid Columns="3"><RadioButton x:Name="FilesButton" Content="文件" GroupName="WorkbenchView" IsChecked="True" Style="{StaticResource WorkbenchMode}"/><RadioButton x:Name="SearchButton" Content="搜索" GroupName="WorkbenchView" Style="{StaticResource WorkbenchMode}"/><RadioButton x:Name="GitButton" Content="Git" GroupName="WorkbenchView" Style="{StaticResource WorkbenchMode}"/></UniformGrid></Border></DockPanel>
       <Grid Grid.Row="1" x:Name="SidebarHost" Margin="10,0,10,12"><TextBlock x:Name="SidebarEmpty" Text="打开文件夹后，文件会显示在这里。" TextWrapping="Wrap" Margin="10,16" Foreground="{DynamicResource WorkbenchMuted}"/></Grid>
      </Grid>
      <GridSplitter x:Name="PreviewSplitter" Grid.Column="1" Width="5" Visibility="Collapsed" HorizontalAlignment="Stretch" Background="Transparent"><GridSplitter.Template><ControlTemplate TargetType="GridSplitter"><Border Background="Transparent"><Border Width="0.5" Background="{DynamicResource WorkbenchLine}" HorizontalAlignment="Center"/></Border></ControlTemplate></GridSplitter.Template></GridSplitter>
