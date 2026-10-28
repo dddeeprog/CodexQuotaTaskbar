@@ -46,19 +46,42 @@ public sealed class WorkbenchPresentationTests
                 view.RepositoryLabel.Text = "main · C:\\示例项目（合成路径）";
                 var allocationBefore = GC.GetAllocatedBytesForCurrentThread();
                 browser.RenderDirectory(entries, 0, default);
+                Assert.False(view.IsPreviewExpanded);
+                Assert.Equal(640, view.Width); Assert.Equal(480, view.Height);
+                Assert.Equal(Visibility.Collapsed, view.PreviewPane.Visibility);
+                Render(root, "initial-compact", 640, 480, 1);
                 var tree = Assert.IsType<TreeView>(Assert.Single(view.SidebarHost.Children));
                 tree.Items.Cast<TreeViewItem>().Single(item => item.Tag is WorkspaceEntry entry && entry.Path == readme).IsSelected = true;
                 browser.RenderPreview(preview);
                 Render(root, "files-1100", 1100, 720, 1);
                 Render(root, "files-640", 640, 480, 1);
-                panel.Render(state); panel.RenderDiff(diff, change);
+                panel.Render(state);
+                Render(root, "git-collapsed", 640, 480, 1);
+                panel.RenderDiff(diff, change);
                 foreach (var (width, height, scale) in new[] { (1100, 720, 1d), (760, 480, 1d), (640, 480, 1d), (1100, 720, 1.5d) })
+                {
                     Render(root, $"git-{width}-{scale:0.0}", width, height, scale);
+                    if (width == 640)
+                    {
+                        var viewport = Descendants<ScrollViewer>(root).Single(scroll => scroll.Name == "GitDiffViewport");
+                        Assert.True(viewport.ScrollableWidth > 100);
+                        viewport.ScrollToRightEnd(); Render(root, "git-640-right", width, height, scale);
+                        Assert.True(viewport.HorizontalOffset > 100);
+                        viewport.ScrollToLeftEnd();
+                    }
+                }
                 Assert.Same(OverlayGlassMaterial.Surface, view.GlassBorder.Background);
                 Assert.Equal(new CornerRadius(16), view.GlassBorder.CornerRadius);
                 Assert.Equal(OverlayTypography.Interface.Source, view.FilesButton.FontFamily.Source);
                 Assert.Equal(OverlayTypography.Interface.Source, view.SearchButton.FontFamily.Source);
                 Assert.Equal(FontWeights.SemiBold, view.SearchButton.FontWeight);
+                var expandedWidth = view.Width; var expandedHeight = view.Height;
+                var alternate = change with { Path = "second-synthetic-file.txt" };
+                panel.RenderDiff(new GitDiff([new("1", "1", "before", "after", "replace")], null), alternate);
+                var alternatePane = Assert.IsType<DockPanel>(Assert.Single(view.PreviewHost.Children));
+                Assert.StartsWith(alternate.Path, alternatePane.Children.OfType<TextBlock>().Single().Text);
+                Assert.Equal(expandedWidth, view.Width); Assert.Equal(expandedHeight, view.Height);
+                panel.RenderDiff(diff, change);
                 browser.ShowSearch(); root.UpdateLayout();
                 var checkbox = Assert.Single(Descendants<System.Windows.Controls.CheckBox>(root));
                 var oldCell = Descendants<Border>(root).Single(border => border.Name == "OldCell" && Equals(border.Tag, "replace"));
@@ -95,7 +118,7 @@ public sealed class WorkbenchPresentationTests
                 {
                     string Hash(byte[] bytes) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes));
                     var source = CodexQuotaTaskbar.Host.Tests.TestSupport.RepositoryPaths.Root;
-                    var names = new[] { "WorkbenchWindow.xaml", "WorkbenchTheme.xaml", "WorkbenchWindow.xaml.cs", "WorkbenchWindow.Appearance.cs", "WorkbenchBrowser.cs", "WorkbenchBrowser.Mutations.cs", "WorkbenchGitPanel.cs", "WorkbenchGitPanel.Mutations.cs", "WorkspaceGit.cs" };
+                    var names = new[] { "WorkbenchWindow.xaml", "WorkbenchTheme.xaml", "WorkbenchWindow.xaml.cs", "WorkbenchWindow.Appearance.cs", "WorkbenchWindow.Preview.cs", "WorkbenchSettings.cs", "WorkbenchCoordinator.cs", "WorkbenchBrowser.cs", "WorkbenchBrowser.Mutations.cs", "WorkbenchGitPanel.cs", "WorkbenchGitPanel.Mutations.cs", "WorkspaceGit.cs" };
                     var hashes = names.ToDictionary(name => name, name => Hash(System.Text.Encoding.UTF8.GetBytes(File.ReadAllText(Path.Combine(source, "src", "CodexQuotaTaskbar.Host", "Workbench", name)).Replace("\r\n", "\n"))));
                     var assembly = typeof(WorkbenchWindow).Assembly.Location;
                     File.WriteAllText(Path.Combine(proof, "presenter-proof.json"), System.Text.Json.JsonSerializer.Serialize(new
@@ -161,8 +184,11 @@ public sealed class WorkbenchPresentationTests
             { Assert.True(button.ActualHeight >= 24); Assert.True(button.ActualWidth >= 30); });
         Assert.All(Descendants<System.Windows.Controls.ListBox>(root).Where(list => list.ActualWidth > 0), list => Assert.True(list.ActualHeight >= 60, "Change selection must retain a usable viewport."));
         if (name.StartsWith("git-"))
+        {
+            foreach (var rows in Descendants<System.Windows.Controls.ListBox>(root).Where(list => list.Name == "GitDiffRows")) Assert.True(rows.ActualWidth >= 680);
             Assert.All(Descendants<TextBlock>(root).Where(text => text.Text.Contains("public bool Pinned")), text =>
             { Assert.Equal(TextWrapping.Wrap, text.TextWrapping); Assert.Equal(TextTrimming.None, text.TextTrimming); });
+        }
         var directory = Environment.GetEnvironmentVariable("DIANDAO_WORKBENCH_PROOFS"); if (directory is null) return;
         Directory.CreateDirectory(directory);
         var bitmap = new RenderTargetBitmap((int)(width * scale), (int)(height * scale), 96 * scale, 96 * scale, PixelFormats.Pbgra32);

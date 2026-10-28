@@ -49,6 +49,7 @@ internal sealed class WorkbenchCoordinator : IAsyncDisposable
             WindowCreated?.Invoke(window);
         }
         window.SetCaptureActive(false);
+        window.ResetPreview();
         window.SetStatus(hotkey.Error ?? "");
         if (!window.IsVisible) window.Show();
         if (window.WindowState == WindowState.Minimized) window.WindowState = WindowState.Normal;
@@ -63,7 +64,7 @@ internal sealed class WorkbenchCoordinator : IAsyncDisposable
         var area = System.Windows.Forms.Screen.FromPoint(point).WorkingArea;
         var bounds = new Rect(area.Left / dpi.DpiScaleX, area.Top / dpi.DpiScaleY, area.Width / dpi.DpiScaleX, area.Height / dpi.DpiScaleY);
         view.MinWidth = Math.Min(view.MinWidth, bounds.Width); view.MinHeight = Math.Min(view.MinHeight, bounds.Height);
-        view.Width = Math.Min(settings.Width, bounds.Width); view.Height = Math.Min(settings.Height, bounds.Height);
+        view.Width = Math.Min(view.Width, bounds.Width); view.Height = Math.Min(view.Height, bounds.Height);
         view.Left = Math.Clamp(settings.Left ?? bounds.Left + (bounds.Width - view.Width) / 2, bounds.Left, Math.Max(bounds.Left, bounds.Right - view.Width));
         view.Top = Math.Clamp(settings.Top ?? bounds.Top + (bounds.Height - view.Height) / 2, bounds.Top, Math.Max(bounds.Top, bounds.Bottom - view.Height));
     }
@@ -73,7 +74,7 @@ internal sealed class WorkbenchCoordinator : IAsyncDisposable
     {
         if (disposed || window is null) return;
         var bounds = window.WindowState == WindowState.Normal ? new Rect(window.Left, window.Top, window.Width, window.Height) : window.RestoreBounds;
-        settings = (settings with { Pinned = window.Pinned, Left = bounds.Left, Top = bounds.Top, Width = bounds.Width, Height = bounds.Height }).Normalize();
+        settings = window.CaptureLayout(settings with { Pinned = window.Pinned, Left = bounds.Left, Top = bounds.Top }).Normalize();
         save(settings);
     }
     private void ChangeHotkey()

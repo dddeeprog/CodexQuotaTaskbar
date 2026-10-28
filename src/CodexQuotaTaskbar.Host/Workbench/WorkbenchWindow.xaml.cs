@@ -28,6 +28,7 @@ internal partial class WorkbenchWindow : Window
     {
         InitializeComponent();
         Width = settings.Width; Height = settings.Height; Pinned = settings.Pinned; Topmost = Pinned;
+        InitializePreviewLayout(settings);
         PinButton.Content = Pinned ? "置顶：开" : "置顶：关";
         PinButton.ToolTip = "切换置顶；开启后工作台保持显示";
         HotkeyButton.ToolTip = $"修改工作台快捷键（当前：{settings.Hotkey}）";
@@ -49,7 +50,7 @@ internal partial class WorkbenchWindow : Window
             if (args.Key == Key.Escape && ownedInteraction == 0 && !HasOpenContextMenu())
             { HideSafely(); args.Handled = true; }
         };
-        IsVisibleChanged += (_, _) => { if (!IsVisible) PreferencesChanged?.Invoke(); };
+        IsVisibleChanged += (_, _) => { if (!IsVisible) { ResetPreview(); PreferencesChanged?.Invoke(); } };
         ApplyAppearance();
         SystemParameters.StaticPropertyChanged += SystemAppearanceChanged;
     }
@@ -81,7 +82,7 @@ internal partial class WorkbenchWindow : Window
         Pinned = value; Topmost = value; PinButton.Content = value ? "置顶：开" : "置顶：关";
         PreferencesChanged?.Invoke();
     }
-    internal void HideSafely() { if (!CaptureActive && !closing && (!IsVisible || !CaptureProbe())) Hide(); }
+    internal void HideSafely() { if (!CaptureActive && !closing && (!IsVisible || !CaptureProbe())) { Hide(); ResetPreview(); } }
     internal IDisposable ProtectInteraction()
     {
         ownedInteraction++;

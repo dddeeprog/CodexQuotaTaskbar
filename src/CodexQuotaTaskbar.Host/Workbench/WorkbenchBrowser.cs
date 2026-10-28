@@ -73,13 +73,13 @@ internal sealed partial class WorkbenchBrowser : IDisposable
         WorkspacePaths.Validate(root, root);
         if (!Directory.Exists(root)) throw new DirectoryNotFoundException("工作区目录不存在。");
         StopReading(); Root = Path.GetFullPath(root); selectedFile = null; Selection = null;
-        view.PreviewHost.Children.Clear(); view.SidebarHost.Children.Clear(); searchPanel = null;
+        view.ResetPreview(); view.SidebarHost.Children.Clear(); searchPanel = null;
         view.DirectoryLabel.Text = Root; view.DirectoryLabel.ToolTip = Root;
         coordinator.UpdateSelection(Root, null); WorkspaceChanged?.Invoke();
         StartWatching(); await RefreshAsync();
     }
     private void ShowView(string requested)
-    { mode = requested; view.SetViewMode(mode); if (mode == "git") ShowGit?.Invoke(); else _ = RefreshAsync(); }
+    { mode = requested; view.ResetPreview(); view.SetViewMode(mode); if (mode == "git") ShowGit?.Invoke(); else _ = RefreshAsync(); }
     private void StopReading()
     { generation++; searchGeneration++; reads.Cancel(); reads.Dispose(); reads = new(); searchReads?.Dispose(); searchReads = null; watcher?.Dispose(); watcher = null; debounce.Stop(); }
     private void StartWatching()
@@ -195,18 +195,18 @@ internal sealed partial class WorkbenchBrowser : IDisposable
     internal async Task ShowPreviewAsync(string path)
     {
         if (Root is null || disposed || !view.IsVisible) return;
-        selectedFile = path; var current = generation; var token = reads.Token;
+        selectedFile = path; var current = generation; var revision = view.BeginPreviewSelection(); var token = reads.Token;
         try
         {
             var preview = await files.PreviewAsync(Root, path, token);
-            if (current != generation || path != selectedFile || !view.IsVisible) return;
+            if (current != generation || revision != view.PreviewRevision || path != selectedFile || !view.IsVisible) return;
             var bitmap = preview.Image is { } bytes ? await WorkspaceFiles.DecodeImageAsync(bytes, token) : null;
-            if (current != generation || path != selectedFile || !view.IsVisible) return;
+            if (current != generation || revision != view.PreviewRevision || path != selectedFile || !view.IsVisible) return;
             RenderPreview(preview, bitmap);
         }
         catch (OperationCanceledException) { }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException or FileFormatException)
-        { if (current == generation && path == selectedFile) view.SetStatus("无法预览：" + error.Message); }
+        { if (current == generation && revision == view.PreviewRevision && path == selectedFile && view.IsVisible) view.SetStatus("无法预览：" + error.Message); }
     }
     internal void RenderPreview(WorkspacePreview preview, System.Windows.Media.Imaging.BitmapSource? image = null)
     {
@@ -222,6 +222,7 @@ internal sealed partial class WorkbenchBrowser : IDisposable
         else if (image is not null) panel.Children.Add(new System.Windows.Controls.Image { Source = image, Stretch = Stretch.Uniform });
         else panel.Children.Add(new TextBlock { Text = preview.Notice, TextWrapping = TextWrapping.Wrap });
         view.PreviewHost.Children.Clear(); view.PreviewHost.Children.Add(panel);
+        view.OpenPreview("预览");
     }
     private void OpenExternal(string path, bool reveal)
     {

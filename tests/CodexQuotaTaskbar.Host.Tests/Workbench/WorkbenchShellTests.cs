@@ -39,6 +39,7 @@ public sealed class WorkbenchShellTests
         Assert.Null(old.Workbench);
         var normalized = new WorkbenchSettings(Width: double.NaN, Height: double.PositiveInfinity, Left: double.NaN).Normalize();
         Assert.Equal(1100, normalized.Width); Assert.Equal(720, normalized.Height); Assert.Null(normalized.Left);
+        Assert.Equal(640, normalized.CompactWidth); Assert.Equal(480, normalized.CompactHeight);
     }
 
     [Theory]
@@ -80,6 +81,54 @@ public sealed class WorkbenchShellTests
         });
         thread.SetApartmentState(ApartmentState.STA); thread.Start();
         Assert.True(thread.Join(TimeSpan.FromSeconds(15)));
+        if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
+    [Fact]
+    public void Preview_collapses_reopens_reuses_one_host_and_resets_on_close_without_native_input()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            var view = new WorkbenchWindow(new());
+            try
+            {
+                Assert.False(view.IsPreviewExpanded);
+                Assert.Equal(0, view.PreviewColumn.MinWidth); Assert.Equal(0, view.PreviewColumn.Width.Value);
+                var first = new System.Windows.Controls.TextBlock { Text = "first synthetic diff" };
+                view.PreviewHost.Children.Add(first); view.OpenPreview("差异");
+                Assert.True(view.IsPreviewExpanded); Assert.Equal(1100, view.Width);
+                view.Width = 1020; view.Height = 660;
+                var firstRequest = view.BeginPreviewSelection();
+                Assert.True(view.BeginPreviewSelection() > firstRequest); // File and Git reads share one selection epoch.
+                view.PreviewHost.Children.Clear();
+                var second = new System.Windows.Controls.TextBlock { Text = "second synthetic diff" };
+                view.PreviewHost.Children.Add(second); view.OpenPreview("差异");
+                Assert.Same(second, Assert.Single(view.PreviewHost.Children)); Assert.Equal(1020, view.Width);
+                var requestRevision = view.PreviewRevision;
+                view.CollapsePreviewButton.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                Assert.False(view.IsPreviewExpanded); Assert.Equal(640, view.Width);
+                Assert.True(view.PreviewRevision > requestRevision); // Pending reads cannot reopen a deliberately closed pane.
+                Assert.Equal(System.Windows.Visibility.Visible, view.ReopenPreviewButton.Visibility);
+                view.ReopenPreviewButton.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                Assert.True(view.IsPreviewExpanded); Assert.Equal(1020, view.Width); Assert.Same(second, Assert.Single(view.PreviewHost.Children));
+                view.SetCaptureActive(true); view.CollapsePreview(); Assert.True(view.IsPreviewExpanded);
+                view.SetCaptureActive(false);
+                view.CloseWorkbenchButton.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                Assert.False(view.IsPreviewExpanded); Assert.Empty(view.PreviewHost.Children);
+                Assert.Equal(System.Windows.Visibility.Collapsed, view.ReopenPreviewButton.Visibility);
+                view.ResetPreview(); // The same entry preparation used on reopening.
+                Assert.False(view.IsPreviewExpanded); Assert.Equal(640, view.Width);
+                view.Width = 700; view.Height = 500;
+                var saved = view.CaptureLayout(new());
+                Assert.Equal(700, saved.CompactWidth); Assert.Equal(500, saved.CompactHeight);
+                Assert.Equal(1020, saved.Width); Assert.Equal(660, saved.Height);
+                Assert.Equal(0, new System.Windows.Interop.WindowInteropHelper(view).Handle);
+            }
+            catch (Exception error) { failure = error; }
+            finally { view.CloseForShutdown(); System.Windows.Threading.Dispatcher.CurrentDispatcher.InvokeShutdown(); }
+        });
+        thread.SetApartmentState(ApartmentState.STA); thread.Start(); Assert.True(thread.Join(TimeSpan.FromSeconds(15)));
         if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
 }

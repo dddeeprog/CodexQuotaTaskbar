@@ -77,6 +77,7 @@ internal sealed partial class WorkbenchGitPanel : IDisposable
     }
     internal void Render(GitWorkspace repository)
     {
+        view.ResetPreview();
         view.SetViewMode("git");
         var panel = new DockPanel();
         var heading = new TextBlock { Text = $"{repository.Changes.Count} 项改动" + (repository.OperationInProgress ? " · 合并或变基进行中，仅浏览" : ""), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(8, 6, 8, 12) };
@@ -85,7 +86,7 @@ internal sealed partial class WorkbenchGitPanel : IDisposable
             ItemTemplate = (DataTemplate)view.Resources["WorkbenchGitChange"] };
         list.SelectionChanged += async (_, _) =>
         {
-            if (list.SelectedItem is GitChange change) await ShowDiffAsync(repository, change);
+            if (list.SelectedItem is GitChange change) { view.BeginPreviewSelection(); await ShowDiffAsync(repository, change); }
         };
         ConfigureWrites(panel, list, repository);
         panel.Children.Add(list); view.SidebarHost.Children.Clear(); view.SidebarHost.Children.Add(panel);
@@ -95,17 +96,18 @@ internal sealed partial class WorkbenchGitPanel : IDisposable
 
     private async Task ShowDiffAsync(GitWorkspace repository, GitChange change)
     {
-        var request = ++diffGeneration; var token = reads.Token;
+        if (!view.IsVisible || browser.IsWriting) return;
+        var request = ++diffGeneration; var revision = view.PreviewRevision; var token = reads.Token;
         try
         {
             if (change.Area == GitArea.Untracked)
             { await browser.ShowPreviewAsync(Path.Combine(repository.Root, change.Path)); return; }
             var diff = await git.DiffAsync(repository, change, token);
-            if (request != diffGeneration || snapshot != repository || !view.IsVisible) return;
+            if (request != diffGeneration || revision != view.PreviewRevision || snapshot != repository || !view.IsVisible || !showing) return;
             RenderDiff(diff, change);
         }
         catch (OperationCanceledException) { }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { if (request == diffGeneration) view.SetStatus(error.Message); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { if (request == diffGeneration && revision == view.PreviewRevision && view.IsVisible) view.SetStatus(error.Message); }
     }
     internal void RenderDiff(GitDiff diff, GitChange change)
     {
@@ -115,13 +117,18 @@ internal sealed partial class WorkbenchGitPanel : IDisposable
             if (diff.Notice is { } notice) panel.Children.Add(new TextBlock { Text = notice, TextWrapping = TextWrapping.Wrap });
             else
             {
-                var rows = new ListBox { ItemsSource = diff.Rows, HorizontalContentAlignment = System.Windows.HorizontalAlignment.Stretch,
+                var rows = new ListBox { Name = "GitDiffRows", ItemsSource = diff.Rows, Width = 680, HorizontalContentAlignment = System.Windows.HorizontalAlignment.Stretch,
                     ItemContainerStyle = (Style)view.Resources["WorkbenchDiffItem"] };
                 ScrollViewer.SetHorizontalScrollBarVisibility(rows, ScrollBarVisibility.Disabled);
                 rows.ItemTemplate = (DataTemplate)view.Resources["WorkbenchDiffRow"];
-                panel.Children.Add(rows);
+                var viewport = new ScrollViewer { Name = "GitDiffViewport", Content = rows,
+                    HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled };
+                System.Windows.Automation.AutomationProperties.SetName(viewport, "左右对照差异，窄窗口可横向滚动");
+                viewport.SizeChanged += (_, args) => rows.Width = Math.Max(680, args.NewSize.Width);
+                panel.Children.Add(viewport);
             }
             view.PreviewHost.Children.Clear(); view.PreviewHost.Children.Add(panel);
+            view.OpenPreview("差异");
     }
 
     private async void ChooseRepository()
