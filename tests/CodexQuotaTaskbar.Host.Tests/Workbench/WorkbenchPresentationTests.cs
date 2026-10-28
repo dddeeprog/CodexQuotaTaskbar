@@ -172,6 +172,91 @@ public sealed class WorkbenchPresentationTests
         if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
 
+    [Fact]
+    public void Icon_navigation_keeps_slots_names_routing_and_distinct_visual_states_without_native_input()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            var view = new WorkbenchWindow(new()) { CaptureProbe = () => false };
+            try
+            {
+                var root = (Grid)view.Content; view.Content = null;
+                root.Resources.MergedDictionaries.Add(view.Resources);
+                root.SetValue(TextElement.FontFamilyProperty, view.FontFamily);
+                root.SetValue(TextElement.FontSizeProperty, view.FontSize);
+                root.SetResourceReference(TextElement.ForegroundProperty, "WorkbenchText");
+                var actions = new[] { view.PinButton, view.HotkeyButton, view.RefreshButton, view.MinimizeButton, view.CloseWorkbenchButton };
+                var modes = new[] { view.FilesButton, view.SearchButton, view.GitButton };
+                RenderCompact(root, view, "icons-default", 400);
+                foreach (var control in actions.Cast<Control>().Concat(modes))
+                {
+                    Assert.False(string.IsNullOrWhiteSpace(System.Windows.Automation.AutomationProperties.GetName(control)));
+                    Assert.NotNull(control.ToolTip);
+                    var icon = Assert.Single(Descendants<System.Windows.Shapes.Path>(control));
+                    Assert.Equal(16, icon.Width); Assert.Equal(1.2, icon.StrokeThickness);
+                    Assert.Same(control.Foreground, icon.Stroke);
+                }
+                // The three old text slots still determine header width, so the title and actions do not shift.
+                foreach (var action in actions.Take(3))
+                {
+                    var size = action.RenderSize; var template = action.ContentTemplate; var style = action.Style;
+                    action.ContentTemplate = null; action.Style = (Style)view.Resources["WorkbenchHeaderButton"];
+                    root.UpdateLayout(); Assert.Equal(size, action.RenderSize);
+                    action.ContentTemplate = template; action.Style = style; root.UpdateLayout();
+                }
+                var circle = (Border)view.SearchButton.Template.FindName("Chrome", view.SearchButton);
+                var defaultBrush = circle.Background;
+                var defaultForeground = view.SearchButton.Foreground;
+                // Force only the offscreen dependency-property state; no mouse, HWND, focus, or input is created.
+                var hoverKey = (DependencyPropertyKey)typeof(UIElement).GetField("IsMouseOverPropertyKey",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!.GetValue(null)!;
+                view.SearchButton.SetValue(hoverKey, true); root.UpdateLayout();
+                Assert.NotSame(defaultBrush, circle.Background);
+                Assert.Same(view.Resources["WorkbenchHover"], circle.Background);
+                RenderCompact(root, view, "icons-hover", 400);
+                view.SearchButton.SetValue(hoverKey, false);
+                var routes = new List<string>(); var refreshes = 0;
+                view.ViewRequested += routes.Add; view.RefreshRequested += () => refreshes++;
+                foreach (var mode in modes)
+                {
+                    mode.IsChecked = true;
+                    mode.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                }
+                Assert.Equal(new[] { "files", "search", "git" }, routes);
+                view.RefreshButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                Assert.Equal(1, refreshes);
+                view.SearchButton.IsChecked = true; root.UpdateLayout();
+                Assert.False(view.FilesButton.IsChecked); Assert.False(view.GitButton.IsChecked);
+                Assert.Same(view.Resources["WorkbenchActive"], circle.Background);
+                Assert.Same(view.Resources["WorkbenchSelectedText"], circle.BorderBrush);
+                Assert.NotSame(defaultForeground, view.SearchButton.Foreground);
+                Assert.Equal(new CornerRadius(14), circle.CornerRadius);
+                Assert.Equal(28, circle.ActualWidth); Assert.Equal(circle.ActualWidth, circle.ActualHeight);
+                view.PinButton.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                Assert.True(view.Pinned); Assert.True(view.Topmost); root.UpdateLayout();
+                var pinCircle = (Border)view.PinButton.Template.FindName("Circle", view.PinButton);
+                Assert.Same(view.Resources["WorkbenchActive"], pinCircle.Background);
+                Assert.Equal("已置顶", System.Windows.Automation.AutomationProperties.GetItemStatus(view.PinButton));
+                RenderCompact(root, view, "icons-selected", 400);
+                foreach (var width in new[] { 360, 420 }) RenderCompact(root, view, $"icons-selected-{width}", width);
+                RenderCompact(root, view, "icons-selected-150", 400, 1.5);
+                view.ApplyAppearance(true, true); root.UpdateLayout();
+                Assert.Same(System.Windows.SystemColors.HighlightBrush, circle.Background);
+                Assert.Same(System.Windows.SystemColors.HighlightTextBrush, Assert.Single(Descendants<System.Windows.Shapes.Path>(view.SearchButton)).Stroke);
+                RenderCompact(root, view, "icons-high-contrast", 400);
+                view.ApplyAppearance(false, true);
+                view.SearchButton.IsEnabled = false; Assert.Equal(0.42, view.SearchButton.Opacity);
+                Assert.Equal(0, new System.Windows.Interop.WindowInteropHelper(view).Handle);
+            }
+            catch (Exception error) { failure = error; }
+            finally { view.CloseForShutdown(); System.Windows.Threading.Dispatcher.CurrentDispatcher.InvokeShutdown(); }
+        });
+        thread.SetApartmentState(ApartmentState.STA); thread.Start();
+        Assert.True(thread.Join(TimeSpan.FromSeconds(30)));
+        if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
     private static void RenderCompact(Grid root, WorkbenchWindow view, string name, int width, double scale = 1)
     {
         view.Width = width; view.FitCompactContent();

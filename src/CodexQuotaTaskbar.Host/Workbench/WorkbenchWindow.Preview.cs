@@ -83,6 +83,8 @@ internal partial class WorkbenchWindow
         Resources["WorkbenchTreeRowHeight"] = IsPreviewExpanded ? 32d : 28d;
         ShellTitle.Text = IsPreviewExpanded ? "点岛 · 项目工作台" : "工作台";
         PinButton.Content = IsPreviewExpanded ? (Pinned ? "置顶：开" : "置顶：关") : (Pinned ? "已置顶" : "置顶");
+        PinButton.Tag = Pinned;
+        AutomationProperties.SetItemStatus(PinButton, Pinned ? "已置顶" : "未置顶");
         PinButton.ToolTip = Pinned ? "置顶已开启；点击后关闭置顶" : "置顶已关闭；点击后保持显示";
         ChooseDirectoryButton.Content = IsPreviewExpanded ? "打开文件夹…" : "目录…";
         ChooseRepositoryButton.Content = IsPreviewExpanded ? "选择 Git 仓库…" : "仓库…";
