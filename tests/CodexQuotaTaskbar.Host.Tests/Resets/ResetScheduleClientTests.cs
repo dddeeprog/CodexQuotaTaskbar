@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using CodexQuotaTaskbar.Core.Quota;
 using CodexQuotaTaskbar.Host.Resets;
 
 namespace CodexQuotaTaskbar.Host.Tests.Resets;
@@ -283,6 +284,73 @@ public sealed class ResetScheduleClientTests
     }
 
     [Fact]
+    public async Task Polling_keeps_latest_responses_while_display_latches_first_time_and_later_notice_rearms()
+    {
+        var clock = new Clock(); var requests = 0;
+        using var service = new ResetScheduleClient(new FakeHandler((request, _) =>
+        {
+            var number = ++requests;
+            if (number == 4)
+            {
+                Assert.Equal("\"latest-status\"", Assert.Single(request.Headers.IfNoneMatch).ToString());
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotModified));
+            }
+            var body = number switch
+            {
+                1 => Status(Schedule(deadline: Now.AddHours(3)), clock.Now),
+                2 => Status("null", clock.Now), // Site temporarily reports no scheduled reset.
+                3 => Status(Schedule(deadline: Now.AddHours(7)), clock.Now), // Same publication changes time.
+                5 => Status(Schedule(deadline: Now.AddHours(9), announced: clock.Now, id: "456"), clock.Now),
+                _ => throw new InvalidOperationException("Unexpected mock request."),
+            };
+            var response = Json(body); response.Headers.ETag = new EntityTagHeaderValue("\"latest-status\"");
+            return Task.FromResult(response);
+        }), clock);
+        var tracker = new QuotaResetTracker(); var scope = QuotaResetTracker.ScopeForSource("mock-running-context")!;
+        QuotaSnapshot Quota(double remaining) => QuotaSnapshot.Available(
+            [new(QuotaWindowKind.Primary, remaining, 300, Now.AddHours(12))], clock.Now);
+        tracker.Observe(Quota(20), scope, clock.Now);
+        var first = await service.FetchAsync(); tracker.SetSchedule(first, clock.Now);
+        Assert.Equal(Now.AddHours(3), tracker.ProjectSchedule(first, clock.Now).Schedule!.ScheduledFor);
+
+        clock.Now += ResetScheduleClient.PollInterval;
+        var empty = await service.FetchAsync(); tracker.SetSchedule(empty, clock.Now);
+        Assert.Null(empty.Schedule); Assert.Equal(clock.Now, empty.SourceGeneratedAt);
+        Assert.Equal(empty, await service.FetchAsync()); // The client cache retains the LATEST response.
+        Assert.Equal(first.Schedule, tracker.ProjectSchedule(empty, clock.Now).Schedule);
+
+        clock.Now += ResetScheduleClient.PollInterval;
+        var changed = await service.FetchAsync(); tracker.SetSchedule(changed, clock.Now);
+        Assert.Equal(Now.AddHours(7), changed.Schedule!.ScheduledFor);
+        Assert.Equal(clock.Now, changed.LastUpdatedAt); Assert.Equal(clock.Now, changed.SourceGeneratedAt);
+        var display = tracker.ProjectSchedule(changed, clock.Now);
+        Assert.Equal(first.Schedule, display.Schedule);
+        Assert.Equal(first.LastUpdatedAt, display.LastUpdatedAt);
+        Assert.Equal(first.SourceGeneratedAt, display.SourceGeneratedAt);
+        Assert.Null(tracker.ActiveUntil(clock.Now)); // Neither site response is quota recovery evidence.
+
+        clock.Now += ResetScheduleClient.PollInterval;
+        var revalidated = await service.FetchAsync(); tracker.SetSchedule(revalidated, clock.Now);
+        Assert.Equal(changed.Schedule, revalidated.Schedule);
+        Assert.Equal(clock.Now, revalidated.LastUpdatedAt);
+        Assert.Equal(changed.SourceGeneratedAt, revalidated.SourceGeneratedAt);
+        Assert.Equal(first.Schedule, tracker.ProjectSchedule(revalidated, clock.Now).Schedule);
+
+        clock.Now += TimeSpan.FromSeconds(1);
+        var recoveredAt = clock.Now;
+        Assert.Equal(recoveredAt.AddHours(1), tracker.Observe(Quota(21), scope, recoveredAt));
+        Assert.Null(tracker.ProjectSchedule(revalidated, clock.Now).Schedule);
+
+        clock.Now = Now.AddMinutes(4);
+        var later = await service.FetchAsync(); tracker.SetSchedule(later, clock.Now);
+        Assert.Equal(5, requests); Assert.Equal(later, await service.FetchAsync());
+        Assert.Equal(5, requests); // Latching/consumption did not stop any due request.
+        Assert.True(later.Schedule!.AnnouncedAt > recoveredAt);
+        Assert.Equal(later.Schedule, tracker.ProjectSchedule(later, clock.Now).Schedule);
+        Assert.Equal(recoveredAt.AddHours(1), tracker.ActiveUntil(clock.Now));
+    }
+
+    [Fact]
     public async Task Canceling_a_queued_caller_does_not_cancel_the_inflight_request_or_start_another()
     {
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -501,11 +569,12 @@ public sealed class ResetScheduleClientTests
     private static HttpResponseMessage Json(string json) => new(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
     private static string Status(string schedule, DateTimeOffset? generated = null) =>
         "{\"data\":{\"scheduled_reset\":" + schedule + "},\"meta\":{\"api_version\":\"v1\",\"generated_at\":" + JsonSerializer.Serialize((generated ?? Now).ToString("O")) + "}}";
-    private static string Schedule(string? url = null, DateTimeOffset? deadline = default, object? source = null, bool noDeadline = false) => JsonSerializer.Serialize(new
+    private static string Schedule(string? url = null, DateTimeOffset? deadline = default, object? source = null, bool noDeadline = false,
+        DateTimeOffset? announced = null, string id = "123") => JsonSerializer.Serialize(new
     {
-        id = "123", status = "scheduled", reset_type = "regular", announced_at = Now.AddHours(-2).ToString("O"),
+        id, status = "scheduled", reset_type = "regular", announced_at = (announced ?? Now.AddHours(-2)).ToString("O"),
         scheduled_for = noDeadline ? null : (deadline ?? Now.AddHours(1)).ToString("O"), text = "Public scheduled announcement.",
-        source = source ?? new { type = "x_post", author = "thsottiaux", url = url ?? "https://x.com/thsottiaux/status/123" },
+        source = source ?? new { type = "x_post", author = "thsottiaux", url = url ?? $"https://x.com/thsottiaux/status/{id}" },
     });
 
     private sealed class Clock : TimeProvider
