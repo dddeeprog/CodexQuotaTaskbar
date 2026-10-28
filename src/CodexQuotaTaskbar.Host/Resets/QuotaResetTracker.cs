@@ -25,6 +25,10 @@ internal sealed class QuotaResetTracker
     private QuotaSnapshot? previous;
     private string? activeScope;
     private DateTimeOffset? highWater;
+    private readonly ResetNoticeLatch noticeLatch = new();
+    private bool usesLatchedSchedule;
+    private DateTimeOffset? pendingNoticeConsumption;
+    internal bool UsesLatchedSchedule { get { lock (gate) return usesLatchedSchedule; } }
 
     internal QuotaResetTracker(ResetConfirmationStore? store = null)
     {
@@ -43,6 +47,18 @@ internal sealed class QuotaResetTracker
         ? Hash($"reset-notice\n{schedule.Id}") : null;
 
     internal void SetNotice(ResetSchedule? schedule) { lock (gate) currentNotice = NoticeId(schedule); }
+    // Full freshness metadata is required for the public latch. Bare SetNotice remains ID-only compatibility.
+    internal void SetSchedule(ResetScheduleSnapshot value, DateTimeOffset now)
+    {
+        lock (gate)
+        {
+            usesLatchedSchedule = true;
+            noticeLatch.Update(value, now);
+            currentNotice = NoticeId(noticeLatch.LockedNotice);
+        }
+    }
+    internal ResetScheduleSnapshot ProjectSchedule(ResetScheduleSnapshot value, DateTimeOffset now)
+    { lock (gate) return usesLatchedSchedule ? noticeLatch.Project(now) : value; }
     internal bool IsNoticeConsumed(ResetSchedule? schedule)
     {
         lock (gate) return NoticeId(schedule) is { } id
@@ -62,7 +78,16 @@ internal sealed class QuotaResetTracker
             {
                 activeScope = null; previous = null; highWater = null;
                 pendingConfirmations = null; pendingNotices = null;
+                noticeLatch.ResetContext(); pendingNoticeConsumption = null;
+                if (usesLatchedSchedule) currentNotice = null;
                 return null;
+            }
+            if (activeScope is not null && activeScope != scope)
+            {
+                activeScope = null; previous = null; highWater = null;
+                pendingConfirmations = null; pendingNotices = null;
+                noticeLatch.ResetContext(); pendingNoticeConsumption = null;
+                if (usesLatchedSchedule) currentNotice = null;
             }
             if (sample.Availability != QuotaAvailability.Available || sample.CapturedAt is not { } captured
                 || captured > now || now - captured > TimeSpan.FromSeconds(30))
@@ -82,6 +107,8 @@ internal sealed class QuotaResetTracker
             {
                 activeScope = scope; previous = null; highWater = null;
                 pendingConfirmations = null; pendingNotices = null;
+                noticeLatch.ResetContext(); noticeLatch.EstablishContext(); pendingNoticeConsumption = null;
+                if (usesLatchedSchedule) currentNotice = null;
             }
             CommitPending(); // Retry the original event/time, never restart its hour.
             // Persisted source watermark rejects replay before/at the last accepted recovery, even after restart.
@@ -94,6 +121,8 @@ internal sealed class QuotaResetTracker
 
             var next = (pendingConfirmations ?? confirmations.ToArray()).ToList();
             var originalCount = next.Count;
+            var episodeUntil = usesLatchedSchedule ? ActiveUntilCore(now) : null;
+            var recovered = false;
             if (previous is { CapturedAt: { } before } prior
                 && captured - before <= MaximumEvidenceGap)
             {
@@ -103,6 +132,9 @@ internal sealed class QuotaResetTracker
                     var old = prior.Windows.FirstOrDefault(item => WindowKey(item) == WindowKey(window));
                     if (old is null || window.RemainingPercent <= old.RemainingPercent)
                         continue;
+                    recovered = true;
+                    // All accepted changes within the active modern episode share its FIRST one-hour expiry.
+                    if (episodeUntil is not null) continue;
                     var windowId = Hash(WindowKey(window));
                     var id = Hash($"{scope}\n{windowId}\n{captured.UtcTicks}");
                     if (next.Any(item => item.EventId == id)) continue;
@@ -110,7 +142,7 @@ internal sealed class QuotaResetTracker
                 }
             }
             previous = QuotaSnapshot.Available(windows, captured);
-            if (next.Count != originalCount)
+            if (next.Count != originalCount || recovered && usesLatchedSchedule)
             {
                 var bounded = next.OrderByDescending(item => item.OccurredAt).ThenBy(item => item.EventId, StringComparer.Ordinal)
                     .Take(32).ToArray();
@@ -121,6 +153,7 @@ internal sealed class QuotaResetTracker
                 // by the latest persisted recovery cutoff, so capacity cannot block green forever.
                 pendingConfirmations = bounded;
                 pendingNotices = notices.OrderByDescending(item => item.ConsumedAt).Take(256).ToArray();
+                if (usesLatchedSchedule) pendingNoticeConsumption = now;
                 CommitPending();
             }
             return ActiveUntilCore(now);
@@ -134,6 +167,10 @@ internal sealed class QuotaResetTracker
         confirmations.Clear(); confirmations.AddRange(events);
         consumedNotices.Clear(); consumedNotices.AddRange(notices);
         pendingConfirmations = null; pendingNotices = null;
+        if (pendingNoticeConsumption is { } consumed)
+        {
+            noticeLatch.Consume(consumed); currentNotice = null; pendingNoticeConsumption = null;
+        }
     }
 
     internal void InvalidateSample(bool accountChanged = false)
@@ -145,6 +182,8 @@ internal sealed class QuotaResetTracker
             {
                 activeScope = null; highWater = null;
                 pendingConfirmations = null; pendingNotices = null;
+                noticeLatch.ResetContext(); pendingNoticeConsumption = null;
+                if (usesLatchedSchedule) currentNotice = null;
             }
         }
     }

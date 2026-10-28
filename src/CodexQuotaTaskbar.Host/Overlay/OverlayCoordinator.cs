@@ -173,7 +173,7 @@ internal sealed partial class OverlayCoordinator : IDisposable
     internal void SetResetTracker(QuotaResetTracker tracker)
     {
         recoveryTracker = tracker;
-        tracker.SetNotice(resetSchedule.Schedule);
+        tracker.SetSchedule(resetSchedule, DateTimeOffset.UtcNow);
         foreach (var window in windows.Values) window.SetResetTracker(tracker);
     }
 
@@ -240,7 +240,7 @@ internal sealed partial class OverlayCoordinator : IDisposable
     {
         if (resetSchedule == value) return;
         resetSchedule = value;
-        recoveryTracker?.SetNotice(value.Schedule);
+        recoveryTracker?.SetSchedule(value, DateTimeOffset.UtcNow);
         foreach (var window in windows.Values) window.ApplyResetSchedule(value);
     }
 

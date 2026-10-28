@@ -25,7 +25,7 @@ public partial class QuotaCapsuleWindow
     internal void SetResetTracker(QuotaResetTracker tracker) => recoveryTracker = tracker;
     private double ResetScheduleHeight => appliedResetExtensionHeight;
     internal bool ResetNoticeActive => !bongoWindowClosing && !extensionMotionClosed && ShouldUseResetNoticeColor(
-        resetScheduleView?.IsVisible == true, resetSchedulePresentationAllowed,
+        resetScheduleView is { IsVisible: true, IsTimingKnown: true }, resetSchedulePresentationAllowed,
         ResetScheduleRow.Visibility == Visibility.Visible, appliedResetExtensionHeight, IsVisible);
 
     internal static bool ShouldUseResetNoticeColor(bool scheduleVisible, bool presentationAllowed,
@@ -53,8 +53,9 @@ public partial class QuotaCapsuleWindow
 
     internal void RefreshResetSchedule(DateTimeOffset now, TimeZoneInfo? zone = null)
     {
-        var view = ResetScheduleRowPresentation.Create(resetSchedule, now, zone);
-        if (recoveryTracker?.IsNoticeConsumed(resetSchedule.Schedule) == true
+        var projected = recoveryTracker?.ProjectSchedule(resetSchedule, now) ?? resetSchedule;
+        var view = ResetScheduleRowPresentation.Create(projected, now, zone);
+        if (recoveryTracker?.UsesLatchedSchedule != true && recoveryTracker?.IsNoticeConsumed(resetSchedule.Schedule) == true
             || QuotaResetTracker.Select(false, confirmedResetUntil, now) == ResetVisualState.Confirmed)
             view = view with { IsVisible = false };
         if (!IsUnifiedPanel) view = view with { IsVisible = false };
