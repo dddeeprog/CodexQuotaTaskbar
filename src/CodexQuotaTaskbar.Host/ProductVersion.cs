@@ -2,6 +2,6 @@ namespace CodexQuotaTaskbar.Host;
 
 internal static class ProductVersion
 {
-    internal const string Text = "0.1.14";
-    internal static Version Value { get; } = new(0, 1, 14);
+    internal const string Text = "0.1.15";
+    internal static Version Value { get; } = new(0, 1, 15);
 }

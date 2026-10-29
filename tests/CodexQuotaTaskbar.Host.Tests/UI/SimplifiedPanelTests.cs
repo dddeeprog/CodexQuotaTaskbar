@@ -31,10 +31,13 @@ public sealed class SimplifiedPanelTests
             Assert.Null(typeof(QuotaPopoverWindow).GetEvent("OpenDotChatRequested", BindingFlags.Instance | BindingFlags.NonPublic));
             var root = Layout(menu);
             var primary = (StackPanel)menu.FindName("MenuItems");
-            var actions = primary.Children.OfType<Button>().ToArray();
-            Assert.Equal(7, actions.Length); Assert.Equal("OpenCodexButton", actions[0].Name);
+            var actions = primary.Children.OfType<Button>()
+                .Where(button => button.Visibility == Visibility.Visible).ToArray();
+            Assert.Equal(6, actions.Length); Assert.Equal("OpenCodexButton", actions[0].Name);
+            Assert.Equal("RefreshButton", actions[1].Name);
             Assert.Equal(0, actions[0].TranslatePoint(default, primary).Y, 3);
-            Assert.Equal(32, actions[1].TranslatePoint(default, primary).Y, 3);
+            Assert.Equal(actions[0].TranslatePoint(default, primary).Y + actions[0].ActualHeight,
+                actions[1].TranslatePoint(default, primary).Y, 3);
             menu.OpenSection(MenuSection.Appearance); Layout(menu);
             var interactions = (StackPanel)menu.FindName("CompanionInteractionItems");
             var choices = interactions.Children.OfType<Button>().ToArray();
