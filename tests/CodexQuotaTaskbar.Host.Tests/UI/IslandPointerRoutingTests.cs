@@ -239,7 +239,7 @@ public sealed class IslandPointerRoutingTests
         var until = tracker.Observe(Sample(now.AddSeconds(1), 21), scope, now.AddSeconds(1));
         window.ApplyConfirmedReset(until);
         window.RefreshResetSchedule(now.AddSeconds(1));
-        Assert.Equal(baseline, window.DesiredHeight);
+        Assert.Equal(baseline + QuotaCapsuleWindow.ResetStatusRowHeight, window.DesiredHeight);
         Assert.False(((Border)window.FindName("ResetScheduleRow")).IsHitTestVisible);
         var expired = until!.Value;
         window.ApplyResetSchedule(snapshot with { LastUpdatedAt = expired }, expired);

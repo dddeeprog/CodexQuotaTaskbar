@@ -112,8 +112,8 @@ public sealed class ResetNoticeLatchTests : IDisposable
         var utc = ResetScheduleRowPresentation.Create(projected, Now, TimeZoneInfo.Utc);
         var china = ResetScheduleRowPresentation.Create(projected, Now, China);
 
-        Assert.Empty(utc.LocalTime);
-        Assert.Empty(china.LocalTime);
+        Assert.Equal("本地 2026-10-28 13:00", utc.LocalTime);
+        Assert.Equal("本地 2026-10-28 21:00", china.LocalTime);
         Assert.Contains("2026年10月28日 13:00", utc.Tooltip);
         Assert.Contains("2026年10月28日 21:00", china.Tooltip);
         Assert.Equal(utc.Countdown, china.Countdown);
@@ -135,7 +135,7 @@ public sealed class ResetNoticeLatchTests : IDisposable
             Assert.True(projected.IsLatchedSchedule);
             Assert.True(view.IsVisible);
             Assert.Equal("预计时间已到，等待额度恢复", view.Countdown);
-            Assert.Empty(view.LocalTime);
+            Assert.Equal("本地 2026-10-28 10:01", view.LocalTime);
             Assert.Equal(expired, projected.Schedule!.ScheduledFor);
             Assert.Null(tracker.ActiveUntil(time));
         }
@@ -500,7 +500,7 @@ public sealed class ResetNoticeLatchTests : IDisposable
                 var text = (System.Windows.Controls.TextBlock)window.FindName("ResetScheduleCountdown");
                 var detail = (System.Windows.Controls.TextBlock)window.FindName("ResetScheduleLocalTime");
                 Assert.Equal("约 3.0 小时后重置", text.Text);
-                Assert.Empty(detail.Text);
+                Assert.Equal("本地 " + time.AddHours(3).ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture), detail.Text);
                 var changed = original with { Schedule = null, LastUpdatedAt = time.AddMinutes(1) };
                 tracker.SetSchedule(changed, time.AddMinutes(1));
                 window.ApplyResetSchedule(changed, time.AddMinutes(1), TimeZoneInfo.Utc);
@@ -531,7 +531,7 @@ public sealed class ResetNoticeLatchTests : IDisposable
                 Assert.Equal(detected.AddSeconds(1).AddHours(1), until);
                 window.ApplyConfirmedReset(until);
                 window.RefreshResetSchedule(detected.AddSeconds(1), TimeZoneInfo.Utc);
-                Assert.Empty(text.Text);
+                Assert.Equal("额度已回升", text.Text);
                 Assert.False(window.IsVisible);
                 Assert.Equal(IntPtr.Zero, new System.Windows.Interop.WindowInteropHelper(window).Handle);
             }

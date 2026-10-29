@@ -22,6 +22,28 @@ public sealed class ExtensionMotionTests
     private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-10-24T18:30:00Z");
 
     [Theory]
+    [InlineData(42d, 26d, 42d)] [InlineData(26d, 42d, 42d)]
+    [InlineData(26d, 0d, 26d)] [InlineData(0d, 26d, 26d)] [InlineData(26d, 26d, 26d)]
+    public void Footer_budget_reserves_the_larger_actual_frame_or_target_during_status_resizing(double current, double target, double expected) => Sta(() =>
+    {
+        var owner = new QuotaCapsuleWindow("unshown-footer-frame-budget");
+        try
+        {
+            var type = typeof(QuotaCapsuleWindow);
+            type.GetMethod("RetargetResetExtension", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(owner, [target, false]);
+            // Supply a WPF property frame directly; no visible clock or native window is needed.
+            var heightProperty = (DependencyProperty)type.GetField("ResetExtensionHeightProperty", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+            owner.SetValue(heightProperty, current);
+            var reserve = typeof(OverlayCoordinator).GetMethod("FooterReservation", BindingFlags.Static | BindingFlags.NonPublic)!;
+            Assert.Equal(expected, (double)reserve.Invoke(null, [owner])!);
+            Assert.Equal(current, owner.ResetScheduleHeightForLayout);
+            Assert.Equal(target, owner.ResetScheduleTargetHeightForLayout);
+            Assert.False(owner.IsVisible); Assert.Equal(IntPtr.Zero, new WindowInteropHelper(owner).Handle);
+        }
+        finally { owner.Close(); }
+    });
+
+    [Theory]
     [InlineData(0d, 37d)] [InlineData(0d, 26d)] [InlineData(12.5d, 37d)]
     public void Expansion_uses_two_hundred_ms_monotone_ease_out_without_bounce(double from, double to) => Sta(() =>
     {
@@ -69,10 +91,10 @@ public sealed class ExtensionMotionTests
             if (!footerFirst) owner.ApplyResetSchedule(Fresh(), Now, TimeZoneInfo.Utc);
             Assert.Equal(37, owner.DotTopExtensionHeight);
             Assert.Equal(37, owner.DotTopExtensionTargetHeight);
-            Assert.Equal(26, owner.ResetScheduleHeightForLayout);
-            Assert.Equal(26, owner.ResetScheduleTargetHeightForLayout);
-            Assert.Equal(coreHeight + 63, owner.DesiredHeight);
-            Assert.Equal(coreReserved + 63, owner.ReservedHeight);
+            Assert.Equal(QuotaCapsuleWindow.ResetScheduleRowHeight, owner.ResetScheduleHeightForLayout);
+            Assert.Equal(QuotaCapsuleWindow.ResetScheduleRowHeight, owner.ResetScheduleTargetHeightForLayout);
+            Assert.Equal(coreHeight + 37 + QuotaCapsuleWindow.ResetScheduleRowHeight, owner.DesiredHeight);
+            Assert.Equal(coreReserved + 37 + QuotaCapsuleWindow.ResetScheduleRowHeight, owner.ReservedHeight);
             Assert.Equal(coreHeight, owner.CoreBodyDesiredHeight);
             Assert.Equal(coreReserved, owner.CoreBodyReservedHeight);
             Assert.Equal(tasks, list.Children.Cast<UIElement>());
@@ -114,7 +136,7 @@ public sealed class ExtensionMotionTests
             Assert.Equal(layoutCount, owner.ExtensionMotionLayoutCount);
             Assert.Equal(0, changes);
             Assert.Equal(37, owner.DotTopExtensionHeight);
-            Assert.Equal(26, owner.ResetScheduleHeightForLayout);
+            Assert.Equal(QuotaCapsuleWindow.ResetScheduleRowHeight, owner.ResetScheduleHeightForLayout);
         }
         finally { owner.Close(); }
     });
@@ -174,8 +196,8 @@ public sealed class ExtensionMotionTests
             Assert.Empty(Named<TextBlock>(owner, "ResetScheduleCountdown").Text);
             Assert.Empty(Named<TextBlock>(owner, "ResetScheduleLocalTime").Text);
             owner.ApplyResetSchedule(Fresh() with { LastUpdatedAt = Now.AddSeconds(1) }, Now.AddSeconds(1), TimeZoneInfo.Utc);
-            Assert.Equal(26, owner.ResetScheduleHeightForLayout);
-            Assert.Equal(26, owner.ResetScheduleTargetHeightForLayout);
+            Assert.Equal(QuotaCapsuleWindow.ResetScheduleRowHeight, owner.ResetScheduleHeightForLayout);
+            Assert.Equal(QuotaCapsuleWindow.ResetScheduleRowHeight, owner.ResetScheduleTargetHeightForLayout);
             Assert.Equal(Visibility.Visible, Named<Border>(owner, "ResetScheduleRow").Visibility);
         }
         finally { owner.Close(); }
@@ -198,7 +220,7 @@ public sealed class ExtensionMotionTests
             Assert.Same(notice, owner.DotTopContent);
             Assert.True(owner.DotTopExtensionVisible);
             Assert.Equal(37, owner.DotTopExtensionHeight);
-            Assert.Equal(26, owner.ResetScheduleHeightForLayout);
+            Assert.Equal(QuotaCapsuleWindow.ResetScheduleRowHeight, owner.ResetScheduleHeightForLayout);
             Assert.False(owner.TopExtensionAnimating);
             Assert.False(owner.ResetScheduleAnimating);
             Assert.Equal(layout, owner.ExtensionMotionLayoutCount);
@@ -232,8 +254,8 @@ public sealed class ExtensionMotionTests
             Assert.Equal(countdown, Named<TextBlock>(owner, "ResetScheduleCountdown").Text);
             Assert.Equal(localTime, Named<TextBlock>(owner, "ResetScheduleLocalTime").Text);
             owner.SetResetSchedulePresentationAllowed(true);
-            Assert.Equal(26, owner.ResetScheduleHeightForLayout);
-            Assert.Equal(26, owner.ResetScheduleTargetHeightForLayout);
+            Assert.Equal(QuotaCapsuleWindow.ResetScheduleRowHeight, owner.ResetScheduleHeightForLayout);
+            Assert.Equal(QuotaCapsuleWindow.ResetScheduleRowHeight, owner.ResetScheduleTargetHeightForLayout);
             Assert.False(owner.ResetScheduleAnimating); // unshown control still switches directly
             Assert.Same(snapshot, Field<ResetScheduleSnapshot>(owner, "resetSchedule"));
             Assert.Same(presentation, Field<object>(owner, "resetScheduleView"));
@@ -288,8 +310,8 @@ public sealed class ExtensionMotionTests
                 Assert.Equal(generation, owner.ExtensionMotionGeneration);
                 Assert.Equal(layout, owner.ExtensionMotionLayoutCount);
                 Assert.Equal(0, events);
-                Assert.Equal(allowed ? 26 : 0, owner.ResetScheduleHeightForLayout);
-                Assert.Equal(allowed ? 26 : 0, owner.ResetScheduleTargetHeightForLayout);
+                Assert.Equal(allowed ? QuotaCapsuleWindow.ResetScheduleRowHeight : 0, owner.ResetScheduleHeightForLayout);
+                Assert.Equal(allowed ? QuotaCapsuleWindow.ResetScheduleRowHeight : 0, owner.ResetScheduleTargetHeightForLayout);
             }
         }
         finally { owner.Close(); }
@@ -343,7 +365,7 @@ public sealed class ExtensionMotionTests
             Assert.Equal(core + snapshot.Top + snapshot.Footer, snapshot.Desired);
             Assert.Equal(snapshot.Desired, snapshot.Height);
         });
-        Assert.Contains(snapshots, snapshot => snapshot.Top == 37 && snapshot.Footer == 26);
+        Assert.Contains(snapshots, snapshot => snapshot.Top == 37 && snapshot.Footer == QuotaCapsuleWindow.ResetScheduleRowHeight);
         Assert.Equal(core, owner.Height);
         Assert.Equal(core, owner.DesiredHeight);
         Assert.False(owner.IsVisible);

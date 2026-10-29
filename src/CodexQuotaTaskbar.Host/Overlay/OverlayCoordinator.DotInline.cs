@@ -172,8 +172,15 @@ internal sealed partial class OverlayCoordinator
         double minimumTopHeightDip = 0)
     {
         var work = WorkAreaFor(owner); var scale = DpiFor(owner) / 96d;
+        return AvailableDotTopHeight(owner, work, scale, requestedTopHeightDip, minimumTopHeightDip);
+    }
+
+    private double AvailableDotTopHeight(QuotaCapsuleWindow owner, ScreenRect work, double scale,
+        double requestedTopHeightDip, double minimumTopHeightDip)
+    {
         var stack = !owner.IsUnifiedPanel && sessions.Sessions.Count > 0 ? Math.Max(0, ReservedSessionHeight(sessions.Sessions.Count) - 16) : 0;
-        var budget = Math.Max(0, (work.Height - 8) / scale - owner.CoreBodyReservedHeight - stack);
+        var budget = Math.Max(0, (work.Height - 8) / scale
+            - (owner.CoreBodyReservedHeight - owner.AppliedCompactResetExtraHeight) - stack);
         var previousOwner = prospectiveDotOwner; var previousHeight = prospectiveDotHeight;
         prospectiveDotOwner = owner;
         prospectiveDotHeight = budget >= minimumTopHeightDip ? Math.Min(requestedTopHeightDip, budget) : 0;
@@ -183,7 +190,7 @@ internal sealed partial class OverlayCoordinator
             // this prospective top reservation visible during that reentry;
             // otherwise the nested placement could immediately restore it.
             UpdateFooterAvailability(owner, work, scale, (int)Math.Round(stack * scale));
-            return Math.Max(0, budget - FooterReservation(owner) - 1);
+            return Math.Max(0, budget - FooterReservation(owner) - owner.AppliedCompactResetExtraHeight - 1);
         }
         finally { prospectiveDotOwner = previousOwner; prospectiveDotHeight = previousHeight; }
     }
@@ -195,16 +202,16 @@ internal sealed partial class OverlayCoordinator
         // current height; an opening top reserves its target before it moves.
         var top = Math.Max(ReferenceEquals(prospectiveDotOwner, owner) ? prospectiveDotHeight : 0,
             Math.Max(owner.DotTopExtensionHeight, owner.DotTopExtensionTargetHeight));
-        var available = (work.Height - 8 - trailingPixels) / scale - owner.CoreBodyDesiredHeight - top;
-        owner.SetResetSchedulePresentationAllowed(available >= QuotaCapsuleWindow.ResetScheduleRowHeight);
+        var available = (work.Height - 8 - trailingPixels) / scale
+            - (owner.CoreBodyDesiredHeight - owner.AppliedCompactResetExtraHeight) - top;
+        owner.SetResetScheduleAvailableHeight(available);
     }
 
     // A disappearing footer still occupies its full reservation until its
     // short outro completes. Otherwise a large white reply would be resized
     // on every footer frame rather than once at the final available height.
     private static double FooterReservation(QuotaCapsuleWindow owner) =>
-        owner.ResetScheduleHeightForLayout > 0 || owner.ResetScheduleTargetHeightForLayout > 0
-            ? QuotaCapsuleWindow.ResetScheduleRowHeight : 0;
+        Math.Max(owner.ResetScheduleHeightForLayout, owner.ResetScheduleTargetHeightForLayout);
 
     private void AttachInlineDot(QuotaCapsuleWindow owner)
     {

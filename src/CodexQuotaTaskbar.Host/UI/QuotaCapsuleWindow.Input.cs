@@ -62,7 +62,8 @@ public partial class QuotaCapsuleWindow
         return RegionAtPoint(point,
             DotTopExtensionVisible ? InputBounds(dotTopContent) : Rect.Empty,
             CompanionReady ? InputBounds(companion) : Rect.Empty, cat,
-            InputBounds(ResetScheduleRow), InputBounds(QuotaHeader), InputBounds(SessionToggle), InputBounds(classicResetSource));
+            InputBounds(CompactResetNotice.Visibility == Visibility.Visible ? CompactResetNotice : ResetScheduleRow),
+            InputBounds(QuotaHeader), InputBounds(SessionToggle), InputBounds(classicResetSource));
     }
 
     internal IslandHitRegion PreparePointerDown(Point point, MouseButton button)

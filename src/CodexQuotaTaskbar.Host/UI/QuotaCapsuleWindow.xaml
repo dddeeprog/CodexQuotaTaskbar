@@ -151,15 +151,19 @@
             </ScrollViewer>
           </Border>
         </Grid>
+        <StackPanel x:Name="CompactResetNotice" Height="28" Margin="16,24,16,0" Background="Transparent" VerticalAlignment="Top" Visibility="Collapsed" IsHitTestVisible="False">
+          <TextBlock x:Name="CompactResetCountdown" FontSize="9" LineHeight="14" LineStackingStrategy="BlockLineHeight" Foreground="#D8D8DC"/>
+          <TextBlock x:Name="CompactResetLocalTime" FontSize="9" LineHeight="14" LineStackingStrategy="BlockLineHeight" Foreground="#D8D8DC"/>
+        </StackPanel>
         <Grid x:Name="ResetScheduleReveal" Grid.Row="2" Height="0" VerticalAlignment="Top" Visibility="Collapsed">
-        <Border x:Name="ResetScheduleRow" Height="26" VerticalAlignment="Top" Margin="12,0,12,0" Background="Transparent" BorderBrush="Transparent" BorderThickness="0,1,0,0" Padding="4,0,4,8" Visibility="Collapsed">
+        <Border x:Name="ResetScheduleRow" Height="42" VerticalAlignment="Top" Margin="12,0,12,0" Background="Transparent" BorderBrush="Transparent" BorderThickness="0,1,0,0" Padding="4,0,4,8" Visibility="Collapsed">
           <Grid>
-            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-            <Border x:Name="ResetScheduleDivider" Grid.ColumnSpan="2" Height="1" VerticalAlignment="Top" Margin="-4,-1,-4,0" BorderBrush="#28FFFFFF" BorderThickness="0,1,0,0" IsHitTestVisible="False">
+            <Grid.RowDefinitions><RowDefinition Height="16"/><RowDefinition Height="16"/></Grid.RowDefinitions>
+            <Border x:Name="ResetScheduleDivider" Height="1" VerticalAlignment="Top" Margin="-4,-1,-4,0" BorderBrush="#28FFFFFF" BorderThickness="0,1,0,0" IsHitTestVisible="False">
               <Border.RenderTransform><TranslateTransform Y="-4"/></Border.RenderTransform>
             </Border>
-            <TextBlock x:Name="ResetScheduleCountdown" FontSize="10" Foreground="#D8D8DC" VerticalAlignment="Center" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
-            <TextBlock x:Name="ResetScheduleLocalTime" Grid.Column="1" FontSize="10" Foreground="#D8D8DC" VerticalAlignment="Center" TextWrapping="NoWrap"/>
+            <TextBlock x:Name="ResetScheduleCountdown" FontSize="10" Foreground="#D8D8DC" VerticalAlignment="Center" TextWrapping="NoWrap"/>
+            <TextBlock x:Name="ResetScheduleLocalTime" Grid.Row="1" FontSize="10" Foreground="#D8D8DC" VerticalAlignment="Center" TextWrapping="NoWrap"/>
           </Grid>
         </Border>
         </Grid>

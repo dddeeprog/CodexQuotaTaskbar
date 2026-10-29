@@ -103,7 +103,7 @@ public partial class QuotaCapsuleWindow : Window
     internal bool CaptureOccluded { get; set; }
     internal bool IsUnifiedPanel { get; }
     internal double LayoutWidth => IsUnifiedPanel ? WindowWidth : 306;
-    private double QuotaBaseHeight => IsUnifiedPanel ? WindowHeight : visibleQuotaRows > 1 ? 112 : 100;
+    private double QuotaBaseHeight => IsUnifiedPanel ? WindowHeight + AppliedCompactResetExtraHeight : visibleQuotaRows > 1 ? 112 : 100;
     internal double LayoutBaseHeight => QuotaBaseHeight + BongoStageHeight;
     internal event Action<Uri>? OpenResetSourceRequested;
     internal void SetMaterialTransparency(int value)
