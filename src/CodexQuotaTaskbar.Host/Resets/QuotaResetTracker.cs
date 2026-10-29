@@ -53,12 +53,14 @@ internal sealed class QuotaResetTracker
         lock (gate)
         {
             usesLatchedSchedule = true;
-            noticeLatch.Update(value, now);
+            noticeLatch.Update(WithoutConsumedNotice(value), now);
             currentNotice = NoticeId(noticeLatch.LockedNotice);
         }
     }
     internal ResetScheduleSnapshot ProjectSchedule(ResetScheduleSnapshot value, DateTimeOffset now)
-    { lock (gate) return usesLatchedSchedule ? noticeLatch.Project(now) : value; }
+    { lock (gate) return usesLatchedSchedule ? WithoutConsumedNotice(noticeLatch.Project(now)) : value; }
+    private ResetScheduleSnapshot WithoutConsumedNotice(ResetScheduleSnapshot value) =>
+        IsNoticeConsumed(value.Schedule) ? value with { Schedule = null, IsLatchedSchedule = false, IsTimingUnknown = false } : value;
     internal bool IsNoticeConsumed(ResetSchedule? schedule)
     {
         lock (gate) return NoticeId(schedule) is { } id
@@ -67,7 +69,10 @@ internal sealed class QuotaResetTracker
             && (consumedNotices.Any(item => item.NoticeId == id)
                 // Late delivery (including after expiry/restart) does not resurrect a
                 // notice that was already published at the accepted recovery time.
-                || confirmations.Any(item => schedule!.AnnouncedAt <= item.OccurredAt));
+                || confirmations.Any(item => schedule!.AnnouncedAt <= item.OccurredAt)
+                // Later recoveries within the fixed green episode consume publications
+                // without another confirmation (which would incorrectly renew green).
+                || consumedNotices.Any(item => schedule!.AnnouncedAt <= item.ConsumedAt));
     }
 
     internal DateTimeOffset? Observe(QuotaSnapshot sample, string? scope, DateTimeOffset now)

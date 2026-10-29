@@ -50,6 +50,7 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        var generation = Interlocked.Read(ref accountGeneration);
         try
         {
             await client.StartAsync(cancellationToken);
@@ -59,7 +60,7 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
         }
         catch (Exception exception) when (exception is InvalidOperationException or IOException or System.ComponentModel.Win32Exception or TimeoutException)
         {
-            Set(QuotaSnapshot.Unavailable("未找到可用的 Codex App Server"));
+            SetForGeneration(QuotaSnapshot.Unavailable("未找到可用的 Codex App Server"), generation);
         }
 
         sessionsStarted = true;
@@ -75,9 +76,9 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
         }
 
         await refreshLock.WaitAsync(cancellationToken);
+        var generation = Interlocked.Read(ref accountGeneration);
         try
         {
-            var generation = Interlocked.Read(ref accountGeneration);
             var connection = client.InitializedConnectionId;
             var accountResult = await client.RequestAsync("account/read", new { refreshToken = false }, cancellationToken);
             if (!TryValidateChatGptAccount(accountResult, out var accountMessage, out var subscriptionPlan))
@@ -88,20 +89,24 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
                     {
                         resetTracker.InvalidateSample(accountChanged: true);
                         PublishResetConfirmation(null);
+                        SetForGeneration(QuotaSnapshot.Unavailable(accountMessage), generation);
                     }
                 }
-                Set(QuotaSnapshot.Unavailable(accountMessage));
                 return;
             }
 
             var nextContext = AccountContext(accountResult);
-            if (nextContext != quotaAccountContext)
+            lock (resetGate)
             {
-                quotaAccountContext = nextContext;
-                quotaScope = null;
-                resetTracker.InvalidateSample(accountChanged: true);
-                PublishResetConfirmation(null);
-                Set(QuotaSnapshot.Unavailable("账号已变化，正在刷新…"));
+                if (generation != Interlocked.Read(ref accountGeneration)) return;
+                if (nextContext != quotaAccountContext)
+                {
+                    quotaAccountContext = nextContext;
+                    quotaScope = null;
+                    resetTracker.InvalidateSample(accountChanged: true);
+                    PublishResetConfirmation(null);
+                    SetForGeneration(QuotaSnapshot.Unavailable("账号已变化，正在刷新…"), generation);
+                }
             }
             var result = await client.RequestAsync("account/rateLimits/read", new { }, cancellationToken);
             var capturedAt = DateTimeOffset.Now;
@@ -117,10 +122,14 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
                 connection, client.InitializedConnectionId, generation, Interlocked.Read(ref accountGeneration));
             if (!IsStableAccountContext(accountResult, accountAfter))
             {
-                quotaScope = null;
-                resetTracker.InvalidateSample(accountChanged: true);
-                PublishResetConfirmation(null);
-                Set(QuotaSnapshot.Unavailable("账号上下文发生变化，等待重新读取…"));
+                lock (resetGate)
+                {
+                    if (generation != Interlocked.Read(ref accountGeneration)) return;
+                    quotaScope = null;
+                    resetTracker.InvalidateSample(accountChanged: true);
+                    PublishResetConfirmation(null);
+                    SetForGeneration(QuotaSnapshot.Unavailable("账号上下文发生变化，等待重新读取…"), generation);
+                }
                 return;
             }
             if (scope != quotaScope)
@@ -131,7 +140,7 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
                     quotaScope = scope;
                     resetTracker.InvalidateSample(accountChanged: true);
                     PublishResetConfirmation(null);
-                    Set(QuotaSnapshot.Unavailable("额度来源已变化，正在刷新…"));
+                    SetForGeneration(QuotaSnapshot.Unavailable("额度来源已变化，正在刷新…"), generation);
                 }
             }
             var baseSnapshot = AppServerRateLimitsParser.Parse(result.GetRawText(), capturedAt, subscriptionPlan);
@@ -170,13 +179,17 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
         }
         catch (OperationCanceledException)
         {
-            resetTracker.InvalidateSample();
+            lock (resetGate)
+                if (generation == Interlocked.Read(ref accountGeneration)) resetTracker.InvalidateSample();
             throw;
         }
         catch (Exception exception) when (exception is InvalidOperationException or IOException or TimeoutException or AppServerProtocolException or JsonException)
         {
-            resetTracker.InvalidateSample(); // An interruption breaks evidence continuity, not an already fixed expiry.
-            Set(quotaScope is not null && Current.Windows.Count > 0 && Current.CapturedAt is { } captured
+            lock (resetGate)
+            {
+                if (generation != Interlocked.Read(ref accountGeneration)) return;
+                resetTracker.InvalidateSample(); // Break continuity, preserving an already fixed expiry.
+                SetForGeneration(quotaScope is not null && Current.Windows.Count > 0 && Current.CapturedAt is { } captured
                 ? QuotaSnapshot.Stale(
                     Current.Windows,
                     captured,
@@ -184,7 +197,8 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
                     Current.SubscriptionPlan,
                     Current.SubscriptionExpiration,
                     Current.ExtraCredits) with { UnresolvedWindows = Current.UnresolvedWindows }
-                : QuotaSnapshot.Unavailable("暂时无法读取 Codex 额度"));
+                : QuotaSnapshot.Unavailable("暂时无法读取 Codex 额度"), generation);
+            }
         }
         finally
         {
@@ -273,14 +287,14 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
     {
         if (method is "account/updated" or "account/login/completed")
         {
-            quotaScope = null;
             lock (resetGate)
             {
+                quotaScope = null;
                 Interlocked.Increment(ref accountGeneration);
                 resetTracker.InvalidateSample(accountChanged: true);
                 PublishResetConfirmation(null);
+                Set(QuotaSnapshot.Unavailable("账号已变化，正在刷新…"));
             }
-            Set(QuotaSnapshot.Unavailable("账号已变化，正在刷新…"));
         }
 
         if (method is "account/updated" or "account/login/completed" or "account/rateLimits/updated")
@@ -291,9 +305,9 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
 
     private void OnConnectionLost()
     {
-        quotaScope = null;
         lock (resetGate)
         {
+            quotaScope = null;
             Interlocked.Increment(ref accountGeneration);
             resetTracker.InvalidateSample(accountChanged: true);
             PublishResetConfirmation(null);
@@ -330,10 +344,10 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
         await refreshLock.WaitAsync(cancellationToken);
         try
         {
-            var next = RemoveBrowserSubscriptionMetadata(Current, Volatile.Read(ref subscriptionDetailsEnabled) != 0);
-            if (!ReferenceEquals(next, Current))
+            lock (resetGate)
             {
-                Set(next);
+                var next = RemoveBrowserSubscriptionMetadata(Current, Volatile.Read(ref subscriptionDetailsEnabled) != 0);
+                if (!ReferenceEquals(next, Current)) Set(next);
             }
         }
         finally

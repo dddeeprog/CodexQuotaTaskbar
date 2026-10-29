@@ -389,6 +389,146 @@ public sealed class QuotaResetTrackerTests : IDisposable
         await provider.RefreshAsync(CancellationToken.None); Assert.Null(green); // New scope's first sample is baseline only.
     }
 
+    [Theory]
+    [MemberData(nameof(LateRefreshCases))]
+    public async Task Late_old_refresh_cannot_replace_auth_notification_and_new_account_rebuilds_baseline(string outcome, int stage)
+    {
+        var tracker = new QuotaResetTracker();
+        await using var provider = new CodexRateLimitProvider(false, resetTracker: tracker);
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        var client = (CodexAppServerClient)typeof(CodexRateLimitProvider).GetField("client", flags)!.GetValue(provider)!;
+        var dispatch = typeof(CodexAppServerClient).GetMethod("Dispatch", flags)!;
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var blocked = false;
+        var late = false;
+        var requestOrdinal = 0;
+        var used = 80d;
+        var account = Account;
+        void Reply(JsonElement request, string result)
+        {
+            using var response = JsonDocument.Parse($"{{\"id\":{request.GetProperty("id").GetInt64()},\"result\":{result}}}");
+            dispatch.Invoke(client, [response.RootElement]);
+        }
+        var writer = new AsyncRpcWriter(async request =>
+        {
+            if (blocked && !late && ++requestOrdinal == stage)
+            {
+                late = true;
+                entered.SetResult();
+                await release.Task;
+                switch (outcome)
+                {
+                    case "io": throw new IOException("fixture");
+                    case "timeout": throw new TimeoutException("fixture");
+                    case "protocol": throw new AppServerProtocolException("fixture");
+                    case "json": throw new JsonException("fixture");
+                    case "cancel": throw new OperationCanceledException("fixture");
+                }
+                Reply(request, outcome == "invalid" ? "{}"
+                    : outcome == "changed-context" ? Account.Replace("fixture@", "late@")
+                    : request.GetProperty("method").GetString() == "account/read" ? Account : Limits(70));
+                return;
+            }
+            Reply(request, request.GetProperty("method").GetString() == "account/read" ? account : Limits(used));
+        });
+        typeof(CodexAppServerClient).GetField("input", flags)!.SetValue(client, writer);
+        typeof(CodexAppServerClient).GetField("initializedConnectionId", flags)!.SetValue(client, Connection);
+        typeof(CodexRateLimitProvider).GetField("started", flags)!.SetValue(provider, true);
+        DateTimeOffset? green = null;
+        provider.ResetConfirmationChanged += value => green = value;
+        await provider.RefreshAsync(CancellationToken.None);
+        blocked = true;
+        var oldRefresh = provider.RefreshAsync(CancellationToken.None);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        // Cancel only the delayed automatic refresh; all manual fixture refreshes remain usable.
+        ((CancellationTokenSource)typeof(CodexRateLimitProvider).GetField("lifetime", flags)!.GetValue(provider)!).Cancel();
+        typeof(CodexRateLimitProvider).GetMethod("OnNotification", flags)!.Invoke(provider, [null, "account/updated"]);
+        var switched = provider.Current;
+        account = Account.Replace("fixture@", "other@");
+        release.SetResult();
+        if (outcome == "cancel") await Assert.ThrowsAsync<OperationCanceledException>(() => oldRefresh);
+        else await oldRefresh;
+        Assert.Same(switched, provider.Current);
+        Assert.Null(green);
+        used = 50;
+        await provider.RefreshAsync(CancellationToken.None);
+        Assert.Equal(QuotaAvailability.Available, provider.Current.Availability);
+        Assert.Null(green); // Real refreshLock means B starts only after A has finished.
+        used = 49;
+        await provider.RefreshAsync(CancellationToken.None);
+        Assert.NotNull(green);
+        Assert.Null(typeof(CodexAppServerClient).GetField("process", flags)!.GetValue(client));
+    }
+
+    public static IEnumerable<object[]> LateRefreshCases =>
+        from stage in new[] { 1, 2, 3 }
+        from outcome in new[] { "invalid", "changed-context", "io", "timeout", "protocol", "json", "cancel", "success" }
+        select new object[] { outcome, stage };
+
+    private sealed class AsyncRpcWriter(Func<JsonElement, Task> reply) : StreamWriter(Stream.Null)
+    {
+        public override Task WriteLineAsync(ReadOnlyMemory<char> buffer, CancellationToken cancellationToken = default)
+        {
+            using var request = JsonDocument.Parse(buffer.ToString());
+            return reply(request.RootElement.Clone());
+        }
+    }
+
+    [Theory]
+    [InlineData("same")]
+    [InlineData("other-scope")]
+    [InlineData("late-id")]
+    [InlineData("due-drift")]
+    public void Modern_schedule_revalidation_after_context_restart_cannot_resurrect_consumed_notice(string scenario)
+    {
+        var store = new ResetConfirmationStore(StorePath);
+        var tracker = new QuotaResetTracker(store);
+        tracker.Observe(Sample(Now, 20), Scope, Now);
+        tracker.SetSchedule(new(Notice(), Now, false, null), Now);
+        Assert.True(tracker.ProjectSchedule(ResetScheduleSnapshot.Loading, Now).IsLatchedSchedule);
+        Assert.Equal(Now.AddMinutes(61), tracker.Observe(Sample(Now.AddMinutes(1), 21), Scope, Now.AddMinutes(1)));
+        Assert.True(tracker.IsNoticeConsumed(Notice()));
+        var restored = new QuotaResetTracker(store);
+        var time = Now.AddMinutes(5);
+        var scope = scenario == "other-scope" ? QuotaResetTracker.ScopeForSource("OTHER")! : Scope;
+        Assert.Null(restored.ActiveUntil(time));
+        Assert.Null(restored.ProjectSchedule(ResetScheduleSnapshot.Loading, time).Schedule);
+        Assert.Equal(scenario == "other-scope" ? (DateTimeOffset?)null : Now.AddMinutes(61),
+            restored.Observe(Sample(time, 40), scope, time));
+        var old = scenario == "late-id" ? Notice("late-old") : Notice();
+        if (scenario == "due-drift") old = old with { ScheduledFor = Now.AddHours(5), AnnouncedAt = Now.AddMinutes(2) };
+        restored.SetSchedule(new(old, time, false, null), time);
+        var projected = restored.ProjectSchedule(ResetScheduleSnapshot.Loading, Now.AddMinutes(62));
+        Assert.Null(projected.Schedule);
+        Assert.False(projected.IsTimingUnknown);
+        Assert.False(projected.IsLatchedSchedule);
+        var fresh = Notice("new-publication") with { AnnouncedAt = Now.AddMinutes(63) };
+        var freshTime = Now.AddMinutes(64);
+        restored.SetSchedule(new(fresh, freshTime, false, null), freshTime);
+        Assert.Equal("new-publication", restored.ProjectSchedule(ResetScheduleSnapshot.Loading, freshTime).Schedule?.Id);
+        Assert.True(restored.ProjectSchedule(ResetScheduleSnapshot.Loading, freshTime).IsLatchedSchedule);
+    }
+
+    [Fact]
+    public void Modern_second_recovery_consumption_survives_restart_without_extending_first_green()
+    {
+        var store = new ResetConfirmationStore(StorePath);
+        var tracker = new QuotaResetTracker(store);
+        tracker.Observe(Sample(Now, 20), Scope, Now);
+        tracker.SetSchedule(new(Notice(), Now, false, null), Now);
+        tracker.Observe(Sample(Now.AddMinutes(1), 21), Scope, Now.AddMinutes(1));
+        var later = Notice("later") with { AnnouncedAt = Now.AddMinutes(3) };
+        tracker.SetSchedule(new(later, Now.AddMinutes(4), false, null), Now.AddMinutes(4));
+        Assert.Equal(Now.AddMinutes(61), tracker.Observe(Sample(Now.AddMinutes(5), 22), Scope, Now.AddMinutes(5)));
+        var restored = new QuotaResetTracker(store);
+        var time = Now.AddMinutes(62);
+        restored.Observe(Sample(time, 20), Scope, time);
+        restored.SetSchedule(new(later with { Id = "late-churn" }, time, false, null), time);
+        Assert.Null(restored.ProjectSchedule(ResetScheduleSnapshot.Loading, time).Schedule);
+        Assert.Single(store.Load());
+    }
+
     private static string Limits(double used, bool responseId = false, double unknownUsed = 42, bool nullableUnknown = false) => JsonSerializer.Serialize(new
     {
         accountId = responseId ? "fixture-account-A" : null,
