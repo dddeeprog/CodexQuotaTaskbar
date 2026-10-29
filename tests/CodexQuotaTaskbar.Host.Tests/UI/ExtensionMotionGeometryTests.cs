@@ -14,7 +14,7 @@ public sealed class ExtensionMotionGeometryTests
         var work = new ScreenRect(-2400, -1200, 0, 1200);
         var core = new ScreenRect(-1800, -400, -1800 + Pixels(280, scale), -400 + Pixels(319, scale));
         foreach (var top in new[] { 0d, 2d, 18.5d, 36d, 37d })
-        foreach (var footer in new[] { 0d, 1d, 13d, 25d, 26d })
+        foreach (var footer in new[] { 0d, 1d, 13d, 25d, 26d, 41d, 42d })
         {
             var topPixels = Pixels(top, scale);
             var footerPixels = Pixels(footer, scale);
@@ -124,4 +124,31 @@ public sealed class ExtensionMotionGeometryTests
     }
 
     private static int Pixels(double dip, double scale) => (int)Math.Round(dip * scale);
+
+    [Theory]
+    [InlineData(96)] [InlineData(120)] [InlineData(144)] [InlineData(192)]
+    public void Gold_and_status_repeat_at_negative_top_and_bottom_edges_without_accumulating_translation(int dpi)
+    {
+        var scale = dpi / 96d;
+        var work = new ScreenRect(-3200, -1800, -800, 600);
+        var coreHeight = Pixels(319, scale);
+        foreach (var atBottom in new[] { false, true })
+        {
+            var core = new ScreenRect(-2600, atBottom ? work.Bottom - coreHeight - Pixels(8, scale) : work.Top + Pixels(8, scale),
+                -2600 + Pixels(280, scale), atBottom ? work.Bottom - Pixels(8, scale) : work.Top + Pixels(8, scale) + coreHeight);
+            foreach (var footerDip in new[] { 42d, 26d, 26d, 42d, 26d, 42d, 0d })
+            {
+                var top = Pixels(37, scale); var footer = Pixels(footerDip, scale);
+                var result = OverlayCoordinator.CalculateExtensionBounds(work, core, top, footer);
+                Assert.Equal(core.Height + top + footer, result.Height);
+                Assert.Equal(core.Width, result.Width);
+                Assert.InRange(result.Top, work.Top, work.Bottom);
+                Assert.InRange(result.Bottom, work.Top, work.Bottom);
+                if (atBottom) Assert.Equal(footer == 0 ? core.Bottom : work.Bottom, result.Bottom);
+                else Assert.Equal(work.Top, result.Top);
+                Assert.Equal(result, OverlayCoordinator.CalculateExtensionBounds(work, core, top, footer));
+            }
+            Assert.Equal(core, OverlayCoordinator.CalculateExtensionBounds(work, core, 0, 0));
+        }
+    }
 }

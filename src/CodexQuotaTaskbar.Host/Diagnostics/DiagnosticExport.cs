@@ -32,6 +32,13 @@ internal sealed class DiagnosticExportRequest
 
 internal static class DiagnosticExport
 {
+    internal static async Task WriteLatestAsync(string directory, string path, CompanionDiagnostics? companion = null)
+    {
+        if (!await (companion ?? CompanionDiagnostics.Local).FlushAsync().ConfigureAwait(false))
+            throw new IOException("The latest diagnostic snapshot is unavailable.");
+        await WriteAsync(directory, path).ConfigureAwait(false);
+    }
+
     internal static Task WriteAsync(string directory, string path) => WriteAsync(directory, path, (stream, bytes) => stream.Write(bytes));
     internal static Task WriteAsync(string directory, string path, Action<Stream, byte[]> write) => Task.Run(() =>
     {

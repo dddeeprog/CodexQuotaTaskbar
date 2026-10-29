@@ -18,13 +18,22 @@ internal sealed class CompanionDiagnostics
             ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "CodexQuotaTaskbar", "Diagnostics", $"companion-{Environment.ProcessId}.json") : null);
     internal static CompanionDiagnostics Local => Volatile.Read(ref local);
-    internal static void ConfigureDemo(string? path) => Interlocked.Exchange(ref local, new CompanionDiagnostics(path));
+    internal static void ConfigureDemo(string? path)
+    {
+        var previous = Interlocked.Exchange(ref local, new CompanionDiagnostics(path));
+        _ = previous.FlushAsync().GetAwaiter().GetResult();
+    }
     private readonly string? path;
     private readonly int capacity;
     private readonly object gate = new();
     private readonly Queue<CompanionDiagnosticEntry> entries = new();
     private readonly Dictionary<(int Control, string Kind), Identity> last = new();
     private long sequence;
+    private long persistedSequence;
+    private long snapshotWrites;
+    private long snapshotWriteAttempts;
+    private Task? writer;
+    private TaskCompletionSource? wake;
 
     internal CompanionDiagnostics(string? path = null, int capacity = 192)
     {
@@ -55,15 +64,64 @@ internal sealed class CompanionDiagnostics
                 Environment.ProcessId, controlId, kind, requestedId, effectiveId, selection.Cycle, selection.Position,
                 selection.Draw, selection.SelectedAtUtc, selection.Reason, selection.Preview, visible, reduced, gaze));
             while (entries.Count > capacity) entries.Dequeue();
-            WriteSnapshot();
+            StartWriter();
             return true;
         }
     }
 
-    private void WriteSnapshot()
+    // A disposed control can never produce another event; keep live controls' independent dedup intact.
+    internal void ReleaseControl(int controlId)
     {
-        if (path is null) return;
-        Diagnostics.DiagnosticLogStore.WriteSnapshot(path, JsonSerializer.Serialize(new { Schema = 1, Pid = Environment.ProcessId, Entries = entries }));
+        lock (gate) { last.Remove((controlId, "selected")); last.Remove((controlId, "presented")); }
+    }
+
+    private void StartWriter()
+    {
+        if (path is null || writer is not null) return;
+        wake = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        writer = Task.Run(WritePendingAsync);
+    }
+
+    // One bounded snapshot and one worker per producer; neither serialization nor disk IO holds gate.
+    private async Task WritePendingAsync()
+    {
+        while (true)
+        {
+            Task expedite;
+            lock (gate) expedite = wake!.Task;
+            await Task.WhenAny(Task.Delay(200), expedite).ConfigureAwait(false);
+            CompanionDiagnosticEntry[] snapshot;
+            long captured;
+            lock (gate) { snapshot = entries.ToArray(); captured = sequence; }
+            var success = Diagnostics.DiagnosticLogStore.WriteSnapshot(path!,
+                JsonSerializer.Serialize(new { Schema = 1, Pid = Environment.ProcessId, Entries = snapshot }));
+            lock (gate)
+            {
+                snapshotWriteAttempts++;
+                if (success) { persistedSequence = captured; snapshotWrites++; }
+                if (sequence == captured) { writer = null; wake = null; return; }
+                wake = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            }
+        }
+    }
+
+    // Flush is explicit export/exit work, with no Dispatcher dependency and a bounded wait.
+    // A refused write is observable and can be retried without losing the in-memory final event.
+    internal async Task<bool> FlushAsync()
+    {
+        Task pending;
+        long target;
+        lock (gate)
+        {
+            target = sequence;
+            if (path is null || persistedSequence >= target) return true;
+            StartWriter();
+            pending = writer!;
+            wake!.TrySetResult();
+        }
+        try { await pending.WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false); }
+        catch (TimeoutException) { return false; }
+        lock (gate) return persistedSequence >= target;
     }
 
     private readonly record struct Identity(string Requested, string Effective, long Cycle, int Position, long Draw,

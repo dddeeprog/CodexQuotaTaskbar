@@ -231,6 +231,7 @@ internal sealed class CompanionBallControl : Grid, IDisposable
         if (disposed) return;
         SetResetHintHovered(false);
         disposed = true;
+        diagnostics.ReleaseControl(diagnosticControlId);
         ResetHintHoverChanged = null;
         resetState = ResetVisualState.None;
         timer.Stop();

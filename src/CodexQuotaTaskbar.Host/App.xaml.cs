@@ -648,6 +648,7 @@ public partial class App : System.Windows.Application
         singleInstance?.ReleaseMutex();
         singleInstance?.Dispose();
         WriteDemoShutdownStage("mutex-released");
+        _ = await CompanionDiagnostics.Local.FlushAsync();
         cleanupCompleted = true;
         WriteDemoShutdownStage("shutdown-call");
         Shutdown();
@@ -677,6 +678,7 @@ public partial class App : System.Windows.Application
             DisposeWebShortcuts();
             singleInstance?.Dispose();
         }
+        _ = CompanionDiagnostics.Local.FlushAsync().GetAwaiter().GetResult();
         lifetime.Dispose();
         WriteDemoShutdownStage("onexit-end");
         base.OnExit(eventArgs);

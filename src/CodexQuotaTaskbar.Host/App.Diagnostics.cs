@@ -14,7 +14,7 @@ public partial class App
             var dialog = new SaveFileDialog { Title = "导出故障信息", FileName = "点岛故障信息.json",
                 Filter = "脱敏故障信息 (*.json)|*.json", DefaultExt = ".json", AddExtension = true, OverwritePrompt = true };
             return dialog.ShowDialog() == true ? dialog.FileName : null;
-        }, path => DiagnosticExport.WriteAsync(DiagnosticLogStore.DefaultDirectory, path));
+        }, path => DiagnosticExport.WriteLatestAsync(DiagnosticLogStore.DefaultDirectory, path));
         var result = await diagnosticExport.RunAsync();
         if (result == DiagnosticExportResult.Succeeded)
             System.Windows.MessageBox.Show("故障信息已导出到你选择的位置。内容已按白名单脱敏，请检查后再分享。", "点岛", MessageBoxButton.OK, MessageBoxImage.Information);

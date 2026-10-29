@@ -5,8 +5,127 @@ using CodexQuotaTaskbar.Host.UI;
 namespace CodexQuotaTaskbar.Host.Tests.UI;
 
 // Pure local selection/engine/diagnostic state. Never construct a UI, run the app or inspect an account.
-public sealed class CompanionDiagnosticsTests
+public sealed class CompanionDiagnosticsTests : IAsyncLifetime
 {
+    private readonly List<string> directories = new();
+    private readonly List<CompanionDiagnostics> producers = new();
+    public Task InitializeAsync() => Task.CompletedTask;
+    public async Task DisposeAsync()
+    {
+        foreach (var producer in producers) _ = await producer.FlushAsync();
+        var root = Path.GetFullPath(Path.Combine(CodexQuotaTaskbar.Host.Tests.TestSupport.RepositoryPaths.Root, "artifacts/reliability/perf/fixtures")) + Path.DirectorySeparatorChar;
+        foreach (var directory in directories)
+        {
+            Assert.StartsWith(root, Path.GetFullPath(directory), StringComparison.OrdinalIgnoreCase);
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+    private CompanionDiagnostics CreateDiagnostics(string? path = null, int capacity = 192)
+    {
+        var diagnostics = new CompanionDiagnostics(path, capacity);
+        producers.Add(diagnostics);
+        return diagnostics;
+    }
+
+    [Fact]
+    public async Task Explicit_export_flushes_the_latest_event_and_refuses_stale_disk_when_flush_fails()
+    {
+        var path = PerfPath("latest-export");
+        var diagnostics = CreateDiagnostics(path);
+        var destination = Path.Combine(Path.GetDirectoryName(path)!, "export.json");
+        Assert.True(Observe(diagnostics, Frame()));
+        var latest = typeof(CodexQuotaTaskbar.Host.Diagnostics.DiagnosticExport).GetMethod("WriteLatestAsync", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+        Assert.NotNull(latest);
+        await Assert.IsAssignableFrom<Task>(latest.Invoke(null, [Path.GetDirectoryName(path)!, destination, diagnostics]));
+        using (var json = JsonDocument.Parse(File.ReadAllText(destination)))
+            Assert.Equal(1L, json.RootElement.GetProperty("Logs")[0].GetProperty("Entries")[0].GetProperty("Draw").GetInt64());
+        var originalExport = File.ReadAllText(destination);
+        using (var locked = new FileStream(Path.Combine(Path.GetDirectoryName(path)!, ".diagnostics.lock"), FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+        {
+            Assert.True(Observe(diagnostics, Frame() with { Draw = 2 }));
+            await Assert.ThrowsAsync<IOException>(() => Assert.IsAssignableFrom<Task>(latest.Invoke(null, [Path.GetDirectoryName(path)!, destination, diagnostics])));
+            Assert.Equal(originalExport, File.ReadAllText(destination));
+        }
+        await Assert.IsAssignableFrom<Task>(latest.Invoke(null, [Path.GetDirectoryName(path)!, destination, diagnostics]));
+        using var updated = JsonDocument.Parse(File.ReadAllText(destination));
+        Assert.Equal(2L, updated.RootElement.GetProperty("Logs")[0].GetProperty("Entries")[1].GetProperty("Draw").GetInt64());
+    }
+    [Fact]
+    public async Task Coalesced_flush_persists_the_latest_complete_burst_and_independent_kinds()
+    {
+        var path = PerfPath("coalesced");
+        var diagnostics = CreateDiagnostics(path);
+        for (var i = 0; i < 600; i++)
+            Assert.True(Observe(diagnostics, Frame() with { Draw = i + 1 }, kind: i % 2 == 0 ? "selected" : "presented"));
+        Assert.All(await Task.WhenAll(Enumerable.Range(0, 12).Select(_ => Flush(diagnostics))), Assert.True);
+        using var json = JsonDocument.Parse(File.ReadAllText(path));
+        var disk = json.RootElement.GetProperty("Entries").EnumerateArray().ToArray();
+        Assert.Equal(192, disk.Length);
+        Assert.Equal(409L, disk[0].GetProperty("Sequence").GetInt64());
+        Assert.Equal(600L, disk[^1].GetProperty("Sequence").GetInt64());
+        Assert.Equal(diagnostics.Entries.Select(e => e.Kind), disk.Select(e => e.GetProperty("Kind").GetString()));
+        Assert.Equal(diagnostics.Entries.Select(e => e.Draw), disk.Select(e => e.GetProperty("Draw").GetInt64()));
+        var writes = (long)typeof(CompanionDiagnostics).GetField("snapshotWrites", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(diagnostics)!;
+        Assert.InRange(writes, 1L, 599L);
+    }
+
+    [Fact]
+    public async Task Failed_flush_reports_failure_keeps_memory_and_can_retry_the_latest_snapshot()
+    {
+        var path = PerfPath("retry");
+        var diagnostics = CreateDiagnostics(path);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        using (var locked = new FileStream(Path.Combine(Path.GetDirectoryName(path)!, ".diagnostics.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
+        {
+            Assert.True(Observe(diagnostics, Frame()));
+            Assert.False(await Flush(diagnostics));
+            Assert.Single(diagnostics.Entries);
+            Assert.False(File.Exists(path));
+            Assert.True(Observe(diagnostics, Frame() with { Draw = 2 }));
+            Assert.False(await Flush(diagnostics));
+        }
+        Assert.True(await Flush(diagnostics));
+        using var json = JsonDocument.Parse(File.ReadAllText(path));
+        Assert.Equal(2L, json.RootElement.GetProperty("Entries")[1].GetProperty("Draw").GetInt64());
+    }
+
+    [Fact]
+    public void Releasing_a_rebuilt_control_preserves_other_live_controls_and_kinds_deduplication()
+    {
+        var diagnostics = CreateDiagnostics();
+        Assert.True(Observe(diagnostics, Frame(), control: 1));
+        Assert.True(Observe(diagnostics, Frame(), control: 1, kind: "presented"));
+        Assert.True(Observe(diagnostics, Frame(), control: 2));
+        var release = typeof(CompanionDiagnostics).GetMethod("ReleaseControl", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        Assert.NotNull(release);
+        for (var control = 3; control < 2003; control++)
+        {
+            Assert.True(Observe(diagnostics, Frame(), control: control));
+            release.Invoke(diagnostics, [control]);
+        }
+        Assert.False(Observe(diagnostics, Frame(), control: 1));
+        Assert.False(Observe(diagnostics, Frame(), control: 1, kind: "presented"));
+        Assert.False(Observe(diagnostics, Frame(), control: 2));
+        release.Invoke(diagnostics, [1]);
+        Assert.True(Observe(diagnostics, Frame(), control: 1));
+        Assert.True(Observe(diagnostics, Frame(), control: 1, kind: "presented"));
+        Assert.False(Observe(diagnostics, Frame(), control: 2));
+        Assert.Equal(192, diagnostics.Entries.Count);
+    }
+
+    private static async Task<bool> Flush(CompanionDiagnostics diagnostics)
+    {
+        var method = typeof(CompanionDiagnostics).GetMethod("FlushAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        Assert.NotNull(method);
+        return await Assert.IsAssignableFrom<Task<bool>>(method.Invoke(diagnostics, null));
+    }
+    private string PerfPath(string scenario)
+    {
+        var directory = Path.Combine(CodexQuotaTaskbar.Host.Tests.TestSupport.RepositoryPaths.Root, "artifacts/reliability/perf/fixtures", scenario + "-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        directories.Add(directory);
+        return Path.Combine(directory, "companion-1.json");
+    }
     private static readonly DateTimeOffset Start = DateTimeOffset.Parse("2026-10-23T00:00:00Z");
 
     [Fact]
@@ -19,7 +138,7 @@ public sealed class CompanionDiagnosticsTests
         Assert.Equal(1, frame.Draw);
         Assert.Equal(Start, frame.SelectedAtUtc);
         Assert.Equal("initial", frame.Reason);
-        var diagnostics = new CompanionDiagnostics();
+        var diagnostics = CreateDiagnostics();
         var before = DateTimeOffset.UtcNow;
         var gaze = new CompanionGazeSample(4, -3, 2, -1, true);
         Assert.True(Observe(diagnostics, frame, gaze: gaze));
@@ -44,7 +163,7 @@ public sealed class CompanionDiagnosticsTests
     public void Actual_director_draws_record_two_complete_32_item_cycles_and_the_next_boundary()
     {
         var director = new CompanionEmotionDirector(Start, 42);
-        var diagnostics = new CompanionDiagnostics();
+        var diagnostics = CreateDiagnostics();
         for (var draw = 0; draw < 65; draw++)
         {
             var now = Start.AddSeconds(draw * CompanionEmotionDirector.RotationInterval.TotalSeconds);
@@ -71,12 +190,13 @@ public sealed class CompanionDiagnosticsTests
     }
 
     [Fact]
-    public void Per_frame_clock_gaze_label_and_count_changes_do_not_append_or_rewrite_the_file()
+    public async Task Per_frame_clock_gaze_label_and_count_changes_do_not_append_or_rewrite_the_file()
     {
         var path = TemporaryPath();
-        var diagnostics = new CompanionDiagnostics(path);
+        var diagnostics = CreateDiagnostics(path);
         var frame = Frame();
         Assert.True(Observe(diagnostics, frame));
+        Assert.True(await Flush(diagnostics));
         var unchanged = Assert.Single(diagnostics.Entries);
         var sentinel = new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         File.SetLastWriteTimeUtc(path, sentinel);
@@ -93,7 +213,7 @@ public sealed class CompanionDiagnosticsTests
     [Fact]
     public void Interleaved_controls_and_event_kinds_are_deduplicated_independently()
     {
-        var diagnostics = new CompanionDiagnostics();
+        var diagnostics = CreateDiagnostics();
         var frame = Frame();
         Assert.True(Observe(diagnostics, frame, control: 1));
         Assert.True(Observe(diagnostics, frame, control: 2));
@@ -113,7 +233,7 @@ public sealed class CompanionDiagnosticsTests
     [InlineData("preview")]
     public void Necessary_state_changes_and_their_return_to_a_previous_state_are_recorded(string state)
     {
-        var diagnostics = new CompanionDiagnostics();
+        var diagnostics = CreateDiagnostics();
         var frame = Frame();
         Assert.True(Observe(diagnostics, frame));
         Assert.True(Observe(diagnostics, state == "preview" ? frame with { Preview = true, Reason = "preview" } : frame,
@@ -128,7 +248,7 @@ public sealed class CompanionDiagnosticsTests
     [InlineData("07", 1601d)]
     public void Sequence_tail_keeps_its_selected_id_and_does_not_invent_a_diagnostic_draw(string requested, double settledAt)
     {
-        var diagnostics = new CompanionDiagnostics();
+        var diagnostics = CreateDiagnostics();
         var frame = Frame(requested);
         var engine = new CompanionPoseEngine(42);
         engine.SetEmotion(requested, 0, true);
@@ -156,15 +276,16 @@ public sealed class CompanionDiagnosticsTests
     }
 
     [Fact]
-    public void Capacity_bounds_memory_and_json_while_sequence_numbers_continue_forward()
+    public async Task Capacity_bounds_memory_and_json_while_sequence_numbers_continue_forward()
     {
         var path = TemporaryPath();
-        var diagnostics = new CompanionDiagnostics(path, capacity: 4);
+        var diagnostics = CreateDiagnostics(path, capacity: 4);
         for (var index = 0; index < 10; index++)
         {
             var frame = Frame(CompanionEmotionDirector.EmotionIds[index]) with
             { Position = index + 1, Draw = index + 1, SelectedAtUtc = Start.AddSeconds(index * 6), Reason = index == 0 ? "initial" : "automatic" };
             Assert.True(Observe(diagnostics, frame));
+            Assert.True(await Flush(diagnostics));
             using var current = JsonDocument.Parse(File.ReadAllText(path));
             Assert.Equal(Math.Min(4, index + 1), current.RootElement.GetProperty("Entries").GetArrayLength());
         }
@@ -179,7 +300,7 @@ public sealed class CompanionDiagnosticsTests
     [Fact]
     public void Entries_is_a_detached_snapshot_and_does_not_change_after_later_observations()
     {
-        var diagnostics = new CompanionDiagnostics();
+        var diagnostics = CreateDiagnostics();
         Assert.True(Observe(diagnostics, Frame()));
         var previous = diagnostics.Entries;
         Assert.True(Observe(diagnostics, Frame("03") with { Position = 2, Draw = 2 }));
@@ -189,12 +310,13 @@ public sealed class CompanionDiagnosticsTests
     }
 
     [Fact]
-    public void Typed_json_contains_only_transition_metadata_and_never_the_frame_label()
+    public async Task Typed_json_contains_only_transition_metadata_and_never_the_frame_label()
     {
         var path = TemporaryPath();
-        var diagnostics = new CompanionDiagnostics(path);
+        var diagnostics = CreateDiagnostics(path);
         var frame = Frame() with { Label = "SYNTHETIC-PRIVATE-MESSAGE-AND-CREDENTIAL", Count = 987654 };
         Assert.True(Observe(diagnostics, frame));
+        Assert.True(await Flush(diagnostics));
         var json = File.ReadAllText(path);
         Assert.DoesNotContain(frame.Label, json);
         Assert.DoesNotContain("\"Label\"", json);
@@ -214,7 +336,7 @@ public sealed class CompanionDiagnosticsTests
     public void Invalid_identifiers_kinds_reasons_and_control_ids_are_rejected_without_a_file(string invalid)
     {
         var path = TemporaryPath();
-        var diagnostics = new CompanionDiagnostics(path);
+        var diagnostics = CreateDiagnostics(path);
         var frame = Frame() with { Reason = invalid == "reason" ? "PRIVATE-INVALID-REASON" : "initial" };
         Assert.False(diagnostics.Observe(invalid == "control" ? 0 : 1, invalid == "kind" ? "PRIVATE-INVALID-KIND" : "selected",
             frame, invalid == "requested" ? "PRIVATE-INVALID-ID" : "02", invalid == "effective" ? "PRIVATE-INVALID-ID" : "02",
@@ -230,20 +352,21 @@ public sealed class CompanionDiagnosticsTests
     [InlineData(0, 0, 0, double.NaN)]
     public void Nonfinite_gaze_samples_are_rejected_before_json_serialization(double tx, double ty, double ox, double oy)
     {
-        var diagnostics = new CompanionDiagnostics();
+        var diagnostics = CreateDiagnostics();
         Assert.False(Observe(diagnostics, Frame(), gaze: new(tx, ty, ox, oy, true)));
         Assert.Empty(diagnostics.Entries);
     }
 
     [Fact]
-    public void A_file_write_failure_does_not_throw_or_drop_the_accepted_in_memory_transition()
+    public async Task A_file_write_failure_does_not_throw_or_drop_the_accepted_in_memory_transition()
     {
         var directory = Path.GetDirectoryName(TemporaryPath())!;
-        var diagnostics = new CompanionDiagnostics(directory);
+        var diagnostics = CreateDiagnostics(directory);
         Assert.True(Observe(diagnostics, Frame()));
         Assert.Single(diagnostics.Entries);
         Assert.True(Observe(diagnostics, Frame("03") with { Position = 2, Draw = 2 }));
         Assert.Equal(2, diagnostics.Entries.Count);
+        Assert.False(await Flush(diagnostics));
     }
 
     [Theory]
@@ -259,11 +382,5 @@ public sealed class CompanionDiagnosticsTests
         string kind = "selected", bool visible = true, bool reduced = false, CompanionGazeSample gaze = default) =>
         diagnostics.Observe(control, kind, frame, frame.Emotion, frame.Emotion, visible, reduced, gaze);
 
-    private static string TemporaryPath()
-    {
-        var directory = Path.Combine(Path.GetTempPath(), "CqtCompanionDiagnostics-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(directory);
-        // Newly generated, test-owned local files are left for normal temporary-file cleanup.
-        return Path.Combine(directory, "companion.json");
-    }
+    private string TemporaryPath() => PerfPath("existing");
 }

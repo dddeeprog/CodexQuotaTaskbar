@@ -1,6 +1,6 @@
 # 点岛可靠性 1→5 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** 在 v0.1.16 上顺序补齐更新、额度、提示、诊断和性能证据；只交付本地可审阅提交。
 
@@ -83,10 +83,10 @@
 
 **Interfaces:** 同一 scenario、机器、预热、持续时间和采样方式；记录版本SHA、CPU/内存/分配/写入次数；不向正式进程注入、不重启正式实例。
 
-- [ ] 固定合成状态变化及动画场景，采基线；另列 DPI/多屏/RDP 模拟测试和未测实机项。
-- [ ] 用失败测试刻画候选热点（如同步磁盘写入阻塞生产调用），实现最小优化，保持日志有界与关闭时安全刷新。
-- [ ] 相同场景采优化后结果，不用单线程分配冒充整机内存/CPU；解释噪声与不成立的结论。
-- [ ] 独立审查、中文提交，完成定义：前后可重复证据、无行为回归，未做实机 RDP/多屏不称通过。
+- [x] 固定合成状态变化及动画场景，采基线；另列 DPI/多屏/RDP 模拟测试和未测实机项。
+- [x] 用失败测试刻画候选热点（如同步磁盘写入阻塞生产调用），实现最小优化，保持日志有界与关闭时安全刷新。
+- [x] 相同场景采优化后结果，不用单线程分配冒充整机内存/CPU；解释噪声与不成立的结论。
+- [x] 独立审查、中文提交，完成定义：前后可重复证据、无行为回归，未做实机 RDP/多屏不称通过。
 
 ## 最终交付
 

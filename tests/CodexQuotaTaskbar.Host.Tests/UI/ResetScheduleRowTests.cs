@@ -28,6 +28,8 @@ public sealed class ResetScheduleRowTests
     [InlineData(96, true, false)] [InlineData(144, true, false)] [InlineData(192, true, false)]
     [InlineData(96, false, true)] [InlineData(144, false, true)] [InlineData(192, false, true)]
     [InlineData(96, true, true)] [InlineData(144, true, true)] [InlineData(192, true, true)]
+    [InlineData(120, false, false)] [InlineData(120, true, false)]
+    [InlineData(120, false, true)] [InlineData(120, true, true)]
     public void Single_line_status_removes_unused_rows_and_height_in_actual_full_and_compact_layout(int dpi, bool green, bool bongo) => WithStatusBall((window, ball) =>
     {
         using var fixture = DpiFixture();
@@ -74,7 +76,7 @@ public sealed class ResetScheduleRowTests
     });
 
     [Theory]
-    [InlineData(1d)] [InlineData(1.5d)] [InlineData(2d)]
+    [InlineData(1d)] [InlineData(1.25d)] [InlineData(1.5d)] [InlineData(2d)]
     public void State_aware_height_budget_rechecks_gold_status_and_green_expiry_without_another_space_change(double scale) => Sta(() =>
     {
         using var coordinator = new CodexQuotaTaskbar.Host.Overlay.OverlayCoordinator(false, unifiedPanel: true, observePointer: false);
@@ -104,12 +106,16 @@ public sealed class ResetScheduleRowTests
                     Assert.True(window.DesiredHeight * scale + 8 <= work.Height + .01);
                 }
                 Reconcile();
-                window.ApplyResetSchedule(Fresh(now, now.AddHours(2)) with { IsLatchedSchedule = true }, now, China); Check(true);
-                window.ApplyResetQueryState(new(1, ResetQueryPhase.Failed)); Check(false);
-                window.ApplyResetQueryState(new(2, ResetQueryPhase.Idle));
-                var until = now.AddHours(1); window.ApplyConfirmedReset(until); Check(false);
-                window.RefreshResetSchedule(until, China); Check(true);
-                Assert.Equal(until, Private<DateTimeOffset?>(window, "confirmedResetUntil"));
+                for (var cycle = 0; cycle < 3; cycle++)
+                {
+                    window.ApplyConfirmedReset(null);
+                    window.ApplyResetSchedule(Fresh(now, now.AddHours(2)) with { IsLatchedSchedule = true }, now, China); Check(true);
+                    window.ApplyResetQueryState(new(cycle * 2 + 1, ResetQueryPhase.Failed)); Check(false);
+                    window.ApplyResetQueryState(new(cycle * 2 + 2, ResetQueryPhase.Idle));
+                    var until = now.AddHours(1); window.ApplyConfirmedReset(until); Check(false);
+                    window.RefreshResetSchedule(until, China); Check(true);
+                    Assert.Equal(until, Private<DateTimeOffset?>(window, "confirmedResetUntil"));
+                }
             }
             finally { window.Close(); }
         }

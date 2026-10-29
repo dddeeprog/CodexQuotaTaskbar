@@ -199,6 +199,7 @@ public sealed class DiagnosticExportTests : IDisposable
         var companionPath = Path.Combine(root, "companion-100.json");
         var companion = new CompanionDiagnostics(companionPath);
         Assert.True(companion.Observe(1, "selected", new CompanionFrame("02", 0, "PRIVATE-LABEL", false, 1, 1, 1, DateTimeOffset.UtcNow, "initial"), "02", "02", true, false));
+        Assert.True(await companion.FlushAsync());
         Assert.True(File.Exists(companionPath)); Assert.InRange(OwnedCount(), 1, 8);
         var overlayPath = Path.Combine(root, "overlay-100.json"); var overlay = new OverlayLifecycleDiagnostics(overlayPath);
         overlay.Record(OverlayLifecycleEvent.MenuFromIsland);
