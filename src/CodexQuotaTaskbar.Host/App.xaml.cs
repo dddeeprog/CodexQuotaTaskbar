@@ -38,6 +38,8 @@ public partial class App : System.Windows.Application
     private Task resetScheduleRefreshTask = Task.CompletedTask;
     private bool shuttingDown;
     private bool cleanupCompleted;
+    private EventWaitHandle? updateStop;
+    private RegisteredWaitHandle? updateStopRegistration;
     private DemoIntegrationContext? demoIntegration;
     private Task? demoProofLoop;
     private bool RestrictedDemo => demoIntegration is not null;
@@ -61,14 +63,26 @@ public partial class App : System.Windows.Application
                 {
                     var result = new UpdateStatusWindow();
                     result.Apply(UpdateStatus.Failure(error, retryAllowed: false) with
-                    { Title = "安装未完成", Message = "更新程序未能完成替换或启动。请保留当前文件并检查以下原因；不会自动再次执行安装。" });
+                    { Title = "安装未完成", Message = error is UpdateApplyException apply ? apply.RecoveryOutcome
+                        : "更新程序未能完成替换或启动。请保留当前文件并检查以下原因；不会自动再次执行安装。" });
                     result.ShowDialog();
                 }
                 Shutdown();
                 return;
             }
-
-            var options = HostOptions.Parse(eventArgs.Args);
+            // Malformed updater arguments must never become a normal startup.
+            if (eventArgs.Args.FirstOrDefault() == "--apply-update") { Shutdown(); return; }
+            string? updateNonce = null;
+            var startupArguments = eventArgs.Args;
+            if (startupArguments.FirstOrDefault() == "--update-ready")
+            {
+                if (startupArguments.Length != 2 || !Guid.TryParseExact(startupArguments[1], "N", out _)) { Shutdown(); return; }
+                updateNonce = startupArguments[1]; startupArguments = [];
+                updateStop = new EventWaitHandle(false, EventResetMode.ManualReset, UpdateStartup.StopEventName(updateNonce));
+                updateStopRegistration = ThreadPool.RegisterWaitForSingleObject(updateStop,
+                    (_, _) => Dispatcher.BeginInvoke(() => _ = RequestShutdownAsync()), null, Timeout.Infinite, true);
+            }
+            var options = HostOptions.Parse(startupArguments);
             if (options.DemoDataRoot is { } proofRoot)
             {
                 demoIntegration = DemoIntegrationContext.CreateOrOpen(proofRoot);
@@ -162,6 +176,14 @@ public partial class App : System.Windows.Application
             coordinator.Apply(provider.Current);
             coordinator.ApplySessions(provider.CurrentSessions);
             coordinator.Start();
+            if (updateNonce is not null)
+            {
+                await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                using var process = System.Diagnostics.Process.GetCurrentProcess();
+                var executable = Environment.ProcessPath ?? throw new InvalidOperationException();
+                UpdateStartup.PublishReady(executable, updateNonce, UpdatePackageIdentity.Read(executable, ProductVersion.Value),
+                    new(process.Id, process.StartTime.ToUniversalTime().Ticks));
+            }
             StartTypingInteraction(options.Demo, settings);
             if (RestrictedDemo) demoProofLoop = DemoProofLoopAsync(lifetime.Token);
             if (settings.DotRealtime && !options.Demo) StartDotReceiving();
@@ -326,8 +348,8 @@ public partial class App : System.Windows.Application
             tray?.BeginUpdatePresentation();
             var workflow = new UpdateWorkflow(updateService.CheckAsync,
                 (release, token, progress) => updateService.DownloadAndStageAsync(release, token, progress),
-                updateService.LaunchInstaller, (status, requested) => tray?.PresentUpdate(status, requested), RequestShutdownAsync,
-                updateLaunchState);
+                _ => throw new InvalidOperationException(), (status, requested) => tray?.PresentUpdate(status, requested), RequestShutdownAsync,
+                updateLaunchState, updateService.LaunchInstallerAsync);
             await workflow.RunAsync(manual, cancellationToken);
         }
         finally
@@ -625,6 +647,8 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs eventArgs)
     {
+        updateStopRegistration?.Unregister(null);
+        updateStop?.Dispose();
         WriteDemoShutdownStage("onexit-start");
         if (!cleanupCompleted)
         {

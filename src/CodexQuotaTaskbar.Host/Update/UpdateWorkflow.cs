@@ -8,7 +8,8 @@ internal sealed class UpdateWorkflow(
     Func<string, bool> launch,
     Action<UpdateStatus, bool> present,
     Func<Task> shutdown,
-    UpdateLaunchState? sharedLaunchState = null)
+    UpdateLaunchState? sharedLaunchState = null,
+    Func<string, CancellationToken, Task<bool>>? prepareLaunch = null)
 {
     private readonly UpdateLaunchState launchState = sharedLaunchState ?? new();
 
@@ -41,7 +42,7 @@ internal sealed class UpdateWorkflow(
                 if (manual) present(launchState.BlockedStatus, manual);
                 return;
             }
-            if (!launch(path))
+            if (!await (prepareLaunch?.Invoke(path, token) ?? Task.FromResult(launch(path))))
             {
                 launchState.NotStarted();
                 throw new InvalidOperationException("无法启动更新程序。");
@@ -52,7 +53,7 @@ internal sealed class UpdateWorkflow(
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception error) when (error is System.Net.Http.HttpRequestException or System.IO.IOException or System.IO.InvalidDataException
             or UnauthorizedAccessException or InvalidOperationException or System.Text.Json.JsonException
-            or System.ComponentModel.Win32Exception or OperationCanceledException)
+            or System.ComponentModel.Win32Exception or OperationCanceledException or TimeoutException)
         {
             running = false;
             var uncertain = launchState.PendingTag is not null;

@@ -15,8 +15,13 @@ internal sealed class GitHubUpdateService : IDisposable
     private readonly HttpClient client;
     private readonly bool ownsClient;
     private readonly string updateRoot;
+    private readonly string? updateTarget;
+    private readonly Func<ProcessStartInfo, Process?> startInstaller;
+    private readonly TimeSpan verificationTimeout;
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, UpdatePackageIdentity> stagedIdentities = new(StringComparer.OrdinalIgnoreCase);
 
-    internal GitHubUpdateService(HttpClient? client = null, string? updateRoot = null)
+    internal GitHubUpdateService(HttpClient? client = null, string? updateRoot = null, string? targetExecutable = null,
+        Func<ProcessStartInfo, Process?>? startInstaller = null, TimeSpan? verificationTimeout = null)
     {
         ownsClient = client is null;
         this.client = client ?? new HttpClient(new SocketsHttpHandler
@@ -29,6 +34,9 @@ internal sealed class GitHubUpdateService : IDisposable
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "CodexQuotaTaskbar",
             "Updates");
+        updateTarget = targetExecutable ?? Environment.ProcessPath;
+        this.startInstaller = startInstaller ?? Process.Start;
+        this.verificationTimeout = verificationTimeout ?? TimeSpan.FromSeconds(90);
     }
 
     internal async Task<GitHubRelease?> CheckAsync(CancellationToken cancellationToken)
@@ -43,12 +51,61 @@ internal sealed class GitHubUpdateService : IDisposable
 
         var release = GitHubReleaseParser.Parse(json)
             ?? throw new InvalidDataException("发行信息缺少有效的 Windows x64 更新包或 SHA-256 校验信息。");
+        EnsureTransactionAllows(release.Version);
         return release is { Version: var version } && version > ProductVersion.Value ? release : null;
+    }
+
+    private void EnsureTransactionAllows(Version offered)
+    {
+        if (updateTarget is null || !File.Exists(UpdateTransaction.ReceiptPath(updateTarget))) return;
+        var receipt = UpdateStartup.ReadReceipt(updateTarget);
+        if (receipt.Target != Path.GetFullPath(updateTarget) || !Guid.TryParseExact(receipt.Nonce, "N", out _)
+            || !Version.TryParse(receipt.NewVersion, out var failed) || !Enum.IsDefined(receipt.Phase)) throw new InvalidDataException();
+        if (receipt.Phase == UpdateTransactionPhase.Committed || receipt.Phase == UpdateTransactionPhase.RolledBack && offered > failed) return;
+        throw new UpdateApplyException(UpdateApplyDiagnostic.Capture(UpdateApplyStage.Validate, new InvalidOperationException()), null, false, 0)
+        { RecoveryOutcome = receipt.Phase == UpdateTransactionPhase.RolledBack
+            ? $"当前 v{ProductVersion.Text}，失败版本 v{failed.ToString(3)} 已阻止重复安装"
+            : "已有更新事务待恢复" };
+    }
+
+    internal async Task VerifyInstallerSourceAsync(string source, CancellationToken token)
+    {
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(token);
+        budget.CancelAfter(verificationTimeout);
+        try { await VerifyInstallerSourceCoreAsync(source, budget.Token); }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested) { throw new TimeoutException(); }
+    }
+
+    private async Task VerifyInstallerSourceCoreAsync(string source, CancellationToken token)
+    {
+        var identity = UpdatePackageIdentity.Read(source);
+        var uri = new Uri($"https://api.github.com/repos/dddeeprog/CodexQuotaTaskbar/releases/tags/v{identity.Version.ToString(3)}");
+        using var response = await client.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, token);
+        response.EnsureSuccessStatusCode();
+        var json = await response.Content.ReadAsStringAsync(token);
+        if (json.Length > 1024 * 1024) throw new InvalidDataException();
+        var release = GitHubReleaseParser.Parse(json) ?? throw new InvalidDataException();
+        if (release.Version != identity.Version) throw new InvalidDataException();
+        // A separate owned directory avoids overwriting the currently running helper.
+        var verificationRoot = Path.Combine(updateRoot, "attestation-" + Guid.NewGuid().ToString("N"));
+        using var verifier = new GitHubUpdateService(client, verificationRoot);
+        try
+        {
+            var staged = await verifier.DownloadAndStageAsync(release, token);
+            if (UpdatePackageIdentity.Read(staged) != identity) throw new InvalidDataException();
+        }
+        finally
+        {
+            // Only this invocation owns this directory; never delete a release/helper directory.
+            try { if (Directory.Exists(verificationRoot)) Directory.Delete(verificationRoot, true); }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+        }
     }
 
     internal async Task<string> DownloadAndStageAsync(GitHubRelease release, CancellationToken cancellationToken, IProgress<UpdateStatus>? progress = null)
     {
         ArgumentNullException.ThrowIfNull(release);
+        UpdatePackageIdentity.ValidateRelease(release);
         var releaseDirectory = GetReleaseDirectory(release.Tag);
         Directory.CreateDirectory(releaseDirectory);
         var archivePath = Path.Combine(releaseDirectory, $".{Guid.NewGuid():N}.zip");
@@ -107,7 +164,9 @@ internal sealed class GitHubUpdateService : IDisposable
             }
 
             await ExtractSingleExecutableAsync(archivePath, temporaryExecutable, cancellationToken);
+            var identity = UpdatePackageIdentity.Read(temporaryExecutable, release.Version);
             File.Move(temporaryExecutable, stagedExecutable, overwrite: true);
+            stagedIdentities[Path.GetFullPath(stagedExecutable)] = identity;
             return stagedExecutable;
         }
         finally
@@ -117,8 +176,12 @@ internal sealed class GitHubUpdateService : IDisposable
         }
     }
 
-    internal bool LaunchInstaller(string stagedExecutable)
+    internal async Task<bool> LaunchInstallerAsync(string stagedExecutable, CancellationToken token)
     {
+        // Keep the verified candidate immutable across the final check and start.
+        using var candidateGuard = new FileStream(stagedExecutable, FileMode.Open, FileAccess.Read, FileShare.Read);
+        if (!stagedIdentities.TryGetValue(Path.GetFullPath(stagedExecutable), out var verified)
+            || UpdatePackageIdentity.Read(stagedExecutable) != verified) throw new InvalidDataException();
         var target = Environment.ProcessPath;
         if (string.IsNullOrWhiteSpace(target) || !File.Exists(stagedExecutable))
         {
@@ -134,34 +197,35 @@ internal sealed class GitHubUpdateService : IDisposable
         startInfo.ArgumentList.Add("--apply-update");
         startInfo.ArgumentList.Add(Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
         startInfo.ArgumentList.Add(target);
-        var process = Process.Start(startInfo);
+        using var self = Process.GetCurrentProcess();
+        var nonce = Guid.NewGuid().ToString("N");
+        var identity = verified;
+        var options = new UpdateApplyOptions(Environment.ProcessId, Path.GetFullPath(target))
+        { Nonce = nonce, ParentStartTicks = self.StartTime.ToUniversalTime().Ticks };
+        startInfo.ArgumentList.Add(options.ParentStartTicks.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        startInfo.ArgumentList.Add(nonce);
+        using var process = startInstaller(startInfo);
         if (process is null)
         {
             return false;
         }
-        process.Dispose();
-        return true;
+        var watch = Stopwatch.StartNew();
+        while (watch.Elapsed < TimeSpan.FromMinutes(2))
+        {
+            token.ThrowIfCancellationRequested();
+            if (process.HasExited) throw new InvalidOperationException("更新程序准备失败。");
+            if (UpdateStartup.IsPrepared(options, identity)) return true;
+            await Task.Delay(100, token);
+        }
+        throw new TimeoutException();
     }
 
     internal async Task CleanupAsync(CancellationToken cancellationToken)
     {
-        await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
-        if (!Directory.Exists(updateRoot))
-        {
-            return;
-        }
-
-        foreach (var directory in Directory.EnumerateDirectories(updateRoot))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            try
-            {
-                Directory.Delete(directory, recursive: true);
-            }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-            {
-            }
-        }
+        // Release directories can contain a running helper or recovery source.
+        // A normal startup has no ownership proof and must not delete them.
+        cancellationToken.ThrowIfCancellationRequested();
+        await Task.CompletedTask;
     }
 
     private string GetReleaseDirectory(string tag)

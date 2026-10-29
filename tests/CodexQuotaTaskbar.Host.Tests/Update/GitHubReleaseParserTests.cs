@@ -35,6 +35,16 @@ public sealed class GitHubReleaseParserTests
         Assert.Null(GitHubReleaseParser.Parse(json));
     }
 
+    [Theory]
+    [InlineData("v0.1.2/CodexQuotaTaskbar-win-x64.zip")]
+    [InlineData("v0.1.3/other.zip")]
+    [InlineData("v0.1.3/CodexQuotaTaskbar-win-x64.zip?token=secret")]
+    public void Rejects_uri_not_bound_to_exact_tag_and_asset(string suffix)
+    {
+        var json = CreateJson("v0.1.3").Replace("v0.1.3/CodexQuotaTaskbar-win-x64.zip", suffix, StringComparison.Ordinal);
+        Assert.Null(GitHubReleaseParser.Parse(json));
+    }
+
     internal static string CreateJson(string tag, bool draft = false, bool prerelease = false, string? digest = null) => $$"""
         {
           "tag_name": "{{tag}}",

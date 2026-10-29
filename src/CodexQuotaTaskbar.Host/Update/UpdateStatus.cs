@@ -13,6 +13,7 @@ internal sealed record UpdateStatus(UpdateStage Stage, string Title, string Mess
     internal bool CanRetry => Stage == UpdateStage.Failed && RetryAllowed;
     internal static UpdateStatus Failure(Exception error, bool retryAllowed = true) => new(UpdateStage.Failed, "更新未完成", error switch
     {
+        UpdateApplyException apply => $"更新安装未完成。{apply.RecoveryOutcome}。请依据安装阶段和错误类别检查。",
         OperationCanceledException => "请求超时或中断。请检查网络后重试。",
         InvalidDataException => "发行信息或更新包校验失败。未执行未通过校验的更新包，请稍后重试。",
         JsonException => "发行信息格式无效。请稍后重试。",
@@ -21,11 +22,11 @@ internal sealed record UpdateStatus(UpdateStage Stage, string Title, string Mess
         IOException => "无法写入或读取更新包。请检查磁盘空间和目录是否被占用。",
         System.ComponentModel.Win32Exception or InvalidOperationException => "无法启动更新程序。当前版本仍可使用，请稍后重试。",
         _ => "更新暂时不可用。当前版本仍可使用，请稍后重试。",
-    }, Detail: SafeDetail(error), RetryAllowed: retryAllowed);
+    }, Detail: SafeDetail(error), RetryAllowed: error is not UpdateApplyException && retryAllowed);
 
     // Product-owned diagnostics are safe verbatim. Arbitrary exception messages
     // may contain local paths, signed URLs or credentials: expose category/code only.
-    internal static string SafeDetail(Exception error) => error.Message.Trim() switch
+    internal static string SafeDetail(Exception error) => error is UpdateApplyException apply ? apply.SafeDetail : error.Message.Trim() switch
     {
         "更新包 SHA-256 校验失败。" => "具体原因：更新包的 SHA-256 与发行版声明不一致。",
         "更新包超过允许大小。" => "具体原因：更新包超过允许的下载大小。",

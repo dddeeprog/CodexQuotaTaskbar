@@ -5,6 +5,28 @@ namespace CodexQuotaTaskbar.Host.Tests.Update;
 public sealed class UpdateWorkflowTests
 {
     [Fact]
+    public async Task New_caller_waits_for_verified_prepared_before_shutdown()
+    {
+        var ready = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var shutdown = false;
+        var flow = new UpdateWorkflow(_ => Task.FromResult<GitHubRelease?>(Release()), (_, _, _) => Task.FromResult("fixture"),
+            _ => true, (_, _) => { }, () => { shutdown = true; return Task.CompletedTask; }, prepareLaunch: (_, _) => ready.Task);
+        var running = flow.RunAsync(true, default);
+        Assert.False(shutdown);
+        ready.SetResult(true); await running; Assert.True(shutdown);
+    }
+    [Fact]
+    public async Task Prepared_timeout_is_presented_without_shutdown_and_keeps_launch_reservation()
+    {
+        var shown = new List<UpdateStatus>(); var shutdown = false; var state = new UpdateLaunchState();
+        var flow = new UpdateWorkflow(_ => Task.FromResult<GitHubRelease?>(Release()), (_, _, _) => Task.FromResult("fixture"),
+            _ => throw new Exception("sync must not run"), (status, _) => shown.Add(status),
+            () => { shutdown = true; return Task.CompletedTask; }, state, (_, _) => throw new TimeoutException("secret"));
+        Assert.Null(await Record.ExceptionAsync(() => flow.RunAsync(true, default)));
+        Assert.False(shutdown); Assert.NotNull(state.PendingTag); Assert.Equal(UpdateStage.Failed, shown.Last().Stage);
+        Assert.False(shown.Last().CanRetry); Assert.DoesNotContain("secret", shown.Last().Detail);
+    }
+    [Fact]
     public void Dismissed_progress_stays_quiet_but_explicit_restore_shows_latest_without_restarting()
     {
         var state = new UpdatePresentationState(); state.Begin();

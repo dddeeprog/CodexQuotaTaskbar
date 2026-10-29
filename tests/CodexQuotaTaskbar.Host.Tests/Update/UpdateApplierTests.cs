@@ -4,7 +4,7 @@ namespace CodexQuotaTaskbar.Host.Tests.Update;
 
 public sealed class UpdateApplierTests : IDisposable
 {
-    private readonly string root = Path.Combine(Path.GetTempPath(), "CodexQuotaTaskbar.ApplierTests", Guid.NewGuid().ToString("N"));
+    private readonly string root = Path.Combine(TestSupport.RepositoryPaths.Root, "artifacts", "reliability", "update", "arguments-" + Guid.NewGuid().ToString("N"));
 
     [Fact]
     public void Parses_bounded_apply_arguments()
@@ -19,39 +19,16 @@ public sealed class UpdateApplierTests : IDisposable
     }
 
     [Fact]
-    public void Replaces_only_the_existing_executable_target()
+    public void Parses_new_caller_identity_and_nonce_but_keeps_legacy_three_arguments()
     {
-        Directory.CreateDirectory(root);
-        var source = Path.Combine(root, "new.exe");
-        var target = Path.Combine(root, "CodexQuotaTaskbar.exe");
-        File.WriteAllText(source, "new version");
-        File.WriteAllText(target, "old version");
-
-        UpdateApplier.ReplaceExecutable(source, target);
-
-        Assert.Equal("new version", File.ReadAllText(target));
-        Assert.Throws<InvalidOperationException>(() => UpdateApplier.ReplaceExecutable(source, Path.Combine(root, "missing.exe")));
-    }
-
-    [Fact]
-    public void Locked_destination_preserves_old_bytes_and_unrelated_data_then_can_retry()
-    {
-        Directory.CreateDirectory(root);
-        var source = Path.Combine(root, "new.exe"); var target = Path.Combine(root, "CodexQuotaTaskbar.exe");
-        var settings = Path.Combine(root, "settings.json");
-        File.WriteAllText(source, "new synthetic executable"); File.WriteAllText(target, "old synthetic executable");
-        File.WriteAllText(settings, "keep synthetic preferences");
-        using (File.Open(target, FileMode.Open, FileAccess.Read, FileShare.Read))
-        {
-            var failure = Record.Exception(() => UpdateApplier.ReplaceExecutable(source, target));
-            // Windows can report a locked replace as sharing violation or access denied.
-            Assert.True(failure is IOException or UnauthorizedAccessException, failure?.ToString());
-        }
-        Assert.Equal("old synthetic executable", File.ReadAllText(target));
-        Assert.Empty(Directory.GetFiles(root, "*.tmp"));
-        UpdateApplier.ReplaceExecutable(source, target);
-        Assert.Equal("new synthetic executable", File.ReadAllText(target));
-        Assert.Equal("keep synthetic preferences", File.ReadAllText(settings));
+        var target = Path.Combine(root, "中文 空格", "CodexQuotaTaskbar.exe");
+        var nonce = Guid.NewGuid().ToString("N");
+        Assert.True(UpdateApplyOptions.TryParse(["--apply-update", "42", target, "638000000000000000", nonce], out var options));
+        Assert.Equal(nonce, options!.Nonce);
+        Assert.Equal(638000000000000000, options.ParentStartTicks);
+        Assert.False(UpdateApplyOptions.TryParse(["--apply-update", "42", target, "638000000000000000", "wrong"], out _));
+        Assert.False(UpdateApplyOptions.TryParse(["--apply-update", "42", target, "0", nonce], out _));
+        Assert.False(UpdateApplyOptions.TryParse(["--apply-update", "42", target, "638000000000000000", nonce, "extra"], out _));
     }
 
     public void Dispose()

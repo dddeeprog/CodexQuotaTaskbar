@@ -46,7 +46,7 @@ internal static class GitHubReleaseParser
                 !Uri.TryCreate(urlNode.GetString(), UriKind.Absolute, out var downloadUri) ||
                 downloadUri.Scheme != Uri.UriSchemeHttps ||
                 !downloadUri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase) ||
-                !downloadUri.AbsolutePath.StartsWith("/dddeeprog/CodexQuotaTaskbar/releases/download/", StringComparison.Ordinal) ||
+                downloadUri.AbsoluteUri != $"https://github.com/dddeeprog/CodexQuotaTaskbar/releases/download/{tag}/{AssetName}" ||
                 !asset.TryGetProperty("digest", out var digestNode) ||
                 digestNode.ValueKind != JsonValueKind.String)
             {
