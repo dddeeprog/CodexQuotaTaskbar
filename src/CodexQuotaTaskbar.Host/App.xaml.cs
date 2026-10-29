@@ -57,10 +57,17 @@ public partial class App : System.Windows.Application
             if (DotChatProcess.TryOpen(eventArgs.Args, this)) return;
             if (UpdateApplyOptions.TryParse(eventArgs.Args, out var updateOptions))
             {
-                try { await UpdateApplier.ApplyAsync(updateOptions!, CancellationToken.None); }
+                try { await UpdateApplier.ApplyAsync(updateOptions!, CancellationToken.None); Diagnostics.ReliabilityDiagnostics.Local.UpdateReady(); }
                 catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException
                     or System.ComponentModel.Win32Exception or TimeoutException)
                 {
+                    if (error is UpdateApplyException diagnostic)
+                    {
+                        var outcome = Diagnostics.ReliabilityDiagnostics.ClassifyUpdateOutcome(diagnostic);
+                        Diagnostics.ReliabilityDiagnostics.Local.Update(diagnostic.Failure, outcome);
+                        if (diagnostic.CleanupFailure is { } cleanup) Diagnostics.ReliabilityDiagnostics.Local.Update(cleanup, outcome);
+                        if (diagnostic.RecoveryFailure is { } recovery) Diagnostics.ReliabilityDiagnostics.Local.Update(recovery, outcome);
+                    }
                     var result = new UpdateStatusWindow();
                     result.Apply(UpdateStatus.Failure(error, retryAllowed: false) with
                     { Title = "安装未完成", Message = error is UpdateApplyException apply ? apply.RecoveryOutcome
@@ -126,6 +133,7 @@ public partial class App : System.Windows.Application
             tray = new TrayController(settings, restrictedDemo: RestrictedDemo);
             tray.SetCoreConsentStatus(coreConsent?.State ?? Bongo.CoreConsentState.Undecided, coreTerms is not null);
             tray.CoreTermsRequested += OnCoreTermsRequested;
+            tray.ExportDiagnosticsRequested += OnExportDiagnosticsRequested;
             tray.SetContextAvoidanceProvider(coordinator.GetMenuObstacles);
             tray.MenuBoundsChanged += coordinator.SetMenuBounds;
             coordinator.CloseContextRequested += (_, _) => tray?.CloseContextMenu();

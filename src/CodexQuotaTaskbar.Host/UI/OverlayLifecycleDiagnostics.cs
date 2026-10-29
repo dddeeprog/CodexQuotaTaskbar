@@ -81,15 +81,8 @@ internal sealed class OverlayLifecycleDiagnostics
             OverlayLifecycleEntry[] snapshot;
             long written;
             lock (gate) { snapshot = entries.ToArray(); written = sequence; }
-            try
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(path!)!);
-                await File.WriteAllTextAsync(path + ".tmp", JsonSerializer.Serialize(
-                    new { Schema = 1, TickFrequency = Stopwatch.Frequency, Entries = snapshot }, JsonOptions))
-                    .ConfigureAwait(false);
-                File.Move(path + ".tmp", path!, overwrite: true);
-            }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+            Diagnostics.DiagnosticLogStore.WriteSnapshot(path!, JsonSerializer.Serialize(
+                new { Schema = 1, TickFrequency = Stopwatch.Frequency, Entries = snapshot }, JsonOptions));
             lock (gate)
             {
                 if (written != sequence) continue;

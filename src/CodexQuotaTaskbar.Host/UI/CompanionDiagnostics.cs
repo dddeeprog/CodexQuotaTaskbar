@@ -63,14 +63,7 @@ internal sealed class CompanionDiagnostics
     private void WriteSnapshot()
     {
         if (path is null) return;
-        try
-        {
-            if (Path.GetDirectoryName(path) is { Length: > 0 } directory) Directory.CreateDirectory(directory);
-            var temporary = path + ".tmp";
-            File.WriteAllText(temporary, JsonSerializer.Serialize(new { Schema = 1, Pid = Environment.ProcessId, Entries = entries }));
-            File.Move(temporary, path, overwrite: true);
-        }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+        Diagnostics.DiagnosticLogStore.WriteSnapshot(path, JsonSerializer.Serialize(new { Schema = 1, Pid = Environment.ProcessId, Entries = entries }));
     }
 
     private readonly record struct Identity(string Requested, string Effective, long Cycle, int Position, long Draw,

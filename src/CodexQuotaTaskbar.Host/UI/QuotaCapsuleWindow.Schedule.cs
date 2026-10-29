@@ -35,6 +35,7 @@ public partial class QuotaCapsuleWindow
     {
         if (state.Revision < resetQueryState.Revision) return;
         resetQueryState = state;
+        Diagnostics.ReliabilityDiagnostics.Local.Query(state.Phase);
         RefreshResetFooter();
         RefreshCompanionResetNotice();
     }
@@ -61,6 +62,13 @@ public partial class QuotaCapsuleWindow
         var state = resetQueryState.Select(resetScheduleView is { IsVisible: true, IsTimingKnown: true },
             confirmedResetUntil, now ?? DateTimeOffset.UtcNow);
         var visible = active && IsVisible && (state != ResetVisualState.Upcoming || ResetNoticeActive);
+        var reason = !IsUnifiedPanel || !active ? Diagnostics.FooterSuppression.Disabled
+            : !IsVisible ? Diagnostics.FooterSuppression.OwnerHidden
+            : state == ResetVisualState.None ? confirmedResetUntil is not null && confirmedResetUntil <= (now ?? DateTimeOffset.UtcNow)
+                ? Diagnostics.FooterSuppression.Expired : Diagnostics.FooterSuppression.Idle
+            : !resetSchedulePresentationAllowed && !compactResetPresentationAllowed ? Diagnostics.FooterSuppression.NoSpace
+            : !resetSchedulePresentationAllowed ? Diagnostics.FooterSuppression.CompactEligible : Diagnostics.FooterSuppression.Eligible;
+        Diagnostics.ReliabilityDiagnostics.Local.Footer(state, reason);
         // A temporary visual gate must clear the color without starting a new float
         // episode when space/owner visibility returns. Business expiry still ends it.
         companion?.SetResetState(visible ? state : ResetVisualState.None, active && state != ResetVisualState.None);

@@ -43,6 +43,7 @@ internal sealed class TrayController : IDisposable
         menu.SettingsChangeRequested += (_, value) => ChangeRequested(value);
         menu.MaterialTransparencyPreviewRequested += (_, value) => MaterialTransparencyPreviewRequested?.Invoke(this, value);
         menu.CoreTermsRequested += (_, _) => CoreTermsRequested?.Invoke(this, EventArgs.Empty);
+        menu.ExportDiagnosticsRequested += (_, _) => ExportDiagnosticsRequested?.Invoke(this, EventArgs.Empty);
         menu.ExitRequested += (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty);
         trayIconStream = typeof(TrayController).Assembly.GetManifestResourceStream("CodexQuotaTaskbar.Host.Assets.QuotaIslandIcon.ico")
             ?? throw new InvalidOperationException("无法加载点岛应用图标。");
@@ -99,6 +100,7 @@ internal sealed class TrayController : IDisposable
     internal event EventHandler<AppSettings>? SettingsChanged;
     internal event EventHandler<int>? MaterialTransparencyPreviewRequested;
     internal event EventHandler? CoreTermsRequested;
+    internal event EventHandler? ExportDiagnosticsRequested;
     internal event EventHandler? ExitRequested;
     internal event Action<ScreenRect?>? MenuBoundsChanged;
 

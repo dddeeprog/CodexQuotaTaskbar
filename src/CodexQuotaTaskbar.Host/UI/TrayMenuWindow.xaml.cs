@@ -72,6 +72,7 @@ public partial class TrayMenuWindow : Window
         OpenCodexButton.Click += (_, _) => InvokeAndHide(OpenCodexRequested);
         DotRealtimeButton.Click += (_, _) => RequestSettings(this.settings with { DotRealtime = !this.settings.DotRealtime });
         SubscriptionLoginButton.Click += (_, _) => InvokeAndHide(OpenSubscriptionLoginRequested);
+        ExportDiagnosticsButton.Click += (_, _) => InvokeAndHide(ExportDiagnosticsRequested);
         ExitButton.Click += (_, _) => InvokeAndHide(ExitRequested);
         ClassicStyleButton.Click += (_, _) => RequestSettings(this.settings with { UnifiedPanel = false });
         UnifiedStyleButton.Click += (_, _) => RequestSettings(this.settings with { UnifiedPanel = true });
@@ -124,6 +125,7 @@ public partial class TrayMenuWindow : Window
     internal event EventHandler? OpenSubscriptionLoginRequested;
     internal event EventHandler<AppSettings>? SettingsChangeRequested;
     internal event EventHandler<int>? MaterialTransparencyPreviewRequested;
+    internal event EventHandler? ExportDiagnosticsRequested;
     internal event EventHandler? ExitRequested;
 
     internal void ApplySettings(AppSettings value)

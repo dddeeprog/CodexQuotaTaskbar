@@ -425,6 +425,7 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
 
     private void Set(QuotaSnapshot snapshot)
     {
+        Diagnostics.ReliabilityDiagnostics.Local.Quota(snapshot.Availability);
         Current = snapshot;
         SnapshotChanged?.Invoke(this, snapshot);
     }
