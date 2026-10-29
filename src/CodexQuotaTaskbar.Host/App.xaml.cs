@@ -18,6 +18,7 @@ public partial class App : System.Windows.Application
 {
     private readonly CancellationTokenSource lifetime = new();
     private readonly SemaphoreSlim updateGate = new(1, 1);
+    private readonly UpdateLaunchState updateLaunchState = new();
     private Mutex? singleInstance;
     private OverlayCoordinator? coordinator;
     private TrayController? tray;
@@ -326,7 +327,8 @@ public partial class App : System.Windows.Application
             tray?.BeginUpdatePresentation();
             var workflow = new UpdateWorkflow(updateService.CheckAsync,
                 (release, token, progress) => updateService.DownloadAndStageAsync(release, token, progress),
-                updateService.LaunchInstaller, (status, requested) => tray?.PresentUpdate(status, requested), RequestShutdownAsync);
+                updateService.LaunchInstaller, (status, requested) => tray?.PresentUpdate(status, requested), RequestShutdownAsync,
+                updateLaunchState);
             await workflow.RunAsync(manual, cancellationToken);
         }
         finally

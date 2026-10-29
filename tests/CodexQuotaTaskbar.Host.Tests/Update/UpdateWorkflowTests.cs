@@ -92,5 +92,70 @@ public sealed class UpdateWorkflowTests
             _ => throw new Exception(), (_, _) => throw new Exception(), () => throw new Exception());
         await flow.RunAsync(true, cts.Token);
     }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Uncertain_launch_or_failure_after_launch_must_not_offer_another_install(bool launchThrows)
+    {
+        var shown = new List<UpdateStatus>(); var attempts = 0;
+        var flow = new UpdateWorkflow(_ => Task.FromResult<GitHubRelease?>(Release()),
+            (_, _, _) => Task.FromResult("synthetic-verified-file"),
+            _ => { attempts++; if (launchThrows) throw new InvalidOperationException("synthetic uncertain launch"); return true; },
+            (status, _) => shown.Add(status), () => throw new IOException("synthetic shutdown failure"));
+        await flow.RunAsync(true, CancellationToken.None);
+        Assert.Equal(1, attempts);
+        Assert.Equal(UpdateStage.Failed, shown.Last().Stage);
+        Assert.False(shown.Last().CanRetry);
+    }
+    [Theory]
+    [InlineData("uncertain")]
+    [InlineData("shutdown")]
+    [InlineData("presentation")]
+    [InlineData("success")]
+    public async Task New_menu_workflow_and_automatic_check_share_the_application_launch_reservation(string failure)
+    {
+        var state = new UpdateLaunchState();
+        var checks = 0; var stages = 0; var launches = 0;
+        var shown = new List<UpdateStatus>();
+        UpdateWorkflow Create() => new(_ => { checks++; return Task.FromResult<GitHubRelease?>(Release()); },
+            (_, _, _) => { stages++; return Task.FromResult("synthetic-stage"); },
+            _ => { launches++; if (failure == "uncertain") throw new InvalidOperationException(); return true; },
+            (status, _) => { if (failure == "presentation" && status.Stage == UpdateStage.Installing) throw new IOException(); shown.Add(status); },
+            () => failure == "shutdown" ? Task.FromException(new IOException()) : Task.CompletedTask, state);
+
+        await Create().RunAsync(true, CancellationToken.None);
+        // App constructs a fresh workflow on every ordinary menu invocation and
+        // releases its semaphore. Neither action must clear this shared state.
+        await Create().RunAsync(true, CancellationToken.None);
+        var beforeAutomatic = shown.Count;
+        await Create().RunAsync(false, CancellationToken.None);
+        Assert.Equal(1, checks); Assert.Equal(1, stages); Assert.Equal(1, launches);
+        Assert.Equal(Release().Tag, state.PendingTag);
+        Assert.Equal(UpdateStage.Failed, shown.Last().Stage); Assert.False(shown.Last().CanRetry);
+        Assert.Equal(beforeAutomatic, shown.Count);
+    }
+
+    [Theory]
+    [InlineData("network")]
+    [InlineData("stage")]
+    [InlineData("not-started")]
+    public async Task Known_prelaunch_failure_does_not_lock_out_a_fresh_menu_retry(string failure)
+    {
+        var state = new UpdateLaunchState(); var first = true; var launches = 0;
+        var shown = new List<UpdateStatus>();
+        UpdateWorkflow Create() => new(_ => first && failure == "network"
+                ? Task.FromException<GitHubRelease?>(new HttpRequestException()) : Task.FromResult<GitHubRelease?>(Release()),
+            (_, _, _) => first && failure == "stage" ? Task.FromException<string>(new IOException()) : Task.FromResult("synthetic-stage"),
+            _ => { launches++; return !(first && failure == "not-started"); },
+            (status, _) => shown.Add(status), () => Task.CompletedTask, state);
+        await Create().RunAsync(true, CancellationToken.None);
+        Assert.Null(state.PendingTag); Assert.True(shown.Last().CanRetry);
+        first = false;
+        await Create().RunAsync(true, CancellationToken.None);
+        Assert.Equal(failure == "not-started" ? 2 : 1, launches);
+        Assert.Equal(UpdateStage.Installing, shown.Last().Stage); Assert.NotNull(state.PendingTag);
+    }
+
     private static GitHubRelease Release() => new(new Version(99, 0, 0), "v99.0.0", new Uri("https://example.invalid/test.zip"), new string('0', 64));
 }
