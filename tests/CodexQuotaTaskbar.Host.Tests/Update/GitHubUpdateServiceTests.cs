@@ -5,9 +5,34 @@ using CodexQuotaTaskbar.Host.Update;
 
 namespace CodexQuotaTaskbar.Host.Tests.Update;
 
+public sealed class OfficialUpdateArchiveFactAttribute : FactAttribute
+{
+    public OfficialUpdateArchiveFactAttribute()
+    {
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("CQT_OFFICIAL_UPDATE_ARCHIVE")))
+            Skip = "Set CQT_OFFICIAL_UPDATE_ARCHIVE to the verified v0.1.14 portable ZIP; offline staging only.";
+    }
+}
+
 public sealed class GitHubUpdateServiceTests : IDisposable
 {
     private readonly string root = Path.Combine(Path.GetTempPath(), "CodexQuotaTaskbar.UpdateTests", Guid.NewGuid().ToString("N"));
+
+    [OfficialUpdateArchiveFact]
+    public async Task Known_official_archive_stages_the_exact_executable_without_launch_or_network()
+    {
+        const string zipHash = "C11C42DC2E367FBEB7051345CA9584523016664A9DCA8B6653151A4273F85E5F";
+        const string exeHash = "24FD6B5B7A15068BD709E6665FAA8E156988B792FE6D8814FF45C817B83AB7F8";
+        var path = Path.GetFullPath(Environment.GetEnvironmentVariable("CQT_OFFICIAL_UPDATE_ARCHIVE")!);
+        using (var file = File.OpenRead(path)) Assert.Equal(zipHash, Convert.ToHexString(await SHA256.HashDataAsync(file)));
+        using var http = new HttpClient(new LocalArchiveHandler(path));
+        using var service = new GitHubUpdateService(http, root);
+        var release = Assert.IsType<GitHubRelease>(GitHubReleaseParser.Parse(GitHubReleaseParserTests.CreateJson("v0.1.14", digest: zipHash)));
+        var staged = await service.DownloadAndStageAsync(release, CancellationToken.None);
+        Assert.StartsWith(Path.GetFullPath(root) + Path.DirectorySeparatorChar, Path.GetFullPath(staged), StringComparison.OrdinalIgnoreCase);
+        using (var file = File.OpenRead(staged)) Assert.Equal(exeHash, Convert.ToHexString(await SHA256.HashDataAsync(file)));
+        Assert.Single(Directory.GetFiles(root, "*", SearchOption.AllDirectories));
+    }
 
     [Fact]
     public async Task Downloads_hashes_and_extracts_newer_official_release()
@@ -81,6 +106,12 @@ public sealed class GitHubUpdateServiceTests : IDisposable
         {
             Directory.Delete(root, true);
         }
+    }
+
+    private sealed class LocalArchiveHandler(string path) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(File.OpenRead(path)) });
     }
 
     private sealed class FakeHandler(string releaseJson, byte[] archive) : HttpMessageHandler

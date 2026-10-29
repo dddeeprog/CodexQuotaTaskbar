@@ -33,6 +33,27 @@ public sealed class UpdateApplierTests : IDisposable
         Assert.Throws<InvalidOperationException>(() => UpdateApplier.ReplaceExecutable(source, Path.Combine(root, "missing.exe")));
     }
 
+    [Fact]
+    public void Locked_destination_preserves_old_bytes_and_unrelated_data_then_can_retry()
+    {
+        Directory.CreateDirectory(root);
+        var source = Path.Combine(root, "new.exe"); var target = Path.Combine(root, "CodexQuotaTaskbar.exe");
+        var settings = Path.Combine(root, "settings.json");
+        File.WriteAllText(source, "new synthetic executable"); File.WriteAllText(target, "old synthetic executable");
+        File.WriteAllText(settings, "keep synthetic preferences");
+        using (File.Open(target, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            var failure = Record.Exception(() => UpdateApplier.ReplaceExecutable(source, target));
+            // Windows can report a locked replace as sharing violation or access denied.
+            Assert.True(failure is IOException or UnauthorizedAccessException, failure?.ToString());
+        }
+        Assert.Equal("old synthetic executable", File.ReadAllText(target));
+        Assert.Empty(Directory.GetFiles(root, "*.tmp"));
+        UpdateApplier.ReplaceExecutable(source, target);
+        Assert.Equal("new synthetic executable", File.ReadAllText(target));
+        Assert.Equal("keep synthetic preferences", File.ReadAllText(settings));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(root))

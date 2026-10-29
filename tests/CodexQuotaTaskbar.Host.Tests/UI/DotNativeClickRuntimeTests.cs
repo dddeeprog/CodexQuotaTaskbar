@@ -7,6 +7,7 @@ using System.Windows.Interop;
 using System.Windows.Threading;
 using CodexQuotaTaskbar.Host.Lifetime;
 using CodexQuotaTaskbar.Host.UI;
+using Xunit.Abstractions;
 using Point = System.Windows.Point;
 
 namespace CodexQuotaTaskbar.Host.Tests.UI;
@@ -20,12 +21,31 @@ public sealed class DotNativeClickTheoryAttribute : TheoryAttribute
     }
 }
 
+public sealed class DotNativeIdentityFactAttribute : FactAttribute
+{
+    public DotNativeIdentityFactAttribute()
+    {
+        if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CQT_NATIVE_EXPECTED_HOST_SHA256")))
+            Skip = "Opt-in read-only proof of the candidate assembly loaded by the test host.";
+    }
+}
+
 [CollectionDefinition("Dot offline native pointer", DisableParallelization = true)]
 public sealed class DotNativePointerCollection { }
 
 [Collection("Dot offline native pointer")]
-public sealed class DotNativeClickRuntimeTests
+public sealed class DotNativeClickRuntimeTests(ITestOutputHelper output)
 {
+    [DotNativeIdentityFact]
+    public void Loaded_host_is_the_explicit_candidate_without_starting_any_ui()
+    {
+        var assembly = typeof(App).Assembly;
+        using var file = File.OpenRead(assembly.Location);
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(file));
+        output.WriteLine($"Loaded Host: {assembly.Location}\nSHA256: {hash}\nMVID: {assembly.ManifestModule.ModuleVersionId}");
+        Assert.Equal(Environment.GetEnvironmentVariable("CQT_NATIVE_EXPECTED_HOST_SHA256"), hash);
+    }
+
     [DotNativeClickTheory]
     [InlineData(false, "MessageText", false)]
     [InlineData(false, "StatusText", false)]
@@ -42,16 +62,29 @@ public sealed class DotNativeClickRuntimeTests
     public void Single_real_click_opens_native_reply_without_opening_a_browser(
         bool attention, string targetName, bool otherWindowInFront)
     {
+        var externalPointer = Environment.GetEnvironmentVariable("CQT_EXTERNAL_POINTER_DRIVER") == "1";
+        output.WriteLine($"Loaded Host: {typeof(App).Assembly.Location}; external pointer={externalPointer}; target={targetName}; attention={attention}; front-other={otherWindowInFront}");
         RunSta(async () =>
         {
             var window = new DotChatWindow();
+            if (externalPointer)
+            {
+                window.ShowInTaskbar = true;
+                window.SourceInitialized += (_, _) =>
+                {
+                    var handle = new WindowInteropHelper(window).Handle;
+                    var style = Native.GetWindowLongPtrW(handle, -20).ToInt64();
+                    Native.SetWindowLongPtrW(handle, -20, new nint((style & ~0x80L) | 0x40000L));
+                };
+            }
             var fixture = new Window
             {
                 Title = "Offline native click fixture",
                 Content = new TextBlock { Text = "This fixture contains no browser.", Margin = new Thickness(12) },
                 Width = 280, Height = 140, Left = 40, Top = 40,
                 WindowStartupLocation = WindowStartupLocation.Manual,
-                ShowInTaskbar = false,
+                ShowInTaskbar = externalPointer,
+                ShowActivated = !externalPointer,
             };
             NativePoint originalPointer = default;
             NativePoint? clickedPoint = null;
@@ -89,9 +122,20 @@ public sealed class DotNativeClickRuntimeTests
                 var bubbleHandle = new WindowInteropHelper(window).Handle;
                 var fixtureHandle = new WindowInteropHelper(fixture).Handle;
                 var foregroundHandle = otherWindowInFront ? fixtureHandle : bubbleHandle;
-                if (otherWindowInFront) fixture.Activate();
-                else window.Activate();
-                Native.SetForegroundWindow(foregroundHandle);
+                if (externalPointer)
+                {
+                    window.Title = $"CQT offline Dot | {attention} | {targetName} | front-other={otherWindowInFront}";
+                    // The external window controller owns every physical input.
+                    // This test only prepares synthetic UI and observes it.
+                    for (var attempt = 0; attempt < 1200 && Native.GetForegroundWindow() != foregroundHandle; attempt++)
+                        await Task.Delay(100);
+                }
+                else
+                {
+                    if (otherWindowInFront) fixture.Activate();
+                    else window.Activate();
+                    Native.SetForegroundWindow(foregroundHandle);
+                }
                 await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
                 Assert.Equal(foregroundHandle, Native.GetForegroundWindow());
                 Assert.Equal(Visibility.Collapsed, composer.Visibility);
@@ -106,17 +150,20 @@ public sealed class DotNativeClickRuntimeTests
                 Assert.True(localPoint.X < target.ActualWidth && localPoint.Y < target.ActualHeight);
                 var screenPoint = target.PointToScreen(localPoint);
                 var clickPoint = new NativePoint((int)Math.Round(screenPoint.X), (int)Math.Round(screenPoint.Y));
-                AssertTargetIsOwnBubble(clickPoint, bubbleHandle);
-                haveOriginalPointer = Native.GetCursorPos(out originalPointer);
-                Assert.True(Native.SetCursorPos(clickPoint.X, clickPoint.Y), "Could not position pointer on the verified offline test window.");
-                clickedPoint = clickPoint;
-                // Validate again immediately before emitting one left-button click.
-                AssertTargetIsOwnBubble(clickPoint, bubbleHandle);
-                Native.mouse_event(Native.LeftDown, 0, 0, 0, UIntPtr.Zero);
-                Native.mouse_event(Native.LeftUp, 0, 0, 0, UIntPtr.Zero);
-                for (var attempt = 0; attempt < 40 &&
+                if (!externalPointer)
+                {
+                    AssertTargetIsOwnBubble(clickPoint, bubbleHandle);
+                    haveOriginalPointer = Native.GetCursorPos(out originalPointer);
+                    Assert.True(Native.SetCursorPos(clickPoint.X, clickPoint.Y), "Could not position pointer on the verified offline test window.");
+                    clickedPoint = clickPoint;
+                    AssertTargetIsOwnBubble(clickPoint, bubbleHandle);
+                    Native.mouse_event(Native.LeftDown, 0, 0, 0, UIntPtr.Zero);
+                    Native.mouse_event(Native.LeftUp, 0, 0, 0, UIntPtr.Zero);
+                }
+                else window.Title += " | click-ready";
+                for (var attempt = 0; attempt < (externalPointer ? 1200 : 40) &&
                     (composer.Visibility != Visibility.Visible || !input.IsKeyboardFocused); attempt++)
-                    await Task.Delay(25);
+                    await Task.Delay(externalPointer ? 100 : 25);
 
                 Assert.True(window.IsVisible);
                 Assert.Equal(Visibility.Visible, composer.Visibility);
@@ -185,7 +232,7 @@ public sealed class DotNativeClickRuntimeTests
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(30)), "Offline native pointer test timed out.");
+        Assert.True(thread.Join(TimeSpan.FromSeconds(Environment.GetEnvironmentVariable("CQT_EXTERNAL_POINTER_DRIVER") == "1" ? 250 : 30)), "Offline native pointer test timed out.");
         if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
     }
 
@@ -198,6 +245,8 @@ public sealed class DotNativeClickRuntimeTests
 
     private static class Native
     {
+        [DllImport("user32.dll")] internal static extern nint GetWindowLongPtrW(nint handle, int index);
+        [DllImport("user32.dll")] internal static extern nint SetWindowLongPtrW(nint handle, int index, nint value);
         internal const uint LeftDown = 0x0002;
         internal const uint LeftUp = 0x0004;
         [DllImport("user32.dll")] internal static extern nint WindowFromPoint(NativePoint point);

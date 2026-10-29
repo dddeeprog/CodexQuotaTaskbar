@@ -606,6 +606,23 @@ public sealed class QuotaResetTrackerTests : IDisposable
         Assert.True(tracker.IsNoticeConsumed(Notice()));
     }
 
+    [Fact]
+    public void Locked_receipt_temporarily_keeps_previous_deadline_then_retries_the_same_sample()
+    {
+        var store = new ResetConfirmationStore(StorePath);
+        var tracker = new QuotaResetTracker(store);
+        tracker.Observe(Sample(Now, 20), Scope, Now);
+        var previous = Now.AddSeconds(100);
+        var next = previous.AddSeconds(1);
+        Assert.Equal(previous.AddHours(1), tracker.Observe(Sample(previous, 21), Scope, previous));
+        using (var locked = new FileStream(StorePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+            Assert.Equal(previous.AddHours(1), tracker.Observe(Sample(next, 21.01), Scope, next));
+        // Exactly the one-second lag seen in the capacity test is an expected
+        // save-failure state. Retrying must persist the original timestamp.
+        Assert.Equal(next.AddHours(1), tracker.Observe(Sample(next, 21.01), Scope, next.AddSeconds(10)));
+        Assert.Equal(next, store.Load().Max(item => item.OccurredAt));
+    }
+
     private static QuotaSnapshot Sample(DateTimeOffset time, double remaining) =>
         QuotaSnapshot.Available([new(QuotaWindowKind.Primary, remaining, 300, Now.AddHours(3))], time);
 

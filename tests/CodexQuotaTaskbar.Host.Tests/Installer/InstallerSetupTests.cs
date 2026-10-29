@@ -88,6 +88,20 @@ public sealed class InstallerSetupTests : IDisposable
     }
 
     [Fact]
+    public async Task Download_failure_can_retry_without_replacing_synthetic_consent_or_preferences()
+    {
+        await Assert.ThrowsAsync<IOException>(() => InstallerSetup.CompleteAsync(document, Store, new(SettingsPath),
+            () => CoreConsentDecision.Accepted, _ => throw new IOException("synthetic offline"), CancellationToken.None));
+        var consent = await File.ReadAllBytesAsync(Path.Combine(root, CoreConsentStore.FileName));
+        var preferences = await File.ReadAllBytesAsync(SettingsPath);
+        var state = await InstallerSetup.CompleteAsync(document, Store, new(SettingsPath),
+            () => throw new Exception("Matching fixture receipt must be reused"), Download, CancellationToken.None);
+        Assert.Equal(CoreConsentState.Accepted, state); Assert.Equal(1, downloads);
+        Assert.Equal(consent, await File.ReadAllBytesAsync(Path.Combine(root, CoreConsentStore.FileName)));
+        Assert.Equal(preferences, await File.ReadAllBytesAsync(SettingsPath));
+    }
+
+    [Fact]
     public async Task Concurrent_initializers_cannot_overwrite_an_existing_preference_file()
     {
         Directory.CreateDirectory(root); await File.WriteAllTextAsync(SettingsPath, "keep unchanged");
