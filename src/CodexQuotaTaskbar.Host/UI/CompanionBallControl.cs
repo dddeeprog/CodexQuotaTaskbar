@@ -32,6 +32,7 @@ internal sealed class CompanionBallControl : Grid, IDisposable
     private bool typingEnabled;
     private bool externalAppearance;
     private ResetVisualState resetState;
+    private bool resetEpisodeActive;
     private bool observePointer = true;
     private string? externalFailure;
     private bool ready;
@@ -78,12 +79,14 @@ internal sealed class CompanionBallControl : Grid, IDisposable
     internal void SetExternalFailure(string? reason) { externalFailure = reason; Render(); }
     internal void SetResetNoticeActive(bool active) => SetResetState(active ? ResetVisualState.Upcoming : ResetVisualState.None);
 
-    internal void SetResetState(ResetVisualState state)
+    internal void SetResetState(ResetVisualState state, bool? episodeActive = null)
     {
-        if (disposed || resetState == state) return;
+        var continuing = episodeActive ?? state != ResetVisualState.None;
+        if (disposed || resetState == state && resetEpisodeActive == continuing) return;
         if (!Enum.IsDefined(state)) throw new ArgumentOutOfRangeException(nameof(state));
         resetState = state;
-        visual?.SetResetState(state);
+        resetEpisodeActive = continuing;
+        visual?.SetResetState(state, continuing);
     }
     internal void SetExternalAppearance(bool active)
     {
@@ -158,7 +161,7 @@ internal sealed class CompanionBallControl : Grid, IDisposable
             try
             {
                 visual = new CompanionBallVisual();
-                visual.SetResetState(resetState);
+                visual.SetResetState(resetState, resetEpisodeActive);
                 visual.Presented += OnPresented;
                 Children.Insert(0, visual);
                 ready = true;

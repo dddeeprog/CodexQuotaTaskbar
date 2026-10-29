@@ -48,6 +48,7 @@ internal sealed class CompanionBallVisual : FrameworkElement, IDisposable
     private bool motion = true, subscribed, disposed, typingInteractionEnabled;
     private ResetVisualState resetState;
     private double resetFloatOrigin;
+    private bool resetEpisodeActive;
     private double floatTransitionOrigin = double.NegativeInfinity;
     private ResetFloatFrame floatTransitionFrom = ResetFloatFrame.Rest;
     private readonly MatrixTransform resetGlowTransform = new();
@@ -106,13 +107,20 @@ internal sealed class CompanionBallVisual : FrameworkElement, IDisposable
 
     internal void SetResetNoticeActive(bool active) => SetResetState(active ? ResetVisualState.Upcoming : ResetVisualState.None);
 
-    internal void SetResetState(ResetVisualState state)
+    internal void SetResetState(ResetVisualState state, bool? episodeActive = null)
     {
         if (disposed) return;
         if (!Enum.IsDefined(state)) throw new ArgumentOutOfRangeException(nameof(state));
         // Defensive normalization for old/replayed visual projections. Transport
         // still reports Checking, but it shares the ordinary RGB appearance.
         if (state == ResetVisualState.Checking) state = ResetVisualState.None;
+        var continuing = episodeActive ?? state != ResetVisualState.None;
+        if (!continuing) resetEpisodeActive = false;
+        if (state != ResetVisualState.None && !resetEpisodeActive)
+        {
+            resetFloatOrigin = Now;
+            resetEpisodeActive = true;
+        }
         if (resetState == state) return;
         if ((resetState == ResetVisualState.None) != (state == ResetVisualState.None))
         {
@@ -121,7 +129,6 @@ internal sealed class CompanionBallVisual : FrameworkElement, IDisposable
         }
         // A new special episode starts at rest. Color changes and repeated
         // projections preserve phase; neither polling nor errors restart a hop.
-        if (resetState == ResetVisualState.None) resetFloatOrigin = Now;
         resetState = state;
         if (state == ResetVisualState.None) UpdateNormalRing();
         InvalidateVisual();

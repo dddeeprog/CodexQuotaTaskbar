@@ -1099,10 +1099,11 @@ public sealed class ResetScheduleRowTests
     public void Automatic_footer_preview_uses_only_unshown_controls() => Sta(() =>
     {
         var singleLine = Environment.GetEnvironmentVariable("CQT_RESET_SINGLE_LINE_PREVIEW_DIR");
-        var configured = singleLine ?? Environment.GetEnvironmentVariable("CQT_RESET_AUTO_PREVIEW_DIR");
+        var reliability = Environment.GetEnvironmentVariable("CQT_RELIABILITY_POPUP_PREVIEW_DIR");
+        var configured = reliability ?? singleLine ?? Environment.GetEnvironmentVariable("CQT_RESET_AUTO_PREVIEW_DIR");
         if (string.IsNullOrWhiteSpace(configured)) return;
         var directory = Path.GetFullPath(configured);
-        Assert.Equal(Path.GetFullPath(Path.Combine(RepositoryPaths.Root, singleLine is null ? "artifacts/reset-auto/previews" : "artifacts/reset-auto-single-line/previews")), directory, ignoreCase: true);
+        Assert.Equal(Path.GetFullPath(Path.Combine(RepositoryPaths.Root, reliability is not null ? "artifacts/reliability/popup" : singleLine is null ? "artifacts/reset-auto/previews" : "artifacts/reset-auto-single-line/previews")), directory, ignoreCase: true);
         Directory.CreateDirectory(directory);
         using var fixture = DpiFixture();
         foreach (var dpi in new[] { 96, 144, 192 })
@@ -1129,13 +1130,145 @@ public sealed class ResetScheduleRowTests
                 var bitmap = new RenderTargetBitmap((int)Math.Ceiling(window.Width * dpi / 96d),
                     (int)Math.Ceiling(window.DesiredHeight * dpi / 96d), dpi, dpi, PixelFormats.Pbgra32);
                 bitmap.Render(root);
+                if (reliability is not null)
+                {
+                    var sheet = new DrawingVisual();
+                    using (var draw = sheet.RenderOpen())
+                    {
+                        draw.DrawRectangle(Brushes.Black, null, new Rect(0, 0, window.Width, window.DesiredHeight + 28));
+                        draw.DrawText(new FormattedText($"SYNTHETIC · {dpi} DPI ({dpi / 96d:0.#}x) · 230 DIP",
+                            CultureInfo.InvariantCulture, FlowDirection.LeftToRight, new Typeface("Segoe UI"), 9, Brushes.White, dpi / 96d), new Point(4, 6));
+                        draw.DrawImage(bitmap, new Rect(0, 28, window.Width, window.DesiredHeight));
+                    }
+                    bitmap = new RenderTargetBitmap((int)Math.Ceiling(window.Width * dpi / 96d),
+                        (int)Math.Ceiling((window.DesiredHeight + 28) * dpi / 96d), dpi, dpi, PixelFormats.Pbgra32);
+                    bitmap.Render(sheet);
+                }
                 var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
                 var path = Path.Combine(directory, $"{(compact ? "compact" : "full")}-{state}-{dpi}.png");
+                Assert.False(File.Exists(path), "Preserve prior preview evidence.");
                 using var output = File.Create(path); encoder.Save(output);
             }
             finally { window.Close(); }
         }
     });
+    [Theory]
+    [InlineData(0, false)] [InlineData(1, false)] [InlineData(2, false)]
+    [InlineData(2, true)]
+    public void Owner_visibility_recovery_preserves_the_active_episode_float_phase(int state, bool space) => WithStatusBall((window, ball) =>
+    {
+        // Run the production visibility handler on an offline owner, with no Show/HWND/input.
+        var ms = 0d;
+        using var visual = new CompanionBallVisual(() => ms);
+        var old = ball.Visual!; ball.Children.Remove(old); old.Dispose();
+        typeof(CompanionBallControl).GetField("visual", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(ball, visual);
+        ball.Children.Insert(0, visual); visual.SetState("35", true);
+        var frame = typeof(CompanionBallVisual).GetMethod("OnFrame", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        OwnerVisible(window, true);
+        var now = DateTimeOffset.UtcNow;
+        if (state == 2) window.ApplyResetSchedule(Fresh(now, now.AddHours(2)), now, China);
+        else if (state == 1) window.ApplyConfirmedReset(now.AddHours(1));
+        else window.ApplyResetQueryState(new(1, ResetQueryPhase.Failed));
+        var expected = state == 2 ? ResetVisualState.Upcoming : state == 1 ? ResetVisualState.Confirmed : ResetVisualState.Failed;
+        Assert.Equal(expected, ball.ResetState);
+        ms = 800; frame.Invoke(visual, [null, EventArgs.Empty]);
+        Assert.InRange(visual.FloatFrame.BodyY, -6.01, -5.99);
+        if (space) window.SetResetScheduleAvailableHeight(0);
+        else OwnerVisible(window, false);
+        Assert.Equal(ResetVisualState.None, ball.ResetState);
+        // Production's animation clock pauses while hidden; keep the injected clock fixed too.
+        if (space) window.SetResetScheduleAvailableHeight(42);
+        else OwnerVisible(window, true);
+        ms = 1600; frame.Invoke(visual, [null, EventArgs.Empty]);
+        Assert.Equal(-12, visual.FloatFrame.BodyY);
+        Assert.Equal(expected, ball.ResetState);
+        OwnerVisible(window, false);
+    });
+
+    [Theory]
+    [InlineData(0)] [InlineData(1)] [InlineData(2)]
+    public void Owner_recovery_reprojects_expiry_before_restoring_color_and_footer(int state) => WithStatusBall((window, ball) =>
+    {
+        var now = DateTimeOffset.UtcNow;
+        OwnerVisible(window, true, now);
+        if (state == 0) window.ApplyConfirmedReset(now.AddHours(1));
+        else window.ApplyResetSchedule(Fresh(now, now.AddMinutes(1)) with { IsLatchedSchedule = state == 2 }, now, China);
+        OwnerVisible(window, false, now);
+        OwnerVisible(window, true, now.AddHours(2));
+        Assert.Equal(state == 2 ? ResetVisualState.Upcoming : ResetVisualState.None, ball.ResetState);
+        Assert.Equal(state == 2 ? ResetFooterKind.Schedule : ResetFooterKind.None, window.ResetFooter);
+        Assert.Equal(state == 2 ? "预计时间已到，等待额度恢复" : "", Named<TextBlock>(window, "ResetScheduleCountdown").Text);
+        OwnerVisible(window, false, now.AddHours(2));
+    });
+
+    [Fact]
+    public void Hidden_owner_accepts_state_changes_without_extending_confirmation_or_reviving_old_color() => WithStatusBall((window, ball) =>
+    {
+        var now = DateTimeOffset.UtcNow;
+        OwnerVisible(window, true, now);
+        window.ApplyResetQueryState(new(1, ResetQueryPhase.Failed));
+        OwnerVisible(window, false, now);
+        var until = now.AddHours(1);
+        window.ApplyConfirmedReset(until);
+        window.ApplyResetQueryState(new(2, ResetQueryPhase.Checking) { HasUnresolvedFailure = true });
+        Assert.Equal(ResetVisualState.None, ball.ResetState);
+        OwnerVisible(window, true, now.AddMinutes(59));
+        Assert.Equal(ResetVisualState.Confirmed, ball.ResetState);
+        Assert.Equal(until, Private<DateTimeOffset?>(window, "confirmedResetUntil"));
+        OwnerVisible(window, false, now.AddMinutes(59));
+        OwnerVisible(window, true, until);
+        Assert.Equal(ResetVisualState.Failed, ball.ResetState);
+        Assert.Equal(until, Private<DateTimeOffset?>(window, "confirmedResetUntil"));
+        window.ApplyResetQueryState(new(3, ResetQueryPhase.Idle));
+        window.RefreshResetSchedule(until);
+        Assert.Equal(ResetVisualState.None, ball.ResetState);
+        Assert.Equal(ResetFooterKind.None, window.ResetFooter);
+        OwnerVisible(window, false, until);
+    });
+
+    [Fact]
+    public void Actual_recovery_while_owner_is_hidden_consumes_locked_notice_before_any_visual_presentation() => WithStatusBall((window, ball) =>
+    {
+        var now = DateTimeOffset.UtcNow.AddSeconds(-2);
+        var tracker = new QuotaResetTracker();
+        var scope = QuotaResetTracker.ScopeForSource("SYNTHETIC-HIDDEN-RECOVERY")!;
+        QuotaSnapshot Sample(double remaining, DateTimeOffset time) => QuotaSnapshot.Available(
+            [new(QuotaWindowKind.Primary, remaining, 300, now.AddHours(5))], time);
+        tracker.Observe(Sample(20, now), scope, now);
+        var notice = Fresh(now, now.AddHours(3));
+        tracker.SetSchedule(notice, now);
+        window.SetResetTracker(tracker);
+        window.ApplyResetSchedule(notice, now);
+        Assert.False(window.IsVisible);
+        var recovered = now.AddSeconds(1);
+        var until = tracker.Observe(Sample(40, recovered), scope, recovered);
+        Assert.Equal(recovered.AddHours(1), until);
+        Assert.True(tracker.IsNoticeConsumed(notice.Schedule));
+        window.ApplyConfirmedReset(until);
+        Assert.Equal(ResetVisualState.None, ball.ResetState);
+        OwnerVisible(window, true, recovered.AddMinutes(59));
+        Assert.Equal(ResetVisualState.Confirmed, ball.ResetState);
+        OwnerVisible(window, false, recovered.AddMinutes(59));
+        OwnerVisible(window, true, until);
+        Assert.Equal(ResetVisualState.None, ball.ResetState);
+        Assert.Equal(ResetFooterKind.None, window.ResetFooter);
+        Assert.Equal(until, Private<DateTimeOffset?>(window, "confirmedResetUntil"));
+        Assert.True(tracker.IsNoticeConsumed(notice.Schedule));
+        OwnerVisible(window, false, until);
+    });
+
+    private static void OwnerVisible(QuotaCapsuleWindow window, bool value, DateTimeOffset? now = null)
+    {
+        // WPF normally changes this cache and raises IsVisibleChanged from its
+        // presentation source. Keep the fixture sourceless, then run the same handler.
+        var writeFlag = typeof(UIElement).GetMethod("WriteFlag", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var flag = Enum.Parse(writeFlag.GetParameters()[0].ParameterType, "IsVisibleCache");
+        writeFlag.Invoke(window, [flag, value]);
+        var visibleKey = (DependencyPropertyKey)typeof(UIElement).GetField("IsVisiblePropertyKey", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+        window.SetValue(visibleKey, value);
+        window.HandleResetOwnerVisibilityChanged(now);
+    }
+
     private static CompanionBallControl ReadyStatusBall(QuotaCapsuleWindow window)
     {
         window.SetPointerObservationAllowed(false); window.SetCompanion(true, true);

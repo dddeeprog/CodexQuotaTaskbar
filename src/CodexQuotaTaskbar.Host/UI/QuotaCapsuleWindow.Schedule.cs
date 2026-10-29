@@ -55,10 +55,27 @@ public partial class QuotaCapsuleWindow
         RefreshResetSchedule(DateTimeOffset.UtcNow);
     }
 
-    private void RefreshCompanionResetNotice(DateTimeOffset? now = null) => companion?.SetResetState(
-        !bongoWindowClosing && !extensionMotionClosed && IsVisible
-            ? resetQueryState.Select(ResetNoticeActive, confirmedResetUntil, now ?? DateTimeOffset.UtcNow)
-            : ResetVisualState.None);
+    private void RefreshCompanionResetNotice(DateTimeOffset? now = null)
+    {
+        var active = !bongoWindowClosing && !extensionMotionClosed;
+        var state = resetQueryState.Select(resetScheduleView is { IsVisible: true, IsTimingKnown: true },
+            confirmedResetUntil, now ?? DateTimeOffset.UtcNow);
+        var visible = active && IsVisible && (state != ResetVisualState.Upcoming || ResetNoticeActive);
+        // A temporary visual gate must clear the color without starting a new float
+        // episode when space/owner visibility returns. Business expiry still ends it.
+        companion?.SetResetState(visible ? state : ResetVisualState.None, active && state != ResetVisualState.None);
+    }
+
+    internal void HandleResetOwnerVisibilityChanged(DateTimeOffset? now = null)
+    {
+        var current = now ?? DateTimeOffset.UtcNow;
+        // Reproject before restoring color: the hidden interval may have expired a
+        // confirmation or an unlatched announcement. Locked notices retain their policy.
+        if (IsVisible) RefreshResetSchedule(current);
+        else RefreshCompanionResetNotice(current);
+        HandleHiddenIsland();
+        RefreshCompanionResetNotice(current);
+    }
 
     internal void ApplyResetSchedule(ResetScheduleSnapshot snapshot) => ApplyResetSchedule(snapshot, DateTimeOffset.UtcNow);
 
