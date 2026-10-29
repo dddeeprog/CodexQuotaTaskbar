@@ -88,6 +88,25 @@ public sealed class CompanionResetFloatTests(ITestOutputHelper output)
     });
 
     [Theory]
+    [InlineData((int)ResetVisualState.Failed)]
+    [InlineData((int)ResetVisualState.Upcoming)]
+    [InlineData((int)ResetVisualState.Confirmed)]
+    public void A_new_special_episode_starts_at_its_own_phase_after_the_previous_episode_ended(int nextState) => Sta(() =>
+    {
+        var ms = 0d;
+        using var visual = new CompanionBallVisual(() => ms);
+        visual.SetState("35", true);
+        visual.SetResetState(ResetVisualState.Confirmed);
+        ms = 1600; Frame(visual);
+        Assert.Equal(-12, visual.FloatFrame.BodyY);
+        visual.SetResetState(ResetVisualState.None, episodeActive: false);
+        ms = 2000; Frame(visual);
+        visual.SetResetState((ResetVisualState)nextState, episodeActive: true);
+        ms = 3600; Frame(visual);
+        Assert.Equal(-12, visual.FloatFrame.BodyY);
+    });
+
+    [Theory]
     [InlineData((int)ResetVisualState.Checking)]
     [InlineData((int)ResetVisualState.Failed)]
     [InlineData((int)ResetVisualState.Upcoming)]
