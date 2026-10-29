@@ -93,12 +93,13 @@ public partial class QuotaCapsuleWindow
         if (lastPointerDown == (button, timestamp)) { TracePointer("duplicate-down", timestamp); return true; }
         CancelPointerGesture("new-gesture");
         lastPointerDown = (button, timestamp);
-        FinishExtensionTransitions();
-        dragOriginBounds = physicalBounds;
-        dragOriginX = x; dragOriginY = y;
         if (!capture()) { TracePointer("capture-failed", timestamp); return false; }
         gestureButton = button; gestureRegion = region;
         pointerDown = true; userDragging = false;
+        RefreshResetFooter();
+        FinishExtensionTransitions();
+        dragOriginBounds = physicalBounds;
+        dragOriginX = x; dragOriginY = y;
         TracePointer("down-" + region, timestamp);
         OverlayLifecycleDiagnostics.Local.Window(this, button == MouseButton.Right
             ? OverlayLifecycleEvent.RightDown : OverlayLifecycleEvent.LeftDown, inputTimestamp: timestamp);
@@ -107,6 +108,7 @@ public partial class QuotaCapsuleWindow
 
     private void OnMouseMove(object sender, System.Windows.Input.MouseEventArgs args)
     {
+        UpdateResetStatusPointer(args.GetPosition(Shell));
         if (companion is not null) companion.Gaze(args.GetPosition(companion));
         if (!pointerDown) return;
         var pressed = gestureButton == MouseButton.Left ? args.LeftButton : args.RightButton;
@@ -150,7 +152,7 @@ public partial class QuotaCapsuleWindow
             ? OverlayLifecycleEvent.ContextInvoke : OverlayLifecycleEvent.PrimaryInvoke, inputTimestamp: timestamp);
         if (button == MouseButton.Right) ContextInvoked?.Invoke(this, EventArgs.Empty);
         else if (region == IslandHitRegion.Ball) { companion?.Tap(); CompanionInvoked?.Invoke(this, EventArgs.Empty); }
-        else if (region == IslandHitRegion.ResetNotice) OpenResetSourceRequested?.Invoke(CodexResetFeedClient.SiteUri);
+        else if (region == IslandHitRegion.ResetNotice) InvokeResetFooter();
         else PrimaryInvoked?.Invoke(this, EventArgs.Empty);
         return true;
     }
@@ -160,6 +162,7 @@ public partial class QuotaCapsuleWindow
         if (pointerDown) TracePointer(reason);
         ResetDragState();
         if (IsMouseCaptured) ReleaseMouseCapture(); // Never release another control's capture.
+        ReconcileResetStatusPointer();
     }
 
     private void ResetDragState()

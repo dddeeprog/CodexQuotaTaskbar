@@ -39,6 +39,12 @@ public sealed class IslandPointerRoutingTests
         window.ContextInvoked += (_, _) => counts[3]++;
         var button = right ? MouseButton.Right : MouseButton.Left;
         var region = (IslandHitRegion)hit;
+        if (region == IslandHitRegion.ResetNotice)
+        {
+            var now = DateTimeOffset.UtcNow;
+            window.ApplyResetSchedule(new(new("input-fixture", ResetKind.Regular, now.AddMinutes(-1), now.AddHours(1),
+                CodexResetFeedClient.SiteUri), now, false, null), now);
+        }
         Assert.True(window.BeginPointerGesture(button, region, 100, 0, 0, () => true));
         Assert.True(window.EndPointerGesture(button, region, 110));
         Assert.False(window.EndPointerGesture(button, region, 110)); // Duplicate delivery is inert.
@@ -186,6 +192,33 @@ public sealed class IslandPointerRoutingTests
             Assert.Equal(IntPtr.Zero, new WindowInteropHelper(menu).Handle);
         }
         finally { menu.Close(); }
+    });
+
+    [Fact]
+    public void Long_chord_drag_cancel_replay_recovers_without_double_invocation_or_stale_gesture() => Sta(window =>
+    {
+        var primary = 0; var context = 0;
+        window.PrimaryInvoked += (_, _) => primary++;
+        window.ContextInvoked += (_, _) => context++;
+        window.UserMoveRequested += _ => { }; // Keep the managed replay off the native desktop.
+        for (var i = 0; i < 1000; i++)
+        {
+            var stamp = unchecked(int.MaxValue - 1000 + i * 10); // Tick-count wrap is not a debounce interval.
+            window.BeginPointerGesture(MouseButton.Left, IslandHitRegion.Quota, stamp, 0, 0, () => true);
+            window.BeginPointerGesture(MouseButton.Right, IslandHitRegion.DotMarker, stamp + 1, 0, 0, () => true);
+            Assert.False(window.EndPointerGesture(MouseButton.Left, IslandHitRegion.Quota, stamp + 2));
+            Assert.True(window.EndPointerGesture(MouseButton.Right, IslandHitRegion.DotMarker, stamp + 3));
+            Assert.False(window.EndPointerGesture(MouseButton.Right, IslandHitRegion.DotMarker, stamp + 3));
+            window.BeginPointerGesture(MouseButton.Left, IslandHitRegion.Ball, stamp + 4, 0, 0, () => true);
+            Assert.True(window.MovePointerGesture(true, 20, 20));
+            window.CancelPointerGesture("lost-capture");
+            Assert.False(window.EndPointerGesture(MouseButton.Left, IslandHitRegion.Ball, stamp + 5));
+            window.BeginPointerGesture(MouseButton.Left, IslandHitRegion.Bongo, stamp + 6, 0, 0, () => true);
+            Assert.True(window.EndPointerGesture(MouseButton.Left, IslandHitRegion.Bongo, stamp + 7));
+            Assert.False(window.HasPointerGesture); Assert.False(window.IsUserDragging);
+        }
+        Assert.Equal(1000, primary); Assert.Equal(1000, context);
+        Assert.InRange(window.InputDiagnostics.Count, 1, 64);
     });
 
     [Fact]

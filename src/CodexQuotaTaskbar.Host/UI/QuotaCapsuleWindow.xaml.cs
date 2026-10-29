@@ -73,7 +73,9 @@ public partial class QuotaCapsuleWindow : Window
         AddHandler(Mouse.PreviewMouseDownEvent, new MouseButtonEventHandler(OnMouseLeftButtonDown), true);
         AddHandler(Mouse.PreviewMouseMoveEvent, new System.Windows.Input.MouseEventHandler(OnMouseMove), true);
         AddHandler(Mouse.PreviewMouseUpEvent, new MouseButtonEventHandler(OnMouseLeftButtonUp), true);
-        LostMouseCapture += (_, _) => ResetDragState();
+        MouseEnter += (_, _) => ReconcileResetStatusPointer();
+        MouseLeave += (_, _) => ClearResetStatusPointer();
+        LostMouseCapture += (_, _) => { ResetDragState(); ReconcileResetStatusPointer(); };
         SystemParameters.StaticPropertyChanged += OnSystemParametersChanged;
         IsVisibleChanged += (_, _) =>
         {
@@ -87,6 +89,7 @@ public partial class QuotaCapsuleWindow : Window
         Closing += (_, _) =>
         {
             bongoWindowClosing = true;
+            ClearResetStatusPointer();
             CancelPointerGesture("closing");
             RefreshCompanionResetNotice();
             FinishExtensionTransitions();

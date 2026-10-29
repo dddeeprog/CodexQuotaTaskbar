@@ -25,6 +25,7 @@ internal sealed class CompanionBallControl : Grid, IDisposable
         FontWeight = FontWeights.SemiBold, Foreground = Brushes.White, HorizontalAlignment = HorizontalAlignment.Center,
         VerticalAlignment = VerticalAlignment.Center };
     private readonly System.Windows.Controls.Border countBadge;
+    private bool resetHintHovered;
     private CompanionBallVisual? visual;
     private bool disposed;
     private bool reduced;
@@ -47,6 +48,9 @@ internal sealed class CompanionBallControl : Grid, IDisposable
             HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
             Margin = new Thickness(0, 4, 2, 0), IsHitTestVisible = false, Visibility = Visibility.Collapsed };
         Children.Add(countBadge);
+        // Observe the existing whole-ball surface; do not add a hit-test layer.
+        MouseEnter += (_, _) => SetResetHintHovered(true);
+        MouseLeave += (_, _) => SetResetHintHovered(false);
         timer.Tick += OnTick;
         director.SetVisible(false, DateTimeOffset.UtcNow);
         Loaded += OnLoaded;
@@ -61,6 +65,15 @@ internal sealed class CompanionBallControl : Grid, IDisposable
     internal bool CanAnimateTyping => Ready && IsLoaded && IsVisible && !reduced && SystemParameters.ClientAreaAnimation;
     internal event EventHandler? AvailabilityChanged;
     internal event Action<System.Windows.Point>? GazeChanged;
+    internal event Action<bool>? ResetHintHoverChanged;
+    internal void SetResetHintHovered(bool hovered)
+    {
+        if (disposed || resetHintHovered == hovered) return;
+        resetHintHovered = hovered;
+        // Do not let the parent's emotion tooltip leak into this base area.
+        ToolTipService.SetIsEnabled(this, !hovered);
+        ResetHintHoverChanged?.Invoke(hovered);
+    }
     internal void SetPointerObservationAllowed(bool allowed) => observePointer = allowed;
     internal void SetExternalFailure(string? reason) { externalFailure = reason; Render(); }
     internal void SetResetNoticeActive(bool active) => SetResetState(active ? ResetVisualState.Upcoming : ResetVisualState.None);
@@ -126,12 +139,14 @@ internal sealed class CompanionBallControl : Grid, IDisposable
     }
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
+        SetResetHintHovered(false);
         timer.Stop();
         director.SetVisible(false, DateTimeOffset.UtcNow);
         visual?.SetTypingInteraction(false);
     }
     private void OnVisibility(object sender, DependencyPropertyChangedEventArgs e)
     {
+        if (!IsVisible) SetResetHintHovered(false);
         Render();
         if (IsVisible && IsLoaded && Ready) timer.Start(); else timer.Stop();
     }
@@ -211,7 +226,9 @@ internal sealed class CompanionBallControl : Grid, IDisposable
     public void Dispose()
     {
         if (disposed) return;
+        SetResetHintHovered(false);
         disposed = true;
+        ResetHintHoverChanged = null;
         resetState = ResetVisualState.None;
         timer.Stop();
         timer.Tick -= OnTick;

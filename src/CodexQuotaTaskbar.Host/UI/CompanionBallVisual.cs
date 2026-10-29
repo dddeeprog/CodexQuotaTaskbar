@@ -51,6 +51,7 @@ internal sealed class CompanionBallVisual : FrameworkElement, IDisposable
     private double floatTransitionOrigin = double.NegativeInfinity;
     private ResetFloatFrame floatTransitionFrom = ResetFloatFrame.Rest;
     private readonly MatrixTransform resetGlowTransform = new();
+    private readonly MatrixTransform ringOutlineTransform = new();
     private readonly NormalRingSurface normalRing = new();
     internal Drawing NormalRingDrawing => normalRing.Drawing;
     internal Drawing NormalReflectionDrawing => normalRing.Reflection;
@@ -58,6 +59,11 @@ internal sealed class CompanionBallVisual : FrameworkElement, IDisposable
     internal NormalRingFrame NormalFrame { get; private set; } = SampleNormalRing(0, true);
     internal readonly record struct NormalRingFrame(Color Color, double Opacity, double Phase);
     internal ResetFloatFrame FloatFrame { get; private set; } = ResetFloatFrame.Rest;
+    internal double RingOutlineScale => OutlineScale(FloatFrame);
+    // Share the already-blended height phase, including ordinary/special retargets.
+    // The solid ring recedes as the ball rises; diffuse light can still spread.
+    internal static double OutlineScale(ResetFloatFrame frame) =>
+        1 - .18 * Math.Clamp((frame.GlowScaleX - 1) / .12, 0, 1);
     internal readonly record struct ResetFloatFrame(double BodyY, double GlowScaleX, double GlowScaleY, double GlowOpacity)
     {
         internal static readonly ResetFloatFrame Rest = new(0, 1, 1, 1);
@@ -189,8 +195,13 @@ internal sealed class CompanionBallVisual : FrameworkElement, IDisposable
         var targetFloat = SampleResetFloat(resetState, resetState == ResetVisualState.None ? now : now - resetFloatOrigin, motion);
         FloatFrame = BlendFloat(floatTransitionFrom, targetFloat, (now - floatTransitionOrigin) / 220);
         if (FloatFrame.BodyY != 0)
+        {
             resetGlowTransform.Matrix = new Matrix(FloatFrame.GlowScaleX, 0, 0, FloatFrame.GlowScaleY,
                 Center * (1 - FloatFrame.GlowScaleX), 246 * (1 - FloatFrame.GlowScaleY));
+            var ringScale = RingOutlineScale;
+            ringOutlineTransform.Matrix = new Matrix(ringScale, 0, 0, ringScale,
+                Center * (1 - ringScale), 244 * (1 - ringScale));
+        }
         engine.Sample(now, true);
         UpdateEffects(now);
         FrameCount++;
@@ -257,7 +268,7 @@ internal sealed class CompanionBallVisual : FrameworkElement, IDisposable
     {
         var time = animate ? Math.Max(0, milliseconds) : 0;
         var phase = time % 36000 / 36000;
-        return new(SpectrumColor(phase, .25), animate ? .77 + .09 * Math.Cos(time % 6000 / 6000 * Math.Tau) : .78, phase);
+        return new(SpectrumColor(phase, .25), animate ? .95 + .05 * Math.Cos(time % 6000 / 6000 * Math.Tau) : .95, phase);
     }
 
     private void UpdateNormalRing()
@@ -400,13 +411,15 @@ internal sealed class CompanionBallVisual : FrameworkElement, IDisposable
     {
         if (FloatFrame.BodyY == 0) { dc.DrawDrawing(ring); return; }
         var layers = ((DrawingGroup)ring).Children;
-        // Only the first cached surface is the diffuse halo. The opening, inner
-        // wall and solid base retain their exact position and geometry.
+        // The halo still spreads with height. Scale every solid layer together
+        // about the fixed top-face center, including its spatial RGB brush.
         dc.PushOpacity(FloatFrame.GlowOpacity);
         dc.PushTransform(resetGlowTransform);
         dc.DrawDrawing(layers[0]);
         dc.Pop(); dc.Pop();
+        dc.PushTransform(ringOutlineTransform);
         for (var i = 1; i < layers.Count; i++) dc.DrawDrawing(layers[i]);
+        dc.Pop();
     }
 
     private void DrawResetRing(DrawingContext dc)

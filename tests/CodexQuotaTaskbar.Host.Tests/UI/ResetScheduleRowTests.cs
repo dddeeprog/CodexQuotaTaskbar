@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Globalization;
+using System.Reflection;
 using System.Runtime.ExceptionServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -375,6 +376,357 @@ public sealed class ResetScheduleRowTests
             }
             finally { window.Close(); }
         }
+    });
+
+    [Fact]
+    public void Normal_and_checking_base_hover_have_no_description_or_tooltip() => WithStatusBall((window, ball) =>
+    {
+        var height = window.DesiredHeight;
+        var generation = window.ExtensionMotionGeneration;
+        foreach (var phase in new[] { ResetQueryPhase.Idle, ResetQueryPhase.Checking })
+        {
+            window.ApplyResetQueryState(new((long)phase + 1, phase));
+            ball.SetResetHintHovered(true);
+            Assert.Equal(ResetFooterKind.None, window.ResetFooter);
+            Assert.Equal(height, window.DesiredHeight);
+            Assert.Equal(Visibility.Collapsed, Named<Border>(window, "ResetScheduleRow").Visibility);
+            Assert.Null(Named<Border>(window, "ResetScheduleRow").ToolTip);
+            Assert.False(ToolTipService.GetIsEnabled(ball));
+            ball.SetResetHintHovered(false);
+        }
+        Assert.Equal(generation, window.ExtensionMotionGeneration);
+    });
+
+    [Theory]
+    [InlineData(true)] [InlineData(false)]
+    public void Special_description_reuses_footer_and_leaves_without_navigation_or_new_clocks(bool green) => WithStatusBall((window, ball) =>
+    {
+        var until = DateTimeOffset.UtcNow.AddHours(1);
+        if (green) window.ApplyConfirmedReset(until);
+        else window.ApplyResetQueryState(new(1, ResetQueryPhase.Failed));
+        var height = window.DesiredHeight;
+        var row = Named<Border>(window, "ResetScheduleRow");
+        var opened = new List<Uri>(); window.OpenResetSourceRequested += opened.Add;
+        Assert.Equal(ResetFooterKind.None, window.ResetFooter);
+        for (var repeat = 0; repeat < 8; repeat++)
+        {
+            ball.SetResetHintHovered(true);
+            Assert.Equal(ResetFooterKind.Status, window.ResetFooter);
+            Assert.Equal(height + 26, window.DesiredHeight);
+            Assert.Same(row, Named<Border>(window, "ResetScheduleRow"));
+            Assert.Equal(green ? "额度已回升" : "重置预告查询失败", Named<TextBlock>(window, "ResetScheduleCountdown").Text);
+            Assert.False(row.IsHitTestVisible); Assert.Null(row.ToolTip);
+            var generation = window.ExtensionMotionGeneration;
+            ball.SetResetHintHovered(true);
+            Assert.Equal(generation, window.ExtensionMotionGeneration);
+            window.InvokeResetFooter();
+            ball.SetResetHintHovered(false);
+            Assert.Equal(height, window.DesiredHeight);
+        }
+        Assert.Empty(opened);
+        Assert.Equal(green ? until : (DateTimeOffset?)null, Private<DateTimeOffset?>(window, "confirmedResetUntil"));
+        Assert.False(Private<System.Windows.Threading.DispatcherTimer>(ball, "timer").IsEnabled);
+        Assert.False(window.ResetScheduleAnimating); // No visible window: no native animation clock.
+        Assert.False(Private<bool>(window, "extensionRenderAttached"));
+    });
+
+    [Fact]
+    public void Schedule_status_replacement_disables_stale_links_and_never_revives_consumed_notice() => WithStatusBall((window, ball) =>
+    {
+        // Keep both accepted samples in the past: future recovery deadlines are
+        // intentionally rejected by the existing one-hour replay guard.
+        var now = DateTimeOffset.UtcNow.AddSeconds(-2);
+        var snapshot = Fresh(now, now.AddHours(3));
+        var tracker = new QuotaResetTracker(); // In-memory only.
+        window.SetResetTracker(tracker); tracker.SetNotice(snapshot.Schedule);
+        var scope = QuotaResetTracker.ScopeForSource("SYNTHETIC-FOOTER-TEST")!;
+        QuotaSnapshot Sample(double remaining, DateTimeOffset time) => QuotaSnapshot.Available(
+            [new(QuotaWindowKind.Primary, remaining, 300, now.AddHours(5))], time);
+        tracker.Observe(Sample(20, now), scope, now);
+        window.ApplyResetSchedule(snapshot, now);
+        var row = Named<Border>(window, "ResetScheduleRow");
+        var tip = Assert.IsType<ToolTip>(row.ToolTip);
+        var link = Assert.Single(Assert.IsType<TextBlock>(tip.Content).Inlines.OfType<System.Windows.Documents.Hyperlink>());
+        var opened = new List<Uri>(); window.OpenResetSourceRequested += opened.Add;
+        ball.SetResetHintHovered(true);
+        Assert.Equal(ResetFooterKind.Schedule, window.ResetFooter); Assert.Same(tip, row.ToolTip);
+        window.InvokeResetFooter(); Assert.Equal(CodexResetFeedClient.SiteUri, Assert.Single(opened));
+        window.ApplyResetQueryState(new(1, ResetQueryPhase.Failed));
+        Assert.Equal(ResetFooterKind.Status, window.ResetFooter); Assert.Null(row.ToolTip);
+        link.RaiseEvent(new RoutedEventArgs(System.Windows.Documents.Hyperlink.ClickEvent));
+        window.InvokeResetFooter(); Assert.Single(opened);
+        window.ApplyResetQueryState(new(2, ResetQueryPhase.Idle));
+        Assert.Equal(ResetFooterKind.Schedule, window.ResetFooter);
+        var until = tracker.Observe(Sample(40, now.AddSeconds(1)), scope, now.AddSeconds(1));
+        Assert.NotNull(until); Assert.True(tracker.IsNoticeConsumed(snapshot.Schedule));
+        window.ApplyConfirmedReset(until);
+        window.ApplyResetQueryState(new(3, ResetQueryPhase.Failed)); // Green keeps priority over a query error.
+        Assert.Equal("额度已回升", Named<TextBlock>(window, "ResetScheduleCountdown").Text);
+        Assert.Equal(ResetFooterKind.Status, window.ResetFooter);
+        link.RaiseEvent(new RoutedEventArgs(System.Windows.Documents.Hyperlink.ClickEvent));
+        Assert.Single(opened);
+        ball.SetResetHintHovered(false);
+        Assert.Equal(ResetFooterKind.None, window.ResetFooter);
+        window.ApplyResetQueryState(new(4, ResetQueryPhase.Idle));
+        var later = until!.Value.AddSeconds(1);
+        window.ApplyResetSchedule(snapshot with { LastUpdatedAt = later }, later);
+        window.SetResetStatusHintHovered(true, later);
+        Assert.Equal(ResetFooterKind.None, window.ResetFooter);
+        Assert.Equal(until, Private<DateTimeOffset?>(window, "confirmedResetUntil"));
+        window.InvokeResetFooter(); Assert.Single(opened);
+    });
+
+    [Fact]
+    public void Dot_presentation_and_pointer_gestures_dismiss_only_the_optional_status() => WithStatusBall((window, ball) =>
+    {
+        window.ApplyResetQueryState(new(1, ResetQueryPhase.Failed));
+        ball.SetResetHintHovered(true);
+        Assert.Equal(ResetFooterKind.Status, window.ResetFooter);
+        window.SetDotMarker(2, canAcknowledge: true);
+        var marker = window.DotMarkerButton;
+        var dot = new TextBlock { Text = "合成 Dot 消息" };
+        window.ShowDotTopExtension(dot, 30);
+        Assert.Equal(ResetFooterKind.None, window.ResetFooter);
+        window.SetResetStatusHintHovered(true);
+        Assert.Equal(ResetFooterKind.None, window.ResetFooter);
+        Assert.Same(dot, window.DotTopContent); Assert.Same(marker, window.DotMarkerButton);
+        window.HideDotTopExtension();
+        Assert.Equal(ResetFooterKind.Status, window.ResetFooter);
+        var ballClicks = 0; window.CompanionInvoked += (_, _) => ballClicks++;
+        Assert.True(window.BeginPointerGesture(System.Windows.Input.MouseButton.Left, IslandHitRegion.Ball, 100, 0, 0, () => true));
+        Assert.Equal(ResetFooterKind.None, window.ResetFooter);
+        window.EndPointerGesture(System.Windows.Input.MouseButton.Left, IslandHitRegion.Ball, 110);
+        Assert.Equal(1, ballClicks); Assert.False(window.HasPointerGesture);
+        Assert.Equal(ResetFooterKind.Status, window.ResetFooter); // No leave/re-enter needed.
+        ball.RaiseEvent(new RoutedEventArgs(FrameworkElement.UnloadedEvent));
+        Assert.Equal(ResetFooterKind.None, window.ResetFooter);
+        Assert.False(Private<System.Windows.Threading.DispatcherTimer>(ball, "timer").IsEnabled);
+        Assert.False(Private<bool>(window, "extensionRenderAttached"));
+    });
+
+    [Theory]
+    [InlineData(96, true)] [InlineData(108, true)] [InlineData(144, true)]
+    [InlineData(96, false)] [InlineData(108, false)] [InlineData(144, false)]
+    public void Special_footer_text_fits_and_space_recovery_restores_retained_hover(int dpi, bool green) => WithStatusBall((window, ball) =>
+    {
+        using var fixture = DpiFixture();
+        if (green) window.ApplyConfirmedReset(DateTimeOffset.UtcNow.AddHours(1));
+        else window.ApplyResetQueryState(new(1, ResetQueryPhase.Failed));
+        var baseline = window.DesiredHeight;
+        ball.SetResetHintHovered(true);
+        Layout(window, dpi);
+        var title = Named<TextBlock>(window, "ResetScheduleCountdown");
+        var detail = Named<TextBlock>(window, "ResetScheduleLocalTime");
+        foreach (var text in new[] { title, detail })
+        {
+            var measured = new FormattedText(text.Text, CultureInfo.GetCultureInfo("zh-CN"), FlowDirection.LeftToRight,
+                new Typeface(text.FontFamily, text.FontStyle, text.FontWeight, text.FontStretch), text.FontSize,
+                Brushes.White, dpi / 96d);
+            Assert.True(measured.WidthIncludingTrailingWhitespace <= text.ActualWidth + 1, text.Text);
+            Assert.True(measured.Height <= text.ActualHeight + 1, text.Text);
+        }
+        var parent = (FrameworkElement)title.Parent;
+        Assert.True(title.TransformToAncestor(parent).TransformBounds(new Rect(title.RenderSize)).Right
+            <= detail.TransformToAncestor(parent).TransformBounds(new Rect(detail.RenderSize)).Left + 1);
+        window.SetResetSchedulePresentationAllowed(false);
+        Assert.Equal(baseline, window.DesiredHeight);
+        window.SetResetSchedulePresentationAllowed(true);
+        Assert.Equal(ResetFooterKind.Status, window.ResetFooter);
+        Assert.Equal(baseline + 26, window.DesiredHeight);
+        window.SetResetSchedulePresentationAllowed(false);
+        ball.SetResetHintHovered(false);
+        window.SetResetSchedulePresentationAllowed(true);
+        Assert.Equal(ResetFooterKind.None, window.ResetFooter); // Leaving during suppression is not retained.
+        window.SetCompanion(false, true);
+        Assert.Equal(ResetFooterKind.None, window.ResetFooter);
+        Assert.Equal(Visibility.Collapsed, Named<Border>(window, "ResetScheduleRow").Visibility);
+    });
+
+    [Fact]
+    public void Schedule_mouse_up_after_query_failure_cannot_navigate() => WithStatusBall((window, ball) =>
+    {
+        window.ApplyResetSchedule(Fresh(DateTimeOffset.UtcNow));
+        var opened = 0; window.OpenResetSourceRequested += _ => opened++;
+        Assert.True(window.BeginPointerGesture(System.Windows.Input.MouseButton.Left, IslandHitRegion.ResetNotice,
+            100, 0, 0, () => true));
+        window.ApplyResetQueryState(new(1, ResetQueryPhase.Failed));
+        window.EndPointerGesture(System.Windows.Input.MouseButton.Left, IslandHitRegion.ResetNotice, 110);
+        Assert.Equal(0, opened); Assert.False(window.HasPointerGesture);
+    });
+
+    [Fact]
+    public void Hover_corridor_is_retained_only_after_ball_entry_and_never_expands_click_targets()
+    {
+        var ball = new Rect(220, -2, 56, 56); var card = new Rect(16, 16, 248, 130);
+        foreach (var dpi in new[] { 96d, 144d, 192d })
+        foreach (var origin in new[] { new Point(-1920, -300), new Point(300, 200) })
+        {
+            var scale = dpi / 96;
+            foreach (var local in new[] { new Point(221, 1), new Point(247, 25), new Point(274, 50) })
+            {
+                var screen = new Point(origin.X + local.X * scale, origin.Y + local.Y * scale);
+                var roundtrip = new Point((screen.X - origin.X) / scale, (screen.Y - origin.Y) / scale);
+                Assert.True(QuotaCapsuleWindow.IsResetStatusHoverPoint(roundtrip, ball, card, false));
+            }
+            Assert.False(QuotaCapsuleWindow.IsResetStatusHoverPoint(new Point(100, 100), ball, card, false));
+            Assert.True(QuotaCapsuleWindow.IsResetStatusHoverPoint(new Point(100, 100), ball, card, true));
+            Assert.False(QuotaCapsuleWindow.IsResetStatusHoverPoint(new Point(15, 100), ball, card, true));
+            Assert.False(QuotaCapsuleWindow.IsResetStatusHoverPoint(new Point(250, 147), ball, card, true));
+        }
+        Assert.False(QuotaCapsuleWindow.IsResetStatusHoverPoint(new Point(), Rect.Empty, card, true));
+    }
+
+    [Theory]
+    [InlineData(96, false)] [InlineData(144, false)] [InlineData(192, false)]
+    [InlineData(96, true)] [InlineData(144, true)] [InlineData(192, true)]
+    public void Lifted_whole_ball_hover_hit_regions_and_stationary_recovery_use_transformed_geometry(int dpi, bool coexist) => WithStatusBall((window, ball) =>
+    {
+        using var fixture = DpiFixture();
+        if (coexist)
+        {
+            window.ConfigureBongoSurface(true, 160);
+            window.PresentBongoFrame(new CodexQuotaTaskbar.Host.Bongo.BongoFrame(1, 1, [255, 255, 255, 255], 4));
+        }
+        window.Apply(QuotaSnapshot.Available([new(QuotaWindowKind.Primary, 62, 300, DateTimeOffset.UtcNow.AddHours(5))], DateTimeOffset.UtcNow));
+        var transform = ball.RenderTransform;
+        ball.RenderTransform = Transform.Identity; var root = Layout(window, dpi); var before = window.StatusBallBoundsDip;
+        var size = new Size(window.Width, window.DesiredHeight);
+        RenderTargetBitmap Snapshot()
+        {
+            var bitmap = new RenderTargetBitmap((int)Math.Ceiling(size.Width * dpi / 96), (int)Math.Ceiling(size.Height * dpi / 96), dpi, dpi, PixelFormats.Pbgra32);
+            bitmap.Render(root); return bitmap;
+        }
+        var beforeImage = Snapshot();
+        ball.RenderTransform = transform; Layout(window, dpi); var lifted = window.StatusBallBoundsDip;
+        Assert.Equal(before.Width, lifted.Width, 6); Assert.Equal(before.Height, lifted.Height, 6);
+        Assert.Equal(before.Left, lifted.Left, 6);
+        Assert.Equal(2, before.Top - lifted.Top, 6); // Render translation is in parent DIPs, after the 52/56 layout scale.
+        Assert.Equal(size.Height, window.DesiredHeight); // No owner/window resize for the lift.
+        var preview = Environment.GetEnvironmentVariable("CQT_WHOLE_BALL_PREVIEW_DIR");
+        if (dpi == 96 && !string.IsNullOrWhiteSpace(preview))
+        {
+            Assert.Equal(Path.GetFullPath(Path.Combine(RepositoryPaths.Root, "artifacts/interaction-wake-preview/whole-ball-hover-media")), Path.GetFullPath(preview), ignoreCase: true);
+            Directory.CreateDirectory(preview);
+            var afterImage = Snapshot(); var sheet = new DrawingVisual();
+            using (var dc = sheet.RenderOpen())
+            {
+                dc.DrawRectangle(Brushes.DimGray, null, new Rect(0, 0, size.Width * 2, size.Height + 24));
+                dc.DrawImage(beforeImage, new Rect(0, 24, size.Width, size.Height));
+                dc.DrawImage(afterImage, new Rect(size.Width, 24, size.Width, size.Height));
+                foreach (var pair in new[] { ("上移前", 14d), ("上移后 · 同一实际控件", size.Width + 14) })
+                    dc.DrawText(new FormattedText(pair.Item1, CultureInfo.GetCultureInfo("zh-CN"), FlowDirection.LeftToRight,
+                        new Typeface(OverlayTypography.Text, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal), 13, Brushes.White, 1), new Point(pair.Item2, 2));
+            }
+            var bitmap = new RenderTargetBitmap((int)(size.Width * 4), (int)((size.Height + 24) * 2), 192, 192, PixelFormats.Pbgra32); bitmap.Render(sheet);
+            var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bitmap));
+            var path = Path.Combine(preview, coexist ? "lift-52dip.png" : "lift-56dip.png"); Assert.False(File.Exists(path));
+            using var file = File.Create(path); png.Save(file);
+        }
+        window.ApplyResetQueryState(new(1, ResetQueryPhase.Failed));
+        foreach (var x in new[] { .1, .5, .9 })
+        foreach (var y in new[] { .1, .5, .9 })
+        {
+            window.UpdateResetStatusPointer(new Point(-100, -100));
+            Layout(window, dpi); lifted = window.StatusBallBoundsDip;
+            var point = new Point(lifted.Left + lifted.Width * x, lifted.Top + lifted.Height * y);
+            Assert.Equal(IslandHitRegion.Ball, window.PointerRegion(point));
+            window.UpdateResetStatusPointer(point); Assert.Equal(ResetFooterKind.Status, window.ResetFooter);
+        }
+        Layout(window, dpi);
+        var row = Named<Border>(window, "ResetScheduleRow");
+        var footer = row.TransformToAncestor(Named<Grid>(window, "Shell")).TransformBounds(new Rect(row.RenderSize));
+        var ballPoint = new Point(lifted.Left + lifted.Width / 2, lifted.Top + lifted.Height / 2);
+        var footerPoint = new Point(footer.Left + footer.Width / 2, footer.Top + footer.Height / 2);
+        for (var i = 1; i <= 30; i++)
+        {
+            window.UpdateResetStatusPointer(new Point(ballPoint.X + (footerPoint.X - ballPoint.X) * i / 30, ballPoint.Y + (footerPoint.Y - ballPoint.Y) * i / 30));
+            Assert.Equal(ResetFooterKind.Status, window.ResetFooter);
+        }
+        Assert.False(row.IsHitTestVisible); Assert.NotEqual(IslandHitRegion.ResetNotice, window.PointerRegion(footerPoint));
+        window.SetResetSchedulePresentationAllowed(false); Assert.Equal(ResetFooterKind.None, window.ResetFooter);
+        window.SetResetSchedulePresentationAllowed(true); Assert.Equal(ResetFooterKind.Status, window.ResetFooter);
+        window.ShowDotTopExtension(new TextBlock { Text = "合成消息" }, 30); Assert.Equal(ResetFooterKind.None, window.ResetFooter);
+        window.HideDotTopExtension(); Assert.Equal(ResetFooterKind.Status, window.ResetFooter);
+        window.UpdateResetStatusPointer(ballPoint);
+        var moved = 0; window.UserMoveRequested += _ => moved++; // Synthetic move sink: no native window motion.
+        Assert.True(window.BeginPointerGesture(System.Windows.Input.MouseButton.Left, IslandHitRegion.Ball, 411, 0, 0, () => true));
+        Assert.Equal(ResetFooterKind.None, window.ResetFooter);
+        Assert.True(window.MovePointerGesture(true, 12, 12)); Assert.Equal(1, moved); Assert.True(window.IsUserDragging);
+        window.CancelPointerGesture("synthetic-drag-end"); Assert.Equal(ResetFooterKind.Status, window.ResetFooter);
+        window.ShowDotTopExtension(new TextBlock { Text = "合成消息" }, 30);
+        window.UpdateResetStatusPointer(new Point(-100, -100)); window.HideDotTopExtension();
+        Assert.Equal(ResetFooterKind.None, window.ResetFooter);
+        window.UpdateResetStatusPointer(ballPoint);
+        Named<Grid>(window, "Shell").Children.Remove(ball); // Actual tree detachment, not only a routed Unloaded event.
+        window.RefreshResetSchedule(DateTimeOffset.UtcNow);
+        Assert.Equal(ResetFooterKind.None, window.ResetFooter); Assert.True(window.StatusBallBoundsDip.IsEmpty);
+    });
+
+    [Fact]
+    public void Optional_status_footer_preview_uses_actual_unshown_controls() => Sta(() =>
+    {
+        var wholeBall = Environment.GetEnvironmentVariable("CQT_WHOLE_BALL_PREVIEW_DIR");
+        var configured = wholeBall ?? Environment.GetEnvironmentVariable("CQT_RESET_STATUS_PREVIEW_DIR");
+        if (string.IsNullOrWhiteSpace(configured)) return;
+        var directory = Path.GetFullPath(configured);
+        Assert.Equal(Path.GetFullPath(Path.Combine(RepositoryPaths.Root, "artifacts", "interaction-wake-preview", wholeBall is null ? "reset-status" : "whole-ball-hover-media")), directory, ignoreCase: true);
+        Directory.CreateDirectory(directory);
+        using var dpiFixture = DpiFixture();
+        var sheet = new DrawingVisual();
+        using (var draw = sheet.RenderOpen())
+        {
+            draw.DrawRectangle(new SolidColorBrush(Color.FromRgb(24, 26, 29)), null, new Rect(0, 0, 660, 400));
+            var names = new[] { "普通 · 悬停也不出现说明", "金色 · 原重置提醒可点击", "绿色 · 悬停说明，不跳转", "红色 · 悬停说明，不跳转" };
+            for (var index = 0; index < names.Length; index++)
+            {
+                var window = new QuotaCapsuleWindow("offline-status-preview");
+                try
+                {
+                    var ball = ReadyStatusBall(window);
+                    var now = DateTimeOffset.UtcNow;
+                    window.Apply(QuotaSnapshot.Available([new(QuotaWindowKind.Primary, 62, 300, now.AddHours(5)),
+                        new(QuotaWindowKind.Secondary, 48, 10080, now.AddDays(7))], now));
+                    window.ApplySessions(Sessions(1));
+                    if (index == 1) window.ApplyResetSchedule(Fresh(now, now.AddHours(1)), now);
+                    if (index == 2) window.ApplyConfirmedReset(now.AddHours(1));
+                    if (index == 3) window.ApplyResetQueryState(new(1, ResetQueryPhase.Failed));
+                    Layout(window, 144);
+                    var hover = window.StatusBallBoundsDip;
+                    window.UpdateResetStatusPointer(new Point(hover.Left + hover.Width / 2, hover.Top + hover.Height / 2));
+                    // Only visual sampling is overridden because an unshown owner correctly has no active ring.
+                    ball.Visual!.SetState("35", false);
+                    ball.SetResetState(new[] { ResetVisualState.None, ResetVisualState.Upcoming, ResetVisualState.Confirmed, ResetVisualState.Failed }[index]);
+                    var root = Layout(window, 144);
+                    var card = new RenderTargetBitmap(420, (int)Math.Ceiling(window.DesiredHeight * 1.5), 144, 144, PixelFormats.Pbgra32);
+                    card.Render(root);
+                    var x = 20 + index % 2 * 320; var y = 16 + index / 2 * 190;
+                    draw.DrawText(new FormattedText(names[index], CultureInfo.GetCultureInfo("zh-CN"), FlowDirection.LeftToRight,
+                        new Typeface(OverlayTypography.Text, FontStyles.Normal, FontWeights.Medium, FontStretches.Normal), 13, Brushes.White, 1), new Point(x + 8, y));
+                    draw.DrawImage(card, new Rect(x, y + 30, 280, window.DesiredHeight));
+                    Assert.False(window.IsVisible); Assert.Equal(IntPtr.Zero, new WindowInteropHelper(window).Handle);
+                }
+                finally { window.Close(); }
+            }
+        }
+        var bitmap = new RenderTargetBitmap(1320, 800, 192, 192, PixelFormats.Pbgra32); bitmap.Render(sheet);
+        var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        var target = Path.Combine(directory, wholeBall is null ? "status-footer-preview.png" : "whole-ball-hover-preview.png");
+        Assert.False(File.Exists(target)); using var file = File.Create(target); encoder.Save(file);
+    });
+
+    private static CompanionBallControl ReadyStatusBall(QuotaCapsuleWindow window)
+    {
+        window.SetPointerObservationAllowed(false); window.SetCompanion(true, true);
+        var ball = Private<CompanionBallControl>(window, "companion");
+        ball.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+        return ball;
+    }
+    private static T Private<T>(object owner, string field) => (T)owner.GetType().GetField(field, BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(owner)!;
+    private static void WithStatusBall(Action<QuotaCapsuleWindow, CompanionBallControl> check) => Sta(() =>
+    {
+        var window = new QuotaCapsuleWindow("synthetic-status-footer");
+        try { check(window, ReadyStatusBall(window)); Assert.False(window.IsVisible); Assert.Equal(IntPtr.Zero, new WindowInteropHelper(window).Handle); }
+        finally { window.Close(); }
     });
 
     private static ResetScheduleSnapshot Fresh(DateTimeOffset? updated = null, DateTimeOffset? deadline = null)

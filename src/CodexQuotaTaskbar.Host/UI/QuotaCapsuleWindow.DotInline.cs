@@ -207,6 +207,7 @@ public partial class QuotaCapsuleWindow
         if (!ReferenceEquals(dotTopHost.Child, content)) dotTopHost.Child = content;
         dotTopHost.Height = appliedTopExtensionHeight;
         dotTopHost.Visibility = Visibility.Visible;
+        RefreshResetFooter();
         if (!acceptsReply) WindowInteropPolicy.SetReplyActivation(this, false);
         // The short notice animates. A composer and its content-sized input updates
         // retain immediate sizing, focus, selection and IME behavior.
@@ -234,6 +235,7 @@ public partial class QuotaCapsuleWindow
         if (dotTopSurface is not null) dotTopSurface.RowDefinitions[0].Height = new GridLength(0);
         dotTopContent = null;
         WindowInteropPolicy.SetReplyActivation(this, false);
+        ReconcileResetStatusPointer();
     }
 
     internal void ShowInlineDot(DotInlineView view)

@@ -8,6 +8,8 @@ internal enum CompanionStatusDock { QuotaCorner, StageCorner }
 public partial class QuotaCapsuleWindow
 {
     private static readonly System.Windows.Media.Transform CoexistingStatusBallScale = MakeCoexistingStatusBallScale();
+    internal const double StatusBallLiftDip = 2;
+    private static readonly System.Windows.Media.Transform StatusBallLift = MakeStatusBallLift();
     private CompanionBallControl? companion;
     private bool companionTyping;
     private bool companionReduced;
@@ -18,6 +20,7 @@ public partial class QuotaCapsuleWindow
         ? GlassBorder.Margin.Top + GlassBorder.BorderThickness.Top + (companionStatusDock == CompanionStatusDock.QuotaCorner
             ? BongoStageHeight + 1 : BongoIslandSurface.ModelTopInsetDip) : 0);
     internal Rect StatusBallBoundsDip => StatusBallVisibleForLayout
+        && Shell.IsAncestorOf(companion!)
         ? companion!.TransformToAncestor(Shell).TransformBounds(new Rect(0, 0, companion.Width, companion.Height)) : Rect.Empty;
     internal void SetCompanionStatusDock(CompanionStatusDock dock)
     {
@@ -60,6 +63,7 @@ public partial class QuotaCapsuleWindow
         if (reduced) FinishExtensionTransitions();
         if (!enabled)
         {
+            ClearResetStatusPointer();
             if (companion is not null)
             {
                 Shell.Children.Remove(companion);
@@ -77,6 +81,7 @@ public partial class QuotaCapsuleWindow
                 VerticalAlignment = VerticalAlignment.Top,
                 Margin = new Thickness(0, 0, 0, 0),
                 IsHitTestVisible = false,
+                RenderTransform = StatusBallLift,
             };
             System.Windows.Controls.Panel.SetZIndex(companion, 5);
             companion.AvailabilityChanged += (_, _) =>
@@ -90,6 +95,8 @@ public partial class QuotaCapsuleWindow
                 else RestoreStatusBadge();
             };
             companion.MouseEnter += (_, _) => companion?.Hover();
+            companion.ResetHintHoverChanged += hovered => ReconcileResetStatusPointer(fallback: hovered);
+            companion.Unloaded += (_, _) => ClearResetStatusPointer();
             companion.GazeChanged += point => CompanionGazeChanged?.Invoke(point);
             companion.Apply(sessionsSnapshot);
             Shell.Children.Add(companion);
@@ -144,6 +151,13 @@ public partial class QuotaCapsuleWindow
         var scale = new System.Windows.Media.ScaleTransform(52d / 56d, 52d / 56d);
         scale.Freeze();
         return scale;
+    }
+
+    private static System.Windows.Media.Transform MakeStatusBallLift()
+    {
+        var transform = new System.Windows.Media.TranslateTransform(0, -StatusBallLiftDip);
+        transform.Freeze();
+        return transform;
     }
 
     internal static Thickness CompanionQuotaMargin(bool unified, bool ballReady, bool typing, bool reduced, bool animations) =>

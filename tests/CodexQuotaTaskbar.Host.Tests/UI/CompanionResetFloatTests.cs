@@ -8,13 +8,15 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CodexQuotaTaskbar.Host.Resets;
 using CodexQuotaTaskbar.Host.UI;
+using CodexQuotaTaskbar.Host.Tests.TestSupport;
+using Xunit.Abstractions;
 
 namespace CodexQuotaTaskbar.Host.Tests.UI;
 
 // Dedicated additive-motion checks/export; the older interaction and recovery
 // exporters and their media remain independent. No Window, input or account client.
 [Collection("Native UI isolation")]
-public sealed class CompanionResetFloatTests
+public sealed class CompanionResetFloatTests(ITestOutputHelper output)
 {
     private static readonly ResetVisualState[] States = [ResetVisualState.None, ResetVisualState.Checking,
         ResetVisualState.Failed, ResetVisualState.Upcoming, ResetVisualState.Confirmed];
@@ -119,8 +121,12 @@ public sealed class CompanionResetFloatTests
                     Assert.True(box.Contains(Rect.Transform(head.Shape.Bounds, head.Transform)), $"Body clipped: {state}/{definition.Id}/{phase}/{size}");
                     Assert.True(box.Contains(Rect.Transform(glow.Shape.Bounds, glow.Transform)), $"Halo clipped: {state}/{definition.Id}/{phase}/{size}");
                     var scale = size * .64 / 259;
-                    Assert.Equal(scale, solid.Transform.M11, 10); Assert.Equal(scale, solid.Transform.M22, 10);
-                    Assert.Equal(size / 2 - 114.2705 * scale, solid.Transform.OffsetY, 10);
+                    Assert.Equal(scale * visual.RingOutlineScale, solid.Transform.M11, 10);
+                    Assert.Equal(scale * visual.RingOutlineScale, solid.Transform.M22, 10);
+                    var anchor = solid.Transform.Transform(new Point(114.2705, 244));
+                    Assert.Equal(size / 2, anchor.X, 10);
+                    Assert.Equal(size / 2 + (244 - 114.2705) * scale, anchor.Y, 10);
+                    Assert.True(box.Contains(Rect.Transform(solid.Shape.Bounds, solid.Transform)));
                     var center = head.Transform.Transform(new Point(114.2705, 114.2705));
                     Assert.Equal(size / 2 + (pose[1] + visual.FloatFrame.BodyY) * scale, center.Y, 8);
                     Assert.Equal(pose, Field<CompanionPoseEngine>(visual, "engine").Pose);
@@ -137,6 +143,136 @@ public sealed class CompanionResetFloatTests
             Assert.False(visual.AnimationRunning); Assert.Null(PresentationSource.FromVisual(visual));
         }
     }, 120);
+
+    [Fact]
+    public void Outline_scale_reuses_height_phase_is_smooth_bounded_and_allocation_free()
+    {
+        foreach (var state in States)
+        {
+            var period = state is ResetVisualState.None or ResetVisualState.Checking ? 6000 : 3200;
+            var previous = 1d;
+            for (var ms = 0; ms <= period; ms++)
+            {
+                var sample = CompanionBallVisual.SampleResetFloat(state, ms, true);
+                var scale = CompanionBallVisual.OutlineScale(sample);
+                Assert.InRange(scale, .82, 1);
+                Assert.InRange(Math.Abs(scale - previous), 0, .00018);
+                Assert.Equal(1, CompanionBallVisual.OutlineScale(CompanionBallVisual.SampleResetFloat(state, ms, false)));
+                previous = scale;
+            }
+            Assert.Equal(.82, CompanionBallVisual.OutlineScale(CompanionBallVisual.SampleResetFloat(state, period / 2, true)), 10);
+        }
+        // 238 model-unit solid diameter: real size excursion is visible, not just halo opacity.
+        foreach (var size in new[] { 52d, 56d }) Assert.InRange(238 * .18 * size * .64 / 259, 5.5, 6.0);
+        var from = CompanionBallVisual.SampleResetFloat(ResetVisualState.None, 3000, true);
+        var to = CompanionBallVisual.ResetFloatFrame.Rest;
+        Assert.Equal(CompanionBallVisual.OutlineScale(from), CompanionBallVisual.OutlineScale(CompanionBallVisual.BlendFloat(from, to, 0)));
+        var allocated = GC.GetAllocatedBytesForCurrentThread(); var sum = 0d;
+        for (var i = 0; i < 10000; i++) sum += CompanionBallVisual.OutlineScale(CompanionBallVisual.SampleResetFloat(ResetVisualState.None, i, true));
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - allocated); Assert.True(sum > 0);
+    }
+
+    [Fact]
+    public void Outline_transform_is_reused_and_hidden_reduced_do_not_animate_or_change_layout() => Sta(() =>
+    {
+        var ms = 0d; using var visual = new CompanionBallVisual(() => ms);
+        visual.SetState("35", true); Frame(visual); Record(visual, 56);
+        var transform = Field<MatrixTransform>(visual, "ringOutlineTransform");
+        var ring = visual.NormalRingDrawing;
+        ms = 3000; Frame(visual); Record(visual, 56);
+        Assert.Equal(.82, visual.RingOutlineScale, 10);
+        Assert.Same(transform, Field<MatrixTransform>(visual, "ringOutlineTransform")); Assert.Same(ring, visual.NormalRingDrawing);
+        Assert.Equal(new Size(56, 56), visual.RenderSize); Assert.True(visual.RenderTransform.Value.IsIdentity);
+        Assert.False(visual.IsHitTestVisible); Assert.Null(PresentationSource.FromVisual(visual));
+        var matrix = transform.Matrix; var count = visual.FrameCount;
+        visual.Visibility = Visibility.Hidden; ms += 9000; Frame(visual);
+        Assert.Equal(matrix, transform.Matrix); Assert.Equal(count, visual.FrameCount); Assert.False(visual.AnimationRunning);
+        visual.Visibility = Visibility.Visible; visual.SetState("35", false); Frame(visual);
+        Assert.Equal(1, visual.RingOutlineScale); Assert.Equal(count, visual.FrameCount);
+        // Reduced rendering must bypass the cached peak transform, not leave a small base.
+        var reduced = Record(visual, 56);
+        var solid = (GeometryDrawing)((DrawingGroup)ring).Children[2];
+        var entry = Geometries(reduced, Matrix.Identity).Single(e => ReferenceEquals(e.Shape.Geometry, solid.Geometry));
+        Assert.Equal(56 * .64 / 259, entry.Transform.M11, 10);
+    });
+
+    [Fact]
+    public void Cached_outline_matrix_updates_have_small_bounded_managed_allocation() => Sta(() =>
+    {
+        using var visual = new CompanionBallVisual(() => 0);
+        var transform = Field<MatrixTransform>(visual, "ringOutlineTransform");
+        void Update(int i)
+        {
+            var scale = CompanionBallVisual.OutlineScale(CompanionBallVisual.SampleResetFloat(ResetVisualState.None, i * 34, true));
+            transform.Matrix = new Matrix(scale, 0, 0, scale, 114.2705 * (1 - scale), 244 * (1 - scale));
+        }
+        for (var i = 0; i < 1000; i++) Update(i);
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        for (var i = 0; i < 10000; i++) Update(i);
+        var bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+        output.WriteLine($"Cached outline Matrix update: {bytes} B / 10000 = {bytes / 10000d:F2} B/update; not process working set.");
+        Assert.InRange(bytes, 0, 10000L * 512);
+        Assert.Same(transform, Field<MatrixTransform>(visual, "ringOutlineTransform"));
+        Assert.False(visual.AnimationRunning); Assert.Null(PresentationSource.FromVisual(visual));
+    });
+
+    [Fact]
+    public void Export_outline_scaling_only_when_explicitly_requested() => Sta(() =>
+    {
+        var dir = Environment.GetEnvironmentVariable("CQT_RING_SCALE_PREVIEW_DIR");
+        if (string.IsNullOrWhiteSpace(dir)) return;
+        Assert.Equal(Path.GetFullPath(Path.Combine(RepositoryPaths.Root, "artifacts", "interaction-wake-preview", "ring-scale-media")), Path.GetFullPath(dir), ignoreCase: true);
+        var ffmpeg = Environment.GetEnvironmentVariable("CQT_PREVIEW_FFMPEG"); Assert.True(File.Exists(ffmpeg));
+        Directory.CreateDirectory(dir); var target = Path.Combine(dir, "diandao-ring-scale-preview.mp4");
+        Assert.False(File.Exists(target), "Do not overwrite prior preview evidence.");
+        const int width = 1280, height = 680, fps = 30, frames = 420;
+        var start = new ProcessStartInfo(ffmpeg!) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardInput = true, RedirectStandardError = true };
+        foreach (var arg in new[] { "-hide_banner", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "bgra", "-s", $"{width}x{height}", "-r", "30", "-i", "pipe:0", "-an", "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p", "-movflags", "+faststart", target }) start.ArgumentList.Add(arg);
+        using var encoder = Process.Start(start)!; var errors = encoder.StandardError.ReadToEndAsync();
+        var canvas = new DrawingVisual(); var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32); var pixels = new byte[width * height * 4];
+        var background = new SolidColorBrush(Color.FromRgb(23, 25, 28)); background.Freeze();
+        var guide = new Pen(Brushes.Gray, 1); guide.Freeze();
+        var ms = 0d; var modes = new[] { ResetVisualState.None, ResetVisualState.Upcoming, ResetVisualState.Confirmed, ResetVisualState.Failed };
+        var labels = new[] { "普通 · 同环 RGB", "金色 · 重置预告", "绿色 · 额度回升", "红色 · 查询失败" };
+        var visuals = modes.Select(mode => { var v = new CompanionBallVisual(() => ms); v.SetState("35", true); v.SetResetState(mode); return v; }).ToArray();
+        try
+        {
+            for (var frame = 0; frame < frames; frame++)
+            {
+                ms = frame * 1000d / fps; var reduced = frame >= 360;
+                foreach (var v in visuals) { v.SetState("35", !reduced); Frame(v); }
+                using (var dc = canvas.RenderOpen())
+                {
+                    dc.DrawRectangle(background, null, new Rect(0, 0, width, height));
+                    Text(dc, "底座实体光圈 · 随悬浮缩放", 27, 36, 24);
+                    Text(dc, "实际离屏控件 / 合成数据 · 非现场录屏 · 未安装候选", 15, 38, 65, Brushes.Silver);
+                    Text(dc, reduced ? "减少动态：恢复原尺寸并保持静止" : "靠近 100% → 升高 82% · 中心固定、整圈等比缩放 · 光晕仍向外扩散", 18, 38, 105);
+                    for (var i = 0; i < visuals.Length; i++)
+                    {
+                        var x = 16 + i * 316; var v = visuals[i];
+                        Text(dc, labels[i], 18, x + 40, 151);
+                        var drawing = Record(v, 56);
+                        dc.PushTransform(new TranslateTransform(x + 38, 190)); dc.PushTransform(new ScaleTransform(4, 4)); dc.DrawDrawing(drawing); dc.Pop(); dc.Pop();
+                        var anchorY = 190 + (28 + (244 - 114.2705) * 56 * .64 / 259) * 4;
+                        dc.DrawLine(guide, new Point(x + 22, anchorY), new Point(x + 38, anchorY));
+                        dc.DrawLine(guide, new Point(x + 262, anchorY), new Point(x + 278, anchorY));
+                        Text(dc, "4× 放大 · 灰线标记固定中心高度", 12, x + 35, 429, Brushes.Silver);
+                        Text(dc, $"实体轮廓 {v.RingOutlineScale:P0}", 17, x + 87, 459);
+                        dc.PushTransform(new TranslateTransform(x + 80, 494)); dc.DrawDrawing(drawing); dc.Pop();
+                        dc.PushTransform(new TranslateTransform(x + 182, 496)); dc.DrawDrawing(Record(v, 52)); dc.Pop();
+                        Text(dc, "56 DIP", 12, x + 85, 562); Text(dc, "52 DIP", 12, x + 184, 562);
+                    }
+                    Text(dc, "下方为默认原尺寸 · 普通6秒 / 特殊3.2秒沿用原周期 · 最后2秒减少动态", 14, 38, 608, Brushes.Silver);
+                    Text(dc, "无新时钟、无窗口尺寸变化、无鼠标输入 · 白球/点击区/下延框不随光圈缩放", 13, 38, 642, Brushes.Silver);
+                }
+                bitmap.Clear(); bitmap.Render(canvas); bitmap.CopyPixels(pixels, width * 4, 0); encoder.StandardInput.BaseStream.Write(pixels);
+                if (frame is 0 or 48 or 90 or 180 or 360 or 390) { var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bitmap)); using var file = File.Create(Path.Combine(dir, $"proof-{frame:D4}.png")); png.Save(file); }
+            }
+            encoder.StandardInput.Close(); Assert.True(encoder.WaitForExit(30000)); Assert.Equal(0, encoder.ExitCode); Assert.True(string.IsNullOrWhiteSpace(errors.GetAwaiter().GetResult()));
+            Assert.All(visuals, v => { Assert.False(v.IsLoaded); Assert.False(v.AnimationRunning); Assert.Null(PresentationSource.FromVisual(v)); });
+        }
+        finally { foreach (var v in visuals) v.Dispose(); encoder.StandardInput.Close(); }
+    }, 180);
 
     [Fact]
     public void Export_floating_comparison_only_when_explicitly_requested() => Sta(() =>

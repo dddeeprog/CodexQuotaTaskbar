@@ -195,7 +195,8 @@ public sealed class TrayMenuWindowTests
                             var fullText = new FormattedText(label.Text, CultureInfo.CurrentUICulture, label.FlowDirection,
                                 new Typeface(label.FontFamily, label.FontStyle, label.FontWeight, label.FontStretch),
                                 label.FontSize, label.Foreground, dpi / 96d);
-                            Assert.True(fullText.WidthIncludingTrailingWhitespace <= label.ActualWidth + 0.5, label.Text);
+                            Assert.True(fullText.WidthIncludingTrailingWhitespace <= label.ActualWidth + 0.5,
+                                $"{label.Text}: measured={fullText.WidthIncludingTrailingWhitespace:F3}, arranged={label.ActualWidth:F3}, dpi={dpi}");
                             Assert.True(fullText.Height <= label.ActualHeight + 1, label.Text);
                             var glyphs = GlyphRuns(VisualTreeHelper.GetDrawing(label)!).ToArray();
                             Assert.NotEmpty(glyphs);

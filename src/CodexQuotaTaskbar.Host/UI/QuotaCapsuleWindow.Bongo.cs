@@ -20,6 +20,7 @@ public partial class QuotaCapsuleWindow
     internal void HandleHiddenIsland()
     {
         if (IsVisible) return;
+        ClearResetStatusPointer();
         CancelPointerGesture("hidden");
         FinishExtensionTransitions();
         // The renderer still stops while hidden. Retain only its last bitmap and

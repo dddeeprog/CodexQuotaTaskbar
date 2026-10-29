@@ -34,6 +34,16 @@ public partial class TrayMenuWindow
         foreach (var size in new[] { 160, 192, 240 })
         {
             var button = Add(CompanionSizeChoices, size.ToString(), () => RequestSettings(settings with { BongoSizeDip = size }), choice: true);
+            // The default string presenter can round a 21.923-DIP label down to
+            // 21.333 at fractional DPI. Reserve measured glyph width plus one
+            // DIP on the label itself; keep the existing segment/button sizes.
+            var text = size.ToString(System.Globalization.CultureInfo.CurrentUICulture);
+            var measured = new System.Windows.Media.FormattedText(text,
+                System.Globalization.CultureInfo.CurrentUICulture, button.FlowDirection,
+                new System.Windows.Media.Typeface(button.FontFamily, button.FontStyle, button.FontWeight, button.FontStretch),
+                button.FontSize, button.Foreground, System.Windows.Media.VisualTreeHelper.GetDpi(button).PixelsPerDip);
+            button.Content = new TextBlock { Text = text, MinWidth = Math.Ceiling(measured.WidthIncludingTrailingWhitespace) + 1,
+                TextAlignment = TextAlignment.Center };
             Name(button, $"BongoSize{size}Button", $"BongoCat 尺寸 {size}");
             button.ToolTip = $"BongoCat 尺寸 · {size}";
             bongoSizeChoices.Add(size, button);

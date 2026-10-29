@@ -107,7 +107,7 @@ internal sealed class CompanionPoseEngine
     private double start, transitionStart, transitionDuration, lastTime, nextPool, nextBlink, nextAntic, bounceAt = -1;
     private double gazeX, gazeY, gazeTargetX, gazeTargetY, ringSpeed = 8;
     private int poolPosition;
-    private bool sequenceDone, initialized;
+    private bool sequenceDone, initialized, wakeEyesSettled;
     internal CompanionDefinition Definition { get; private set; }
     internal string RequestedEmotion { get; private set; } = "";
     internal int BurstVersion { get; private set; }
@@ -145,6 +145,7 @@ internal sealed class CompanionPoseEngine
         transitionDuration = initialized && animated ? definition.Transition : 0;
         initialized = true;
         sequenceDone = false;
+        wakeEyesSettled = false;
         poolPosition = 0;
         SetRing(definition.Pool[0], definition.PoolSpeed >= 10 ? 10 : 8);
         nextPool = now + Between(definition.PoolMs) * PoolIntervalScale(definition);
@@ -174,6 +175,14 @@ internal sealed class CompanionPoseEngine
             var last = frames[^1];
             if (t >= last.At)
             {
+                // These wake sequences used to enter 02, which also replaced their
+                // closed contour. Open only the contour; retain this item's ID,
+                // authored tail, dwell deadline and the existing spring motion.
+                if (!wakeEyesSettled && Definition.Id is "01" or "07")
+                {
+                    SetRing(0, Definition.PoolSpeed);
+                    wakeEyesSettled = true;
+                }
                 // Legacy wake sequences requested another emotion (02). Hold this
                 // item's own final pose instead; only the director selects IDs.
                 if (seq.Settle.ValueKind == JsonValueKind.Object

@@ -2,12 +2,15 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
 using System.Runtime.ExceptionServices;
+using System.Runtime.Loader;
+using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CodexQuotaTaskbar.Host.Resets;
 using CodexQuotaTaskbar.Host.UI;
+using CodexQuotaTaskbar.Host.Tests.TestSupport;
 using Xunit.Abstractions;
 
 namespace CodexQuotaTaskbar.Host.Tests.UI;
@@ -31,7 +34,7 @@ public sealed class CompanionRgbRingTests(ITestOutputHelper output)
             Assert.InRange(Math.Abs(frame.Color.G - previous.Color.G), 0, 1);
             Assert.InRange(Math.Abs(frame.Color.B - previous.Color.B), 0, 1);
             Assert.InRange(Math.Abs(frame.Opacity - previous.Opacity), 0, .0001);
-            Assert.InRange(frame.Opacity, .679999, .860001);
+            Assert.InRange(frame.Opacity, .899999, 1.000001);
             Assert.Equal(CompanionBallVisual.SampleNormalRing(0, false), CompanionBallVisual.SampleNormalRing(ms, false));
             colors.Add(frame.Color); previous = frame;
         }
@@ -41,6 +44,134 @@ public sealed class CompanionRgbRingTests(ITestOutputHelper output)
         for (var i = 0; i < 10000; i++) total += CompanionBallVisual.SampleNormalRing(i, true).Opacity;
         Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - allocated); Assert.True(total > 0);
     }
+
+    [Fact]
+    public void Ordinary_brightness_lifts_the_entire_cycle_without_changing_spectrum_or_phase()
+    {
+        for (var ms = 0; ms <= 36000; ms++)
+        {
+            var cosine = Math.Cos(ms % 6000 / 6000d * Math.Tau);
+            var before = .77 + .09 * cosine;
+            var after = CompanionBallVisual.SampleNormalRing(ms, true);
+            Assert.InRange(after.Opacity - before, .139999, .220001);
+            Assert.Equal(ms % 36000 / 36000d, after.Phase);
+            Assert.Equal(CompanionBallVisual.SpectrumColor(after.Phase, .25), after.Color);
+        }
+        Assert.Equal(1, CompanionBallVisual.SampleNormalRing(0, true).Opacity, 10);
+        Assert.Equal(.95, CompanionBallVisual.SampleNormalRing(1500, true).Opacity, 10);
+        Assert.Equal(.9, CompanionBallVisual.SampleNormalRing(3000, true).Opacity, 10);
+        Assert.Equal(.95, CompanionBallVisual.SampleNormalRing(3000, false).Opacity, 10);
+    }
+
+    // Explicit baseline-assembly comparison: real old/new controls, not recolored screenshots.
+    // Keeps the approved 422023... assembly/media intact; no installed data or HWND is used.
+    [Fact]
+    public void Export_brightness_and_verify_baseline_pixels_only_when_explicitly_requested() => Sta(() =>
+    {
+        var dir = Environment.GetEnvironmentVariable("CQT_BRIGHTNESS_PREVIEW_DIR");
+        if (string.IsNullOrWhiteSpace(dir)) return;
+        Assert.Equal(Path.GetFullPath(Path.Combine(RepositoryPaths.Root, "artifacts/interaction-wake-preview/brightness-media")), Path.GetFullPath(dir), ignoreCase: true);
+        var baseline = Path.Combine(RepositoryPaths.Root, "artifacts/interaction-wake-preview/ring-scale-build/bin/CodexQuotaTaskbar.Host/release/CodexQuotaTaskbar.dll");
+        Assert.Equal("422023B8F1175B33D81A2049CD1BDF65CF77725D63A621C4BAAC6A632F42FD48", Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(baseline))));
+        var context = new AssemblyLoadContext("rgb-brightness-baseline", isCollectible: true);
+        var oldType = context.LoadFromAssemblyPath(baseline).GetType(typeof(CompanionBallVisual).FullName!)!;
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        var oldSet = oldType.GetMethod("SetState", flags)!;
+        var oldReset = oldType.GetMethod("SetResetState", flags)!;
+        var oldFrame = oldType.GetMethod("OnFrame", flags)!;
+        var oldRender = oldType.GetMethod("OnRender", flags)!;
+        var ms = 0d;
+        var old = (FrameworkElement)Activator.CreateInstance(oldType, flags, null, [new Func<double>(() => ms)], null)!;
+        using var current = new CompanionBallVisual(() => ms);
+        // Match the random eye/blink phase too; independent seeds would compare
+        // different facial poses rather than isolate the ring brightness change.
+        var oldEngine = oldType.GetField("engine", flags)!;
+        oldEngine.SetValue(old, Activator.CreateInstance(oldEngine.FieldType, flags, null, [123], null));
+        typeof(CompanionBallVisual).GetField("engine", flags)!.SetValue(current, new CompanionPoseEngine(123));
+        void SetBoth(ResetVisualState state, bool animate)
+        {
+            oldReset.Invoke(old, [Enum.Parse(oldReset.GetParameters()[0].ParameterType, state.ToString())]);
+            oldSet.Invoke(old, ["35", animate]); oldFrame.Invoke(old, [null, EventArgs.Empty]);
+            current.SetResetState(state); current.SetState("35", animate); Frame(current);
+        }
+        Drawing Draw(FrameworkElement visual, MethodInfo method, int size)
+        {
+            visual.Measure(new Size(size, size)); visual.Arrange(new Rect(0, 0, size, size));
+            var drawing = new DrawingGroup(); using var dc = drawing.Open(); method.Invoke(visual, [dc]); return drawing;
+        }
+        byte[] Raster(Drawing drawing, int size, Brush background)
+        {
+            var canvas = new DrawingVisual(); using (var dc = canvas.RenderOpen()) { dc.DrawRectangle(background, null, new Rect(0, 0, size, size)); dc.DrawDrawing(drawing); }
+            var bitmap = new RenderTargetBitmap(size, size, 96, 96, PixelFormats.Pbgra32); bitmap.Render(canvas);
+            var bytes = new byte[size * size * 4]; bitmap.CopyPixels(bytes, size * 4, 0); return bytes;
+        }
+        try
+        {
+            foreach (var special in new[] { ResetVisualState.Upcoming, ResetVisualState.Confirmed, ResetVisualState.Failed })
+            foreach (var animate in new[] { true, false })
+            {
+                ms += 6400; SetBoth(special, animate);
+                foreach (var delta in new[] { 0, 800, 800, 1600 })
+                {
+                    ms += delta; SetBoth(special, animate);
+                    foreach (var size in new[] { 52, 56 })
+                    foreach (var background in new[] { Brushes.Black, Brushes.WhiteSmoke })
+                        Assert.Equal(Raster(Draw(old, oldRender, size), size, background), Raster(Draw(current, RenderMethod, size), size, background));
+                }
+            }
+            output.WriteLine("Special gold/green/red: 96 exact old/new pixel comparisons passed (52/56 DIP, dark/light, animated/reduced).");
+            ms += 6400; SetBoth(ResetVisualState.None, true); ms += 6000; SetBoth(ResetVisualState.None, true);
+            var origin = Math.Ceiling((ms + 6000) / 36000) * 36000;
+            var ffmpeg = Environment.GetEnvironmentVariable("CQT_PREVIEW_FFMPEG"); Assert.True(File.Exists(ffmpeg));
+            Directory.CreateDirectory(dir); var target = Path.Combine(dir, "diandao-rgb-brightness-comparison.mp4"); Assert.False(File.Exists(target));
+            const int width = 1280, height = 800, fps = 30, frames = 420;
+            var start = new ProcessStartInfo(ffmpeg!) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardInput = true, RedirectStandardError = true };
+            foreach (var arg in new[] { "-hide_banner", "-loglevel", "error", "-n", "-f", "rawvideo", "-pix_fmt", "bgra", "-s", "1280x800", "-r", "30", "-i", "pipe:0", "-an", "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p", "-movflags", "+faststart", target }) start.ArgumentList.Add(arg);
+            using var encoder = Process.Start(start)!; var errors = encoder.StandardError.ReadToEndAsync();
+            var canvas = new DrawingVisual(); var bitmap = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32); var pixels = new byte[width * height * 4];
+            var dark = new SolidColorBrush(Color.FromRgb(23, 25, 28)); dark.Freeze();
+            try
+            {
+                for (var frame = 0; frame < frames; frame++)
+                {
+                    ms = origin + frame * 1000d / fps; var animate = frame < 360; SetBoth(ResetVisualState.None, animate);
+                    using (var dc = canvas.RenderOpen())
+                    {
+                        dc.DrawRectangle(dark, null, new Rect(0, 0, 640, height)); dc.DrawRectangle(Brushes.WhiteSmoke, null, new Rect(640, 0, 640, height));
+                        for (var side = 0; side < 2; side++)
+                        {
+                            var x = side * 640; var ink = side == 0 ? Brushes.WhiteSmoke : Brushes.Black;
+                            Text(dc, "普通 RGB · 提亮前 / 提亮后", 23, x + 36, 22, ink);
+                            Text(dc, "真实离屏控件 · 同相位/尺寸/背景 · 未安装", 14, x + 36, 60, ink);
+                            for (var row = 0; row < 2; row++)
+                            {
+                                var size = row == 0 ? 56 : 52; var y = 105 + row * 300;
+                                var before = Draw(old, oldRender, size); var after = Draw(current, RenderMethod, size);
+                                Text(dc, $"{size} DIP / 3×放大", 15, x + 34, y, ink);
+                                for (var column = 0; column < 2; column++)
+                                {
+                                    var cx = x + 75 + column * 310; var drawing = column == 0 ? before : after;
+                                    dc.PushTransform(new TranslateTransform(cx, y + 30)); dc.PushTransform(new ScaleTransform(3, 3)); dc.DrawDrawing(drawing); dc.Pop(); dc.Pop();
+                                    dc.PushTransform(new TranslateTransform(cx + size, y + 213)); dc.DrawDrawing(drawing); dc.Pop();
+                                    Text(dc, column == 0 ? "之前 68%–86%" : "现在 90%–100%", 14, cx + 16, y + 275, ink);
+                                }
+                            }
+                            Text(dc, animate ? "原速 · 普通呼吸6秒 / 色相36秒" : "减少动态 · 静止（之前78% / 现在95%）", 15, x + 36, 730, ink);
+                            Text(dc, "小图为原尺寸；白球、32表情、金绿红保持原样", 14, x + 36, 766, ink);
+                        }
+                    }
+                    bitmap.Clear(); bitmap.Render(canvas); bitmap.CopyPixels(pixels, width * 4, 0); encoder.StandardInput.BaseStream.Write(pixels);
+                    if (frame is 0 or 45 or 90 or 180 or 360 or 390)
+                    { var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bitmap)); using var file = File.Create(Path.Combine(dir, $"proof-{frame:D4}.png")); png.Save(file); }
+                }
+            }
+            finally { encoder.StandardInput.Close(); }
+            Assert.True(encoder.WaitForExit(30000)); Assert.Equal(0, encoder.ExitCode); Assert.True(string.IsNullOrWhiteSpace(errors.GetAwaiter().GetResult()));
+            Assert.False(old.IsLoaded); Assert.False(current.IsLoaded); Assert.False(old.IsHitTestVisible); Assert.False(current.IsHitTestVisible);
+            Assert.Null(PresentationSource.FromVisual(old)); Assert.Null(PresentationSource.FromVisual(current)); Assert.False(current.AnimationRunning);
+        }
+        finally { ((IDisposable)old).Dispose(); context.Unload(); }
+    }, 180);
 
     [Fact]
     public void Checking_never_overrides_normal_or_gold_and_green_red_priority_and_exact_hour_survive()

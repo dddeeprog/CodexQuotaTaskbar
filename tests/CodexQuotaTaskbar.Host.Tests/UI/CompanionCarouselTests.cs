@@ -107,6 +107,83 @@ public sealed class CompanionCarouselTests(ITestOutputHelper output)
         Assert.False(control.Visual!.AnimationRunning); Assert.Null(PresentationSource.FromVisual(control));
     });
 
+    [Theory]
+    [InlineData("01")]
+    [InlineData("07")]
+    public void Wake_tail_opens_actual_eye_contours_without_borrowing_idle_identity(string id)
+    {
+        var engine = new CompanionPoseEngine(42);
+        engine.SetEmotion(id, 0, true);
+        var end = engine.Definition.Sequence!.Frames[^1].At;
+        // Exercise a skipped sequence, then allow the existing contour spring to settle.
+        for (var ms = end + 500; ms <= 11000; ms += 33) engine.Sample(ms, true);
+        Assert.Equal(id, engine.RequestedEmotion); Assert.Equal(id, engine.Definition.Id);
+        var open = CompanionCatalog.Shared.Value.Expressions[0];
+        for (var eye = 0; eye < 2; eye++)
+        {
+            for (var point = 0; point < open[eye].Length; point++)
+                for (var axis = 0; axis < 2; axis++)
+                    Assert.InRange(Math.Abs(open[eye][point][axis] - engine.Rings[eye][point][axis]), 0, .001);
+            Assert.True(engine.Rings[eye].Max(p => p[1]) - engine.Rings[eye].Min(p => p[1]) > 35);
+        }
+        engine.SetEmotion("00", 11001, true);
+        for (var ms = 11001; ms < 14000; ms += 33) engine.Sample(ms, true);
+        Assert.True(engine.Pose[CompanionPoseEngine.Left + 5] < .1);
+        // Re-entering starts the authored wake sequence again, not the previous open tail.
+        engine.SetEmotion(id, 14000, true);
+        for (var ms = 14000; ms < 14500; ms += 33) engine.Sample(ms, true);
+        Assert.True(engine.Rings[0].Max(p => p[1]) - engine.Rings[0].Min(p => p[1]) < 30);
+    }
+
+    [Fact]
+    public void Reset_hint_observes_whole_ball_without_an_extra_hit_layer_or_clock() => Sta(() =>
+    {
+        using var control = new CompanionBallControl();
+        Assert.Single(control.Children.Cast<UIElement>()); // Existing count badge only, before visual loading.
+        Assert.Equal(56, control.Width); Assert.Equal(56, control.Height);
+        var hover = new List<bool>();
+        control.ResetHintHoverChanged += hover.Add;
+        control.SetResetHintHovered(true);
+        control.SetResetHintHovered(true);
+        Assert.False(System.Windows.Controls.ToolTipService.GetIsEnabled(control));
+        foreach (var state in Enum.GetValues<ResetVisualState>())
+        {
+            control.SetResetState(state);
+            Assert.Null(control.ToolTip);
+        }
+        control.Measure(new Size(56, 56)); control.Arrange(new Rect(0, 0, 56, 56));
+        // Unshown WPF roots are not IsVisible and InputHitTest returns null.
+        // Check the arranged surface bounds without claiming native hit delivery.
+        var hintBounds = new Rect(control.RenderSize);
+        Assert.True(hintBounds.Contains(new Point(28, 48)));
+        Assert.True(hintBounds.Contains(new Point(28, 25)));
+        Assert.False(hintBounds.Contains(new Point(57, 48)));
+        Assert.Null(PresentationSource.FromVisual(control));
+        control.Dispose(); Assert.Null(control.ToolTip);
+        Assert.Equal(new[] { true, false }, hover);
+        Assert.True(System.Windows.Controls.ToolTipService.GetIsEnabled(control));
+    });
+
+    [Theory]
+    [InlineData("01")]
+    [InlineData("07")]
+    public void Wake_can_toggle_reduced_motion_without_advancing_to_a_different_identity(string id)
+    {
+        var engine = new CompanionPoseEngine(42);
+        engine.SetEmotion(id, 0, false);
+        var originalPose = engine.Pose.ToArray();
+        for (var ms = 0; ms < 1200; ms += 33) engine.Sample(ms, false);
+        Assert.Equal(originalPose, engine.Pose);
+        Assert.True(engine.Rings[0].Max(p => p[1]) - engine.Rings[0].Min(p => p[1]) < 30);
+        for (var ms = 1200; ms < 6000; ms += 33) engine.Sample(ms, true);
+        Assert.True(engine.Rings[0].Max(p => p[1]) - engine.Rings[0].Min(p => p[1]) > 35);
+        engine.Sample(6000, false);
+        var reducedPose = engine.Pose.ToArray();
+        for (var ms = 6000; ms < 11000; ms += 33) engine.Sample(ms, false);
+        Assert.Equal(reducedPose, engine.Pose); Assert.Equal(id, engine.Definition.Id);
+        Assert.Equal(id, engine.RequestedEmotion);
+    }
+
     [Fact]
     public void Complete_phase_cycle_is_multicolor_continuous_and_has_constant_spatial_coverage()
     {
