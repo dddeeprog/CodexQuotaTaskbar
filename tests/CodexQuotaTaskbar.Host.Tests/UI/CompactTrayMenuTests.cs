@@ -1,4 +1,7 @@
 using System.Globalization;
+using System.Reflection;
+using System.Reflection.Emit;
+using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Windows;
 using System.Windows.Automation;
@@ -8,7 +11,9 @@ using System.Windows.Input;
 using System.Windows.Media;
 using CodexQuotaTaskbar.Core.Overlay;
 using CodexQuotaTaskbar.Host.Settings;
+using CodexQuotaTaskbar.Host.Tray;
 using CodexQuotaTaskbar.Host.UI;
+using CodexQuotaTaskbar.Host.Workbench;
 using Button = System.Windows.Controls.Button;
 using Point = System.Windows.Point;
 using Size = System.Windows.Size;
@@ -25,14 +30,15 @@ public sealed class CompactTrayMenuTests
         true, false, 37, true, true, false, false, false, false, "bongo-cat", 192);
 
     [Fact]
-    public void Primary_page_includes_workbench_without_dot_or_preview_entries() => Sta(menu =>
+    public void Primary_page_excludes_workbench_without_dot_or_preview_entries() => Sta(menu =>
     {
         var primary = Named<StackPanel>(menu, "MenuItems");
         Assert.Equal(new[]
         {
-            "OpenCodexButton", "OpenWorkbenchButton", "RefreshButton", "AppearanceButton",
+            "OpenCodexButton", "RefreshButton", "AppearanceButton",
             "PreferencesButton", "CheckUpdatesButton", "ExitButton",
-        }, primary.Children.OfType<Button>().Select(button => button.Name));
+        }, primary.Children.OfType<Button>().Where(button => button.Visibility == Visibility.Visible)
+            .Select(button => button.Name));
 
         var appearance = Named<FrameworkElement>(menu, "AppearanceRoot");
         var preferences = Named<FrameworkElement>(menu, "PreferencesRoot");
@@ -50,6 +56,70 @@ public sealed class CompactTrayMenuTests
         Assert.Null(menu.FindName("CompanionPreviewButton"));
         AssertNoNativeWindow(menu);
     });
+
+    [Fact]
+    public void Workbench_button_is_collapsed_disabled_and_leaves_no_empty_menu_row() => Sta(menu =>
+    {
+        var workbench = Named<Button>(menu, "OpenWorkbenchButton");
+        Assert.Equal(Visibility.Collapsed, workbench.Visibility);
+        Assert.False(workbench.IsEnabled);
+        Arrange(menu);
+        var primary = Named<StackPanel>(menu, "MenuItems");
+        var open = Named<Button>(menu, "OpenCodexButton");
+        var refresh = Named<Button>(menu, "RefreshButton");
+        Assert.Equal(open.TranslatePoint(default(Point), primary).Y + open.ActualHeight,
+            refresh.TranslatePoint(default(Point), primary).Y, 3);
+        AssertNoNativeWindow(menu);
+    });
+
+    [Fact]
+    public void Synthetic_workbench_click_cannot_forward_an_open_request() => Sta(menu =>
+    {
+        var requests = 0;
+        menu.OpenWorkbenchRequested += (_, _) => requests++;
+        Named<Button>(menu, "OpenWorkbenchButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal(0, requests);
+        AssertNoNativeWindow(menu);
+    });
+
+    [Fact]
+    public void Ordinary_preference_change_preserves_legacy_workbench_settings()
+    {
+        var legacy = new WorkbenchSettings(Directory: @"C:\legacy-project", Repository: "legacy/repository",
+            Hotkey: "Ctrl+Shift+F9", Pinned: true, Left: 137, Top: 251, Width: 1210, Height: 810,
+            CompactWidth: 410, CompactHeight: 330, CompactLayoutVersion: 2);
+        var before = DistinctSettings with { Workbench = legacy };
+        Sta(menu =>
+        {
+            var changes = new List<AppSettings>();
+            menu.SettingsChangeRequested += (_, value) => changes.Add(value);
+            Named<Button>(menu, "TrayIconButton").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            var after = Assert.Single(changes);
+            Assert.Equal(before with { ShowTrayIcon = true }, after);
+            Assert.Same(legacy, after.Workbench);
+            AssertNoNativeWindow(menu);
+        }, before);
+    }
+
+    [Fact]
+    public void Compiled_startup_does_not_start_workbench_or_register_its_global_hotkey()
+    {
+        // Inspect the emitted async body without constructing App or running startup side effects.
+        var startup = typeof(App).GetMethod("OnStartup", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        var stateMachine = startup.GetCustomAttribute<AsyncStateMachineAttribute>()!.StateMachineType;
+        var body = stateMachine.GetMethod("MoveNext", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        Assert.DoesNotContain(CalledMethods(body), method =>
+            method.DeclaringType == typeof(App) && method.Name == "StartWorkbench");
+    }
+
+    [Fact]
+    public void Compiled_tray_constructor_does_not_subscribe_to_workbench_open_requests()
+    {
+        // Constructing TrayController would create a real notification icon; inspect its wiring instead.
+        var constructor = Assert.Single(typeof(TrayController).GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic));
+        Assert.DoesNotContain(CalledMethods(constructor), method =>
+            method.DeclaringType == typeof(TrayMenuWindow) && method.Name == "add_OpenWorkbenchRequested");
+    }
 
     [Theory]
     [InlineData("ClassicStyleButton")]
@@ -350,6 +420,30 @@ public sealed class CompactTrayMenuTests
         Assert.True(maximum < 480);
         AssertInside(work, bounds, Px(8));
         Assert.False(Intersects(island, bounds));
+    }
+
+    private static IEnumerable<MethodBase> CalledMethods(MethodBase method)
+    {
+        var opcodes = typeof(OpCodes).GetFields(BindingFlags.Public | BindingFlags.Static)
+            .Where(field => field.FieldType == typeof(OpCode))
+            .Select(field => (OpCode)field.GetValue(null)!).ToDictionary(opcode => unchecked((ushort)opcode.Value));
+        var il = method.GetMethodBody()!.GetILAsByteArray()!;
+        for (var offset = 0; offset < il.Length;)
+        {
+            var code = il[offset++];
+            var opcode = opcodes[code == 0xfe ? (ushort)(0xfe00 | il[offset++]) : code];
+            if (opcode.OperandType == OperandType.InlineMethod)
+                yield return method.Module.ResolveMethod(BitConverter.ToInt32(il, offset))!;
+            offset += opcode.OperandType switch
+            {
+                OperandType.InlineNone => 0,
+                OperandType.ShortInlineBrTarget or OperandType.ShortInlineI or OperandType.ShortInlineVar => 1,
+                OperandType.InlineVar => 2,
+                OperandType.InlineI8 or OperandType.InlineR => 8,
+                OperandType.InlineSwitch => 4 + 4 * BitConverter.ToInt32(il, offset),
+                _ => 4,
+            };
+        }
     }
 
     private static void AssertSinglePage(TrayMenuWindow menu, MenuSection section)

@@ -39,7 +39,6 @@ internal sealed class TrayController : IDisposable
         menu.RefreshRequested += (_, _) => RefreshRequested?.Invoke(this, EventArgs.Empty);
         menu.CheckUpdatesRequested += (_, _) => CheckUpdatesRequested?.Invoke(this, EventArgs.Empty);
         menu.OpenCodexRequested += (_, _) => OpenCodexRequested?.Invoke(this, EventArgs.Empty);
-        menu.OpenWorkbenchRequested += (_, _) => OpenWorkbenchRequested?.Invoke(this, EventArgs.Empty);
         menu.OpenSubscriptionLoginRequested += (_, _) => OpenSubscriptionLoginRequested?.Invoke(this, EventArgs.Empty);
         menu.SettingsChangeRequested += (_, value) => ChangeRequested(value);
         menu.MaterialTransparencyPreviewRequested += (_, value) => MaterialTransparencyPreviewRequested?.Invoke(this, value);
@@ -66,7 +65,10 @@ internal sealed class TrayController : IDisposable
 
     internal event EventHandler? RefreshRequested;
     internal event EventHandler? OpenCodexRequested;
+    // Retain the compatibility event while the workbench entry point is disabled.
+#pragma warning disable CS0067
     internal event EventHandler? OpenWorkbenchRequested;
+#pragma warning restore CS0067
     internal void SetWorkbenchSettings(Workbench.WorkbenchSettings value) => Change(settings with { Workbench = value });
     internal event EventHandler? OpenSubscriptionLoginRequested;
     internal event EventHandler? CheckUpdatesRequested;
