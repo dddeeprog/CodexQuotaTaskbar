@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>CodexQuotaTaskbar.UpdateSandbox</AssemblyName>
+    <UseAppHost>true</UseAppHost>
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+  <!-- Deliberately independent of the solution, Host project, SystemUpdateRuntime and network service. -->
+  <ItemGroup>
+    <Compile Include="../../src/CodexQuotaTaskbar.Host/Update/UpdateTransaction.cs" Link="Production/UpdateTransaction.cs" />
+    <Compile Include="../../src/CodexQuotaTaskbar.Host/Update/UpdateApplyOptions.cs" Link="Production/UpdateApplyOptions.cs" />
+    <Compile Include="../../src/CodexQuotaTaskbar.Host/Update/UpdateApplyDiagnostic.cs" Link="Production/UpdateApplyDiagnostic.cs" />
+    <Compile Include="../../src/CodexQuotaTaskbar.Host/Update/UpdatePackageIdentity.cs" Link="Production/UpdatePackageIdentity.cs" />
+    <Compile Include="../../src/CodexQuotaTaskbar.Host/Update/UpdateStartup.cs" Link="Production/UpdateStartup.cs" />
+    <Compile Include="../../src/CodexQuotaTaskbar.Host/Update/GitHubReleaseParser.cs" Link="Production/GitHubReleaseParser.cs" />
+    <Content Include="fixture-old.payload" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="fixture-new.payload" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
