@@ -37,6 +37,7 @@ public partial class TrayMenuWindow : Window
         InitializeComponent();
         InitializeCompanionMenu();
         InitializePopupMotion();
+        InitializeMenuTrace();
         normalGlassBackground = GlassBorder.Background;
         normalBackdropBackground = BackdropLayer.Background;
         materialSaveTimer.Tick += (_, _) => FlushMaterialTransparencyChange();
@@ -50,11 +51,16 @@ public partial class TrayMenuWindow : Window
             }
             else
             {
-                CancelPopupMotion();
-                CancelPageTransition();
-                ResetMenuScrollbar();
-                CloseSubmenus(); FlushMaterialTransparencyChange();
-                PublishPlacement(null);
+                try
+                {
+                    CancelPopupMotion();
+                    CancelPageTransition();
+                    ResetMenuScrollbar();
+                    CloseSubmenus(); FlushMaterialTransparencyChange();
+                    PublishPlacement(null);
+                }
+                catch { menuTrace?.Stop(MenuTraceStop.Exception); throw; }
+                finally { menuTrace?.Stop(MenuTraceStop.Hidden); }
             }
         };
         AppearanceButton.Click += (_, _) => ToggleSubmenu(true);
@@ -84,13 +90,15 @@ public partial class TrayMenuWindow : Window
         AutostartButton.Click += (_, _) => RequestSettings(this.settings with { StartWithWindows = !this.settings.StartWithWindows });
         Loaded += (_, _) =>
         {
+            menuTrace?.Record(MenuTraceKind.Loaded);
             blurReady = true;
             ApplySystemAppearance();
             StartPendingPopupEntrance();
         };
-        Activated += (_, _) => activationEstablished = true;
+        Activated += (_, _) => { activationEstablished = true; menuTrace?.Record(MenuTraceKind.Activated); };
         Deactivated += (_, _) =>
         {
+            menuTrace?.Record(MenuTraceKind.Deactivated);
             OverlayLifecycleDiagnostics.Local.Window(this, OverlayLifecycleEvent.MenuDeactivated);
             if (activationEstablished) RequestHide();
         };
@@ -163,18 +171,22 @@ public partial class TrayMenuWindow : Window
     internal void ShowAt(System.Drawing.Point cursor, int anchorGap = 8, System.Drawing.Rectangle? island = null, uint islandDpi = 96,
         IReadOnlyList<CodexQuotaTaskbar.Core.Overlay.ScreenRect>? avoidance = null)
     {
+        menuTrace?.Record(MenuTraceKind.ShowRequest);
         RunPopupRequest(() =>
         {
             OverlayLifecycleDiagnostics.Local.Window(this, OverlayLifecycleEvent.MenuToggle);
             // A second click during dismissal completes that dismissal; it must
             // not reverse the old close animation into an unsolicited reopen.
-            if (IsPopupClosing) { HidePopupImmediately(); return; }
-            if (IsVisible) { RequestHide(); return; }
+            if (IsPopupClosing) { menuTrace?.Record(MenuTraceKind.ShowRejected); HidePopupImmediately(); return; }
+            if (IsVisible) { menuTrace?.Record(MenuTraceKind.ShowRejected); RequestHide(); return; }
+            menuTrace?.Begin();
             var generation = PreparePopupOpen();
             try { ShowPopupAt(cursor, anchorGap, island, islandDpi, avoidance, generation); }
+            catch { menuTrace?.Stop(MenuTraceStop.Exception); throw; }
             finally
             {
                 if (!IsVisible && IsCurrentPopupOpenRequest(generation)) CancelPopupMotion();
+                if (!IsVisible) menuTrace?.Stop(MenuTraceStop.PlacementFailed);
             }
         });
     }
@@ -182,9 +194,10 @@ public partial class TrayMenuWindow : Window
     internal bool IsPopupRequestInProgress => preparingPopup;
     internal bool RunPopupRequest(Action request)
     {
-        if (popupMotionClosed || preparingPopup) return false;
+        if (popupMotionClosed || preparingPopup) { menuTrace?.Record(MenuTraceKind.ShowRejected); return false; }
         preparingPopup = true;
         try { request(); return true; }
+        catch { menuTrace?.Stop(MenuTraceStop.Exception); throw; }
         finally { preparingPopup = false; }
     }
 
@@ -233,18 +246,31 @@ public partial class TrayMenuWindow : Window
         var width = checked((int)Math.Ceiling(Width * dpi / 96d));
         var height = checked((int)Math.Ceiling(heightDip * dpi / 96d));
         var bounds = CalculateAnchoredBounds(workArea, cursor, new System.Drawing.Size(width, height), menuOpensAbove, anchorGap, menuCenteredOnIsland);
+        menuTrace?.Record(MenuTraceKind.PositionRequest, requested: new(bounds.Left, bounds.Top, bounds.Right, bounds.Bottom, dpi));
         _ = NativeMethods.SetWindowPos(handle, NativeMethods.HwndTopmost, bounds.X, bounds.Y, bounds.Width, bounds.Height, NativeMethods.SwpNoActivate);
+        menuTrace?.Record(MenuTraceKind.PositionActual);
         SetPopupEntranceAnchor(new(bounds.Left, bounds.Top, bounds.Right, bounds.Bottom));
         if (!IsCurrentPopupOpenRequest(generation)) return;
-        if (!IsVisible) Show();
+        if (!IsVisible)
+        {
+            menuTrace?.Record(MenuTraceKind.ActualShowBefore);
+            Show();
+            menuTrace?.Record(MenuTraceKind.ActualShowAfter);
+        }
         UpdateLayout();
         if (!IsCurrentPopupOpen(generation)) return;
+        menuTrace?.Record(MenuTraceKind.PositionRequest, requested: new(bounds.Left, bounds.Top, bounds.Right, bounds.Bottom, dpi));
         _ = NativeMethods.SetWindowPos(handle, NativeMethods.HwndTopmost, bounds.X, bounds.Y, bounds.Width, bounds.Height,
             NativeMethods.SwpNoActivate);
+        menuTrace?.Record(MenuTraceKind.PositionActual);
         PublishPlacement(new(bounds.Left, bounds.Top, bounds.Right, bounds.Bottom));
         if (!IsCurrentPopupOpen(generation)) return;
         StartPendingPopupEntrance();
-        if (activateOnShow) { Activate(); Focus(); }
+        if (activateOnShow)
+        {
+            var activated = Activate(); menuTrace?.Record(MenuTraceKind.ActivateResult, activated);
+            var focused = Focus(); menuTrace?.Record(MenuTraceKind.FocusResult, focused);
+        }
     }
 
     internal static System.Drawing.Rectangle CalculateBounds(System.Drawing.Rectangle workArea, System.Drawing.Point cursor, System.Drawing.Size menuSize, int anchorGap = 8)
@@ -292,6 +318,7 @@ public partial class TrayMenuWindow : Window
         var opaque = CapsuleThemePolicy.Resolve(SystemParameters.HighContrast, SystemParameters.IsGlassEnabled) == CapsuleSurfaceMode.OpaqueSystem;
         GlassBorder.Background = opaque ? System.Windows.SystemColors.WindowBrush
             : OverlayGlassMaterial.WithTransparency(normalGlassBackground, settings.EffectiveMaterialTransparencyPercent);
+        menuTrace?.Record(MenuTraceKind.BackgroundChange, opaque);
         MaterialTransparencySlider.IsEnabled = !opaque;
         MaterialTransparencySlider.Foreground = opaque ? System.Windows.SystemColors.WindowTextBrush : ToggleOn;
         MaterialTransparencySlider.Background = opaque ? System.Windows.SystemColors.ControlDarkBrush : ToggleOff;
@@ -362,6 +389,7 @@ public partial class TrayMenuWindow : Window
         GlassBorder.Background = opaque ? System.Windows.SystemColors.WindowBrush : normalGlassBackground;
         GlassBorder.BorderBrush = SystemParameters.HighContrast ? System.Windows.SystemColors.ActiveBorderBrush : OverlayGlassMaterial.Border;
         BackdropLayer.Background = opaque ? System.Windows.SystemColors.WindowBrush : normalBackdropBackground;
+        menuTrace?.Record(MenuTraceKind.BackgroundChange, opaque);
         TitleText.Foreground = opaque ? System.Windows.SystemColors.WindowTextBrush : MediaBrushes.White;
         VersionText.Foreground = opaque
             ? System.Windows.SystemColors.GrayTextBrush
@@ -399,6 +427,7 @@ public partial class TrayMenuWindow : Window
             FrostedBlur.SetMerging(BackdropLayer, OverlayGlassMaterial.Merging);
             FrostedBlur.SetDpi(BackdropLayer, 48);
             FrostedBlur.SetEnableBlur(BackdropLayer, enabled);
+            menuTrace?.Record(MenuTraceKind.MaterialEnable, enabled);
         }
     }
 

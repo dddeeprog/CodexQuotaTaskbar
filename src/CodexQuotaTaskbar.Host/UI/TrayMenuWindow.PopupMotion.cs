@@ -44,6 +44,7 @@ public partial class TrayMenuWindow
 
     private long PreparePopupOpen()
     {
+        menuTrace?.Record(MenuTraceKind.Prepare);
         var continuing = IsPopupTransitionActive || IsPopupClosing;
         var opacity = MenuShell.Opacity;
         var scaleX = menuPopupScale.ScaleX;
@@ -91,6 +92,7 @@ public partial class TrayMenuWindow
 
     internal void PlayPopupEntrance((double X, double Y) offset)
     {
+        menuTrace?.Record(MenuTraceKind.Play);
         if (popupMotionClosed) return;
         var continuing = IsPopupTransitionActive || IsPopupClosing;
         var opacity = Math.Clamp(MenuShell.Opacity, 0, 1);
@@ -119,15 +121,18 @@ public partial class TrayMenuWindow
     {
         if (!IsVisible || !IsLoaded || popupPendingEntranceGeneration is not { } generation) return;
         popupPendingEntranceGeneration = null;
+        menuTrace?.Record(MenuTraceKind.PendingConsume);
         if (popupMotionClosed || generation != PopupTransitionGeneration || IsPopupClosing) return;
         popupEntranceOperation = Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
         {
             popupEntranceOperation = null;
             if (popupMotionClosed || generation != PopupTransitionGeneration || IsPopupClosing) return;
             if (!CanAnimatePopup) { NormalizePopupSurface(); return; }
+            menuTrace?.Record(MenuTraceKind.RenderStart);
             AnimatePopup(MenuShell, OpacityProperty, MenuShell.Opacity, 1, PopupEntranceAnimationMilliseconds, () =>
             {
                 if (popupMotionClosed || generation != PopupTransitionGeneration || IsPopupClosing) return;
+                menuTrace?.Record(MenuTraceKind.Complete);
                 StopPopupClocks();
                 NormalizePopupSurface();
             });
@@ -175,6 +180,7 @@ public partial class TrayMenuWindow
 
     private void CancelPopupMotion()
     {
+        menuTrace?.Record(MenuTraceKind.Cancel);
         ++PopupTransitionGeneration;
         StopPopupClocks();
         NormalizePopupSurface();
@@ -200,6 +206,7 @@ public partial class TrayMenuWindow
         menuPopupScale.ScaleX = menuPopupScale.ScaleY = 1;
         menuPopupTranslate.X = menuPopupTranslate.Y = 0;
         MenuShell.IsEnabled = MenuShell.IsHitTestVisible = true;
+        menuTrace?.Record(MenuTraceKind.Normalize);
     }
 
     private void DisposePopupMotion()

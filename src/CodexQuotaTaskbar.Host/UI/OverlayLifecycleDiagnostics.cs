@@ -40,6 +40,22 @@ internal sealed class OverlayLifecycleDiagnostics
     internal OverlayLifecycleDiagnostics(string? path = null) => this.path = path;
     internal IReadOnlyList<OverlayLifecycleEntry> Entries { get { lock (gate) return entries.ToArray(); } }
 
+    // Fixed correlation only; never expose RelatedPid or arbitrary lifecycle content.
+    internal MenuTraceInput LastMenuTraceInput
+    {
+        get
+        {
+            lock (gate)
+            {
+                var source = entries.LastOrDefault(e => e.Kind is OverlayLifecycleEvent.MenuFromIsland or OverlayLifecycleEvent.MenuFromTray);
+                var input = entries.LastOrDefault(e => e.Kind is OverlayLifecycleEvent.RightDown or OverlayLifecycleEvent.ContextInvoke);
+                return source is null ? default : new(source.Sequence, source.Tick,
+                    source.Kind == OverlayLifecycleEvent.MenuFromIsland ? input?.InputTimestamp ?? 0 : 0,
+                    source.Kind == OverlayLifecycleEvent.MenuFromIsland ? MenuTraceSource.Island : MenuTraceSource.Tray);
+            }
+        }
+    }
+
     internal void Window(Window window, OverlayLifecycleEvent kind, OverlayVisibilityReason reason = default,
         int inputTimestamp = 0, bool deduplicate = false)
     {

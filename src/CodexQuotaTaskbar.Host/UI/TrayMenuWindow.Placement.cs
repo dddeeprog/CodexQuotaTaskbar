@@ -79,21 +79,30 @@ public partial class TrayMenuWindow
             var handle = new WindowInteropHelper(this).EnsureHandle();
             // A hidden HWND is positioned before Show so the first painted frame
             // cannot flash over the cat or at the desktop origin.
+            menuTrace?.Record(MenuTraceKind.PositionRequest, requested: new(bounds.Left, bounds.Top, bounds.Right, bounds.Bottom, menuIslandDpi));
             if (!NativeMethods.SetWindowPos(handle, NativeMethods.HwndTopmost, bounds.Left, bounds.Top, bounds.Width, bounds.Height,
                 NativeMethods.SwpNoActivate))
             {
                 PlacementUnavailable = true; PublishPlacement(null); return;
             }
+            menuTrace?.Record(MenuTraceKind.PositionActual);
             if (show) SetPopupEntranceAnchor(bounds);
             if (show && !IsCurrentPopupOpenRequest(openingGeneration)) return;
-            if (show && !IsVisible) Show();
+            if (show && !IsVisible)
+            {
+                menuTrace?.Record(MenuTraceKind.ActualShowBefore);
+                Show();
+                menuTrace?.Record(MenuTraceKind.ActualShowAfter);
+            }
             UpdateLayout();
             if (!IsVisible || (show && !IsCurrentPopupOpen(openingGeneration))) return;
+            menuTrace?.Record(MenuTraceKind.PositionRequest, requested: new(bounds.Left, bounds.Top, bounds.Right, bounds.Bottom, menuIslandDpi));
             if (!NativeMethods.SetWindowPos(handle, NativeMethods.HwndTopmost, bounds.Left, bounds.Top, bounds.Width, bounds.Height,
                 NativeMethods.SwpNoActivate))
             {
                 PlacementUnavailable = true; Hide(); PublishPlacement(null); return;
             }
+            menuTrace?.Record(MenuTraceKind.PositionActual);
             PublishPlacement(bounds);
             if (show)
             {
@@ -101,7 +110,11 @@ public partial class TrayMenuWindow
                 StartPendingPopupEntrance();
                 // Only the user's explicit right-click opens/focuses the menu.
                 // Drag/size/DPI updates never call Activate or Focus.
-                if (activateOnShow) { Activate(); Focus(); }
+                if (activateOnShow)
+                {
+                    var activated = Activate(); menuTrace?.Record(MenuTraceKind.ActivateResult, activated);
+                    var focused = Focus(); menuTrace?.Record(MenuTraceKind.FocusResult, focused);
+                }
             }
         }
         finally { placingMenu = false; }
