@@ -171,7 +171,11 @@ public partial class TrayMenuWindow : Window
             if (IsPopupClosing) { HidePopupImmediately(); return; }
             if (IsVisible) { RequestHide(); return; }
             var generation = PreparePopupOpen();
-            ShowPopupAt(cursor, anchorGap, island, islandDpi, avoidance, generation);
+            try { ShowPopupAt(cursor, anchorGap, island, islandDpi, avoidance, generation); }
+            finally
+            {
+                if (!IsVisible && IsCurrentPopupOpenRequest(generation)) CancelPopupMotion();
+            }
         });
     }
 
@@ -239,7 +243,7 @@ public partial class TrayMenuWindow : Window
             NativeMethods.SwpNoActivate);
         PublishPlacement(new(bounds.Left, bounds.Top, bounds.Right, bounds.Bottom));
         if (!IsCurrentPopupOpen(generation)) return;
-        PlayPopupEntrance(popupEntranceOffset);
+        StartPendingPopupEntrance();
         if (activateOnShow) { Activate(); Focus(); }
     }
 

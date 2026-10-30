@@ -98,7 +98,7 @@ public partial class TrayMenuWindow
             if (show)
             {
                 if (!IsCurrentPopupOpen(openingGeneration)) return;
-                PlayPopupEntrance(popupEntranceOffset);
+                StartPendingPopupEntrance();
                 // Only the user's explicit right-click opens/focuses the menu.
                 // Drag/size/DPI updates never call Activate or Focus.
                 if (activateOnShow) { Activate(); Focus(); }

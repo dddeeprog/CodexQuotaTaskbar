@@ -17,6 +17,7 @@ public partial class TrayMenuWindow
     private DispatcherOperation? popupEntranceOperation;
     private long? popupPendingEntranceGeneration;
     private bool popupMotionClosed;
+    private bool popupPreparedFresh;
     private bool preparingPopup;
     private (double X, double Y) popupEntranceOffset = (0, PopupMotionOffsetDip);
     internal bool IsPopupClosing { get; private set; }
@@ -25,8 +26,9 @@ public partial class TrayMenuWindow
 
     internal static bool PopupMotionEnabled(bool visible, bool loaded, bool systemMotion, bool reduceMotion) =>
         visible && loaded && systemMotion && !reduceMotion;
-    private bool CanRequestPopupMotion => !popupMotionClosed && IsVisible &&
+    private bool PopupMotionPolicyEnabled => !popupMotionClosed &&
         SystemParameters.ClientAreaAnimation && !settings.ReduceCompanionMotion;
+    private bool CanRequestPopupMotion => IsVisible && PopupMotionPolicyEnabled;
     private bool CanAnimatePopup => CanRequestPopupMotion && IsLoaded;
 
     private void InitializePopupMotion()
@@ -57,6 +59,20 @@ public partial class TrayMenuWindow
             menuPopupScale.ScaleX = scaleX; menuPopupScale.ScaleY = scaleY;
             menuPopupTranslate.X = x; menuPopupTranslate.Y = y;
             IsPopupTransitionActive = true;
+        }
+        else NormalizePopupSurface();
+        if (PopupMotionPolicyEnabled)
+        {
+            popupPreparedFresh = !continuing;
+            if (popupPreparedFresh)
+            {
+                MenuShell.Opacity = 0;
+                menuPopupScale.ScaleX = menuPopupScale.ScaleY = .97;
+                menuPopupTranslate.X = popupEntranceOffset.X;
+                menuPopupTranslate.Y = popupEntranceOffset.Y;
+            }
+            IsPopupTransitionActive = true;
+            popupPendingEntranceGeneration = PopupTransitionGeneration;
         }
         else NormalizePopupSurface();
         return PopupTransitionGeneration;
@@ -101,7 +117,7 @@ public partial class TrayMenuWindow
 
     private void StartPendingPopupEntrance()
     {
-        if (!IsLoaded || popupPendingEntranceGeneration is not { } generation) return;
+        if (!IsVisible || !IsLoaded || popupPendingEntranceGeneration is not { } generation) return;
         popupPendingEntranceGeneration = null;
         if (popupMotionClosed || generation != PopupTransitionGeneration || IsPopupClosing) return;
         popupEntranceOperation = Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
@@ -152,7 +168,7 @@ public partial class TrayMenuWindow
 
     private void RefreshPopupMotionPolicy()
     {
-        if (popupMotionClosed || CanRequestPopupMotion) return;
+        if (popupMotionClosed || PopupMotionPolicyEnabled) return;
         if (IsPopupClosing && IsVisible) { Hide(); return; }
         CancelPopupMotion();
     }
@@ -169,6 +185,7 @@ public partial class TrayMenuWindow
         if (popupEntranceOperation?.Status == DispatcherOperationStatus.Pending) popupEntranceOperation.Abort();
         popupEntranceOperation = null;
         popupPendingEntranceGeneration = null;
+        popupPreparedFresh = false;
         MenuShell.BeginAnimation(OpacityProperty, null);
         menuPopupScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         menuPopupScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
@@ -208,6 +225,11 @@ public partial class TrayMenuWindow
         popupEntranceOffset = menuIslandBounds is { } island
             ? CalculatePopupEntranceOffset(island, visibleMenu)
             : (0, menuOpensAbove ? PopupMotionOffsetDip : -PopupMotionOffsetDip);
+        if (popupPreparedFresh && popupPendingEntranceGeneration == PopupTransitionGeneration)
+        {
+            menuPopupTranslate.X = popupEntranceOffset.X;
+            menuPopupTranslate.Y = popupEntranceOffset.Y;
+        }
     }
 
     internal static (double X, double Y) CalculatePopupEntranceOffset(ScreenRect anchor, ScreenRect menu) =>
