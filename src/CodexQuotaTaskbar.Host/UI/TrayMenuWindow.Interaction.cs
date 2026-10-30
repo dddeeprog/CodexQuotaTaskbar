@@ -37,7 +37,7 @@ public partial class TrayMenuWindow
         MenuContent.RenderTransform = pageTransitionShift;
         MenuContent.ClipToBounds = true;
         InitializeMenuScrolling();
-        SizeChanged += (_, _) => { menuTrace?.Record(MenuTraceKind.SizeChanged); RepositionMenu(); };
+        SizeChanged += (_, _) => RepositionMenu();
         MenuContent.SizeChanged += (_, _) => MoveHighlight(highlightedButton, false);
         PreviewKeyDown += (_, e) => e.Handled = HandleMenuKey(e.Key);
     }
@@ -207,10 +207,8 @@ public partial class TrayMenuWindow
             var work = System.Windows.Forms.Screen.FromPoint(menuAnchor).WorkingArea;
             var size = new System.Drawing.Size((int)Math.Ceiling(ActualWidth * dpi), (int)Math.Ceiling(ActualHeight * dpi));
             var bounds = CalculateAnchoredBounds(work, menuAnchor, size, menuOpensAbove, menuAnchorGap, menuCenteredOnIsland);
-            menuTrace?.Record(MenuTraceKind.PositionRequest, requested: new(bounds.Left, bounds.Top, bounds.Right, bounds.Bottom, (uint)(dpi * 96)));
             NativeMethods.SetWindowPos(handle, NativeMethods.HwndTopmost, bounds.X, bounds.Y, bounds.Width, bounds.Height,
                 NativeMethods.SwpNoActivate);
-            menuTrace?.Record(MenuTraceKind.PositionActual);
             PublishPlacement(new(bounds.Left, bounds.Top, bounds.Right, bounds.Bottom));
         }
         finally { placingMenu = false; }
