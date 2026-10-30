@@ -106,6 +106,8 @@ Git 需要本机 Git CLI；缺少 Git 不影响文件功能。文件根目录和
 
 ## 构建
 
+临时诊断与试修包遵循[诊断与试修版本规范](docs/诊断与试修规范.md)：沿用实际正式 Release 基线号，以构建标签、独立产物目录和可见标识区分。
+
 源码构建使用仓库 `global.json` 中指定的 .NET SDK。PowerShell 中运行：
 
 ```powershell
