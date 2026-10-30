@@ -1,6 +1,6 @@
 # 点岛（CodexQuotaTaskbar）
 
-> 点岛 0.1.16。正式下载与校验文件以本仓库 Releases 为准。
+> 点岛 0.2.0。正式下载与校验文件以本仓库 Releases 为准。
 
 一个贴着 Windows 任务栏显示的 Codex 额度小岛。它使用中性的 iOS 风格磨砂外观，不注入 `Explorer.exe`，也不修改任务栏 XAML，因此可以独立运行，并能与 Windhawk 共存。
 
