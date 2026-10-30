@@ -222,16 +222,17 @@ public sealed class MenuTraceSessionTests
     }
 
     [Theory]
-    [InlineData(100, 500, true)]
-    [InlineData(600, -1, false)]
-    public void Initial_capture_cost_is_inside_the_same_deadline(long captureCost, int expectedDelay, bool expectedActive)
+    [InlineData(100, true)]
+    [InlineData(600, false)]
+    public void Initial_capture_cost_is_inside_the_same_deadline(long captureCost, bool expectedActive)
     {
-        long now = 0; TimeSpan? due = null;
-        using var session = new MenuTraceSession(true, () => now, 1000, schedule: (delay, _) => { due = delay; return new Lease(); });
+        long now = 0; long? armedAt = null; TimeSpan? due = null;
+        using var session = new MenuTraceSession(true, () => now, 1000,
+            schedule: (delay, _) => { armedAt = now; due = delay; return new Lease(); });
         var active = session.Begin(1, capture: () => { now += captureCost; return default; });
         Assert.Equal(expectedActive, active);
-        if (expectedDelay < 0) Assert.Null(due);
-        else Assert.Equal(expectedDelay, due!.Value.TotalMilliseconds);
+        Assert.NotNull(armedAt); Assert.NotNull(due);
+        Assert.Equal(600, armedAt.Value + due.Value.TotalMilliseconds);
     }
 
     [Fact]
@@ -248,5 +249,84 @@ public sealed class MenuTraceSessionTests
             await session.FlushAsync();
         }
         finally { Environment.SetEnvironmentVariable("CQT_MENU_TRACE_ONCE", previous); }
+    }
+
+    [Theory]
+    [InlineData(600)]
+    [InlineData(601)]
+    public async Task Observe_discards_state_when_capture_crosses_deadline_after_599_admission(long completedAt)
+    {
+        long now = 0; var output = new List<byte[]>();
+        using var session = new MenuTraceSession(true, () => now, 1000, output.Add, (_, _) => new Lease());
+        Assert.True(session.Begin(1)); now = 599;
+
+        var retained = session.Observe(1, MenuTraceKind.FrameSample, () =>
+        {
+            now = completedAt;
+            return new MenuTraceState(Visible: true, NativeValue: 42);
+        });
+
+        Assert.False(retained);
+        Assert.False(session.IsActive(1));
+        await session.FlushAsync();
+        using var json = JsonDocument.Parse(output[^1]);
+        var episode = json.RootElement.GetProperty("Episodes")[0];
+        Assert.Equal("Deadline", episode.GetProperty("Stop").GetString());
+        Assert.Equal(completedAt, episode.GetProperty("EndTick").GetInt64());
+        Assert.Equal(0, episode.GetProperty("Samples").GetInt32());
+        Assert.DoesNotContain(episode.GetProperty("Entries").EnumerateArray(), entry =>
+            entry.GetProperty("Kind").GetString() == "FrameSample" || entry.GetProperty("State").GetProperty("NativeValue").GetInt32() == 42);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Deadline_revokes_during_an_inflight_getter_without_waiting_for_capture_lock(bool initial)
+    {
+        long now = 0; Action? deadline = null; var output = new List<byte[]>();
+        using var captureEntered = new ManualResetEventSlim();
+        using var releaseCapture = new ManualResetEventSlim();
+        using var stopped = new ManualResetEventSlim();
+        using var session = new MenuTraceSession(true, () => Volatile.Read(ref now), 1000, output.Add,
+            (_, action) => { Volatile.Write(ref deadline, action); return new Lease(); });
+        session.EpisodeStopped += _ => stopped.Set();
+        MenuTraceState Capture()
+        {
+            return session.Read(1, () =>
+            {
+                captureEntered.Set();
+                Assert.True(releaseCapture.Wait(TimeSpan.FromSeconds(5)), "Test did not release the in-flight getter.");
+                return new MenuTraceState(NativeValue: 42);
+            });
+        }
+        Task<bool> capturing;
+        if (initial) capturing = Task.Run(() => session.Begin(1, capture: Capture));
+        else
+        {
+            Assert.True(session.Begin(1)); Volatile.Write(ref now, 599);
+            capturing = Task.Run(() => session.Observe(1, MenuTraceKind.FrameSample, Capture));
+        }
+        Task? stopping = null;
+        try
+        {
+            Assert.True(captureEntered.Wait(TimeSpan.FromSeconds(5)));
+            Volatile.Write(ref now, 600);
+            var callback = Volatile.Read(ref deadline);
+            Assert.NotNull(callback); // Initial deadline must be armed before capture.
+            stopping = Task.Run(callback);
+            Assert.True(stopped.Wait(TimeSpan.FromSeconds(2)), "Deadline was blocked behind the in-flight getter.");
+        }
+        finally
+        {
+            releaseCapture.Set();
+            await capturing;
+            if (stopping is not null) await stopping;
+        }
+        Assert.False(await capturing);
+        await session.FlushAsync();
+        using var json = JsonDocument.Parse(output[^1]);
+        var episode = json.RootElement.GetProperty("Episodes")[0];
+        Assert.Equal("Deadline", episode.GetProperty("Stop").GetString());
+        Assert.Equal(0, episode.GetProperty("Samples").GetInt32());
     }
 }

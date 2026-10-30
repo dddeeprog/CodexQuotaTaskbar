@@ -130,6 +130,44 @@ public sealed class MenuTraceWindowTests
         Assert.Equal(nint.Zero, new WindowInteropHelper(menu).Handle);
     });
 
+    [Theory]
+    [InlineData(false, 600)]
+    [InlineData(false, 601)]
+    [InlineData(true, 600)]
+    [InlineData(true, 601)]
+    public async Task Diagnostic_read_stages_stop_before_next_getter_after_deadline(bool initial, long completedAt)
+    {
+        long now = 0; var output = new List<byte[]>(); var reads = new List<int>();
+        using var session = new MenuTraceSession(true, () => now, 1000, output.Add, (_, _) => new CaptureLease());
+        MenuTraceState Capture()
+        {
+            session.Read(1, () => { reads.Add(1); now = 599; return 0; });
+            session.Read(1, () => { reads.Add(2); now = completedAt; return 0; });
+            // Uses the same diagnostic stage boundary as the real WPF/native
+            // collector: an in-flight getter may finish, but the next must not start.
+            session.Read(1, () => { reads.Add(3); return 0; });
+            return new MenuTraceState(NativeValue: 42);
+        }
+        bool retained;
+        if (initial) retained = session.Begin(1, capture: Capture);
+        else
+        {
+            Assert.True(session.Begin(1)); now = 599;
+            retained = session.Observe(1, MenuTraceKind.FrameSample, Capture);
+        }
+        Assert.Equal(new[] { 1, 2 }, reads);
+        Assert.False(retained); Assert.False(session.IsActive(1));
+        await session.FlushAsync();
+        using var json = JsonDocument.Parse(output[^1]);
+        var episode = json.RootElement.GetProperty("Episodes")[0];
+        Assert.Equal("Deadline", episode.GetProperty("Stop").GetString());
+        Assert.Equal(0, episode.GetProperty("Samples").GetInt32());
+        Assert.DoesNotContain(episode.GetProperty("Entries").EnumerateArray(), entry =>
+            entry.GetProperty("State").GetProperty("NativeValue").GetInt32() == 42);
+    }
+
+    private sealed class CaptureLease : IDisposable { public void Dispose() { } }
+
     private static bool Attached(MenuTraceWindowObserver observer) =>
         (bool)typeof(MenuTraceWindowObserver).GetField("renderingAttached", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(observer)!;
     private static void Pump()

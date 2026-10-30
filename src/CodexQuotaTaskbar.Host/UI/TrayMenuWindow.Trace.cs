@@ -20,29 +20,42 @@ public partial class TrayMenuWindow
         catch { /* Optional diagnostics cannot prevent normal startup. */ }
     }
 
-    internal MenuTraceState CaptureMenuTrace()
+    internal MenuTraceState CaptureMenuTrace(MenuTraceSession session, long generation)
     {
-        var handle = new WindowInteropHelper(this).Handle; // Never creates a handle.
+        T Read<T>(Func<T> read) => session.Read(generation, read);
+        var handle = Read(() => new WindowInteropHelper(this).Handle); // Never creates a handle.
         var bounds = default(MenuTraceBounds);
-        if (handle != 0 && NativeMethods.GetWindowRect(handle, out var rect))
-            bounds = new(rect.Left, rect.Top, rect.Right, rect.Bottom, NativeMethods.GetDpiForWindow(handle));
-        var foreground = NativeMethods.GetForegroundWindow();
-        var role = foreground == 0 ? MenuTraceRole.None : foreground == handle ? MenuTraceRole.Menu : MenuTraceRole.Other;
-        if (role == MenuTraceRole.Other && System.Windows.Application.Current is { } app)
+        if (handle != 0)
         {
-            foreach (Window window in app.Windows)
+            var own = Read(() =>
             {
+                var available = NativeMethods.GetWindowRect(handle, out var rect);
+                return (Available: available, Rect: rect);
+            });
+            if (own.Available)
+                bounds = new(own.Rect.Left, own.Rect.Top, own.Rect.Right, own.Rect.Bottom, Read(() => NativeMethods.GetDpiForWindow(handle)));
+        }
+        var foreground = Read(NativeMethods.GetForegroundWindow);
+        var role = foreground == 0 ? MenuTraceRole.None : foreground == handle ? MenuTraceRole.Menu : MenuTraceRole.Other;
+        if (role == MenuTraceRole.Other && Read(() => System.Windows.Application.Current) is { } app)
+        {
+            var windows = Read(() => app.Windows);
+            for (var index = 0; index < Read(() => windows.Count); index++)
+            {
+                var window = Read(() => windows[index]);
                 if (window is not (TrayMenuWindow or QuotaPopoverWindow or QuotaCapsuleWindow)) continue;
-                if (new WindowInteropHelper(window).Handle != foreground) continue;
+                if (Read(() => new WindowInteropHelper(window).Handle) != foreground) continue;
                 role = window is TrayMenuWindow ? MenuTraceRole.Menu
                     : window is QuotaPopoverWindow ? MenuTraceRole.Details : MenuTraceRole.Capsule;
                 break;
             }
         }
-        var matrix = MenuContent.RenderTransform.Value;
-        return new(IsVisible, IsLoaded, preparingPopup, IsPopupClosing, role,
-            new(MenuShell.Opacity, menuPopupScale.ScaleX, menuPopupScale.ScaleY, menuPopupTranslate.X, menuPopupTranslate.Y),
-            new(MenuContent.Opacity, matrix.M11, matrix.M22, matrix.OffsetX, matrix.OffsetY), bounds,
+        var transform = Read(() => MenuContent.RenderTransform);
+        var matrix = Read(() => transform.Value);
+        return new(Read(() => IsVisible), Read(() => IsLoaded), preparingPopup, IsPopupClosing, role,
+            new(Read(() => MenuShell.Opacity), Read(() => menuPopupScale.ScaleX), Read(() => menuPopupScale.ScaleY),
+                Read(() => menuPopupTranslate.X), Read(() => menuPopupTranslate.Y)),
+            new(Read(() => MenuContent.Opacity), matrix.M11, matrix.M22, matrix.OffsetX, matrix.OffsetY), bounds,
             MotionGeneration: PopupTransitionGeneration, PendingGeneration: popupPendingEntranceGeneration ?? 0);
     }
 }
@@ -78,7 +91,9 @@ internal sealed class MenuTraceWindowObserver : IDisposable
             if (Active) { Record(MenuTraceKind.ShowRejected); return; }
             Detach();
             episode = Interlocked.Increment(ref nextEpisode);
-            if (!session.Begin(episode, OverlayLifecycleDiagnostics.Local.LastMenuTraceInput, window.CaptureMenuTrace)) return;
+            var generation = episode;
+            if (!session.Begin(generation, OverlayLifecycleDiagnostics.Local.LastMenuTraceInput,
+                () => window.CaptureMenuTrace(session, generation))) return;
             CompositionTarget.Rendering += OnRendering;
             renderingAttached = true;
             window.SourceInitialized += OnSourceInitialized;
@@ -89,9 +104,10 @@ internal sealed class MenuTraceWindowObserver : IDisposable
 
     internal void Record(MenuTraceKind kind, bool result = false, int nativeValue = 0, MenuTraceBounds? requested = null)
     {
-        session.Observe(episode, kind, () =>
+        var generation = episode;
+        session.Observe(generation, kind, () =>
         {
-            var state = window.CaptureMenuTrace();
+            var state = window.CaptureMenuTrace(session, generation);
             return state with { Result = result, NativeValue = nativeValue, Bounds = requested ?? state.Bounds };
         });
     }
@@ -111,10 +127,11 @@ internal sealed class MenuTraceWindowObserver : IDisposable
     private void AttachNative()
     {
         if (!Active || source is not null) return;
-        var handle = new WindowInteropHelper(window).Handle;
+        var generation = episode;
+        var handle = session.Read(generation, () => new WindowInteropHelper(window).Handle);
         if (handle == 0) return;
-        source = HwndSource.FromHwnd(handle);
-        source?.AddHook(OnMessage);
+        source = session.Read(generation, () => HwndSource.FromHwnd(handle));
+        if (session.IsActive(generation)) source?.AddHook(OnMessage);
     }
     private nint OnMessage(nint hwnd, int message, nint wParam, nint lParam, ref bool handled)
     {

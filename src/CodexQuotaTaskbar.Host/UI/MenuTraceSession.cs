@@ -100,17 +100,30 @@ internal sealed class MenuTraceSession : IDisposable
             accepted++; dropped = episodeSamples = 0; shown = false; entries.Clear();
             try
             {
-                var state = capture?.Invoke() ?? default;
                 var now = clock();
                 if (Expired(now)) { Stop(generation, MenuTraceStop.Deadline); return false; }
+                var remaining = TimeSpan.FromSeconds(.6 - (now - startTick) / (double)frequency);
+                var scheduled = schedule(remaining, () => Stop(generation, MenuTraceStop.Deadline));
+                if (active && generation == activeGeneration) deadline = scheduled;
+                else scheduled.Dispose();
+            }
+            catch { Stop(generation, MenuTraceStop.Exception); return false; }
+        }
+        // Arm before the first read, and never hold gate across a synchronous
+        // getter. The deadline can revoke eligibility while that getter finishes.
+        try
+        {
+            var state = capture?.Invoke() ?? default;
+            lock (gate)
+            {
+                if (!active || generation != activeGeneration) return false;
+                if (Expired(clock())) { Stop(generation, MenuTraceStop.Deadline); return false; }
                 Add(MenuTraceKind.ShowRequest, state, startTick);
                 Add(MenuTraceKind.ShowAccepted, state, startTick);
-                var remaining = TimeSpan.FromSeconds(.6 - (now - startTick) / (double)frequency);
-                deadline = schedule(remaining, () => Stop(generation, MenuTraceStop.Deadline));
+                return true;
             }
-            catch { Stop(generation, MenuTraceStop.Exception); }
-            return active;
         }
+        catch { Stop(generation, MenuTraceStop.Exception); return false; }
     }
 
     internal bool IsActive(long generation)
@@ -123,20 +136,40 @@ internal sealed class MenuTraceSession : IDisposable
         }
     }
 
+    // Every WPF/native getter in the diagnostic collector enters through this
+    // boundary. An already admitted getter cannot be preempted; the next getter
+    // must recheck the same generation/deadline, even when the UI was blocked.
+    internal T Read<T>(long generation, Func<T> read)
+    {
+        if (!IsActive(generation)) throw new OperationCanceledException();
+        return read(); // No session lock while the synchronous getter runs.
+    }
+
     // capture is called only after deadline/generation checks, including once capacity
     // is exhausted: full buffers no longer ask WPF or native code for another sample.
     internal bool Observe(long generation, MenuTraceKind kind, Func<MenuTraceState> capture)
     {
+        long tick;
         lock (gate)
         {
             if (!active || generation != activeGeneration) return false;
-            var tick = clock();
+            tick = clock();
             if (Expired(tick)) { Stop(generation, MenuTraceStop.Deadline); return false; }
             if (kind == MenuTraceKind.ActualShowAfter) shown = true;
             if (entries.Count >= EpisodeCapacity || records >= SessionCapacity) { dropped++; return false; }
-            try { Add(kind, capture(), tick); return true; }
-            catch { Stop(generation, MenuTraceStop.Exception); return false; }
         }
+        try
+        {
+            var state = capture();
+            lock (gate)
+            {
+                if (!active || generation != activeGeneration) return false;
+                if (Expired(clock())) { Stop(generation, MenuTraceStop.Deadline); return false; }
+                Add(kind, state, tick);
+                return true;
+            }
+        }
+        catch { Stop(generation, MenuTraceStop.Exception); return false; }
     }
 
     private bool Expired(long tick) => tick - startTick >= frequency * .6;
