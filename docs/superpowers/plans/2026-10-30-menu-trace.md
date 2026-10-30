@@ -57,3 +57,6 @@
 
 
 执行补充：MenuToggle位于分支前，不能据它计budget；空间不足若已经进入accepted隐藏打开分支，算一次accepted尝试但以PlacementFailed结束并标记未Show，不算成功可见。Window重建共享本进程剩余预算。采样不得EnsureHandle/Show/Activate或修改capture/Handled/动画值；诊断异常只停止自己，原业务异常照旧传播。启动后要落enabled/armed/accepted0/samples0等价状态，禁止代开新菜单验版本。
+
+
+执行结果（2026-10-30）：source1809、文档8d61已保存；98安全测试通过、Release零警告零错误、任务/限定修正/最终来源审查均已通过。用户正常退出后fresh保存当前v18完整恢复材料和六配置；仅一次标准安装exit0及一次进程级诊断启动。已实测正式路径0.1.19、PID106200单实例健康，六配置未变、自动更新关闭，安装验收时Armed/Accepted0/Remaining3/Samples0。已立即向用户报告本地路径与最多三轮复现，未代开菜单；用户实际复现和根因分析待后续本地trace，不宣称修复。完整证据artifacts/reliability/menu-trace/report.md、installed-runtime-proof.json。
