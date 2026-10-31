@@ -123,6 +123,16 @@
           <StackPanel x:Name="QuotaSection" AutomationProperties.Name="额度">
             <TextBlock x:Name="QuotaSectionTitle" Text="额度" Style="{StaticResource SectionTitle}"/>
             <StackPanel x:Name="RowsPanel" />
+            <StackPanel x:Name="ResetCreditsSection" Margin="0,4,0,8" AutomationProperties.Name="账号重置卡">
+              <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <TextBlock Text="重置卡" FontSize="12" Tag="secondary" VerticalAlignment="Center"/>
+                <TextBlock x:Name="ResetCreditsCountText" Grid.Column="1" Text="未知" FontSize="13" VerticalAlignment="Center"/>
+              </Grid>
+              <StackPanel x:Name="ResetCreditsRows" Margin="0,5,0,0"/>
+              <TextBlock x:Name="ResetCreditsStatusText" FontSize="11" Tag="secondary" TextWrapping="Wrap" Margin="0,3,0,0"/>
+              <TextBlock x:Name="ResetCreditsSourceText" FontSize="10" Tag="secondary" TextWrapping="Wrap" Margin="0,4,0,0"/>
+            </StackPanel>
           </StackPanel>
           </Border>
           <StackPanel x:Name="AnnouncementsSection" Margin="0,16,0,0" AutomationProperties.Name="常用网站">

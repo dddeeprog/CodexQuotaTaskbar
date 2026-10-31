@@ -35,6 +35,7 @@ public sealed record QuotaSnapshot
     public SubscriptionExpirationSnapshot SubscriptionExpiration { get; }
     public DateTimeOffset? MembershipExpiresAt => SubscriptionExpiration.ExpiresAt;
     public QuotaCreditsSnapshot? ExtraCredits { get; }
+    public QuotaResetCreditsSnapshot ResetCredits { get; init; } = QuotaResetCreditsSnapshot.Unknown;
     // Missing protocol fields are not evidence that a quota does not exist.
     public IReadOnlyList<(string LimitId, QuotaWindowKind Kind)> UnresolvedWindows { get; init; } = [];
 
@@ -89,6 +90,6 @@ public sealed record QuotaSnapshot
             StatusText,
             SubscriptionPlan,
             subscriptionExpiration,
-            ExtraCredits) { UnresolvedWindows = UnresolvedWindows };
+            ExtraCredits) { UnresolvedWindows = UnresolvedWindows, ResetCredits = ResetCredits };
     }
 }

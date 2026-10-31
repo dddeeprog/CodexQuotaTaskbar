@@ -6,6 +6,20 @@ namespace CodexQuotaTaskbar.Host.Tests.Provider;
 public sealed class CodexRateLimitProviderSubscriptionTests
 {
     [Fact]
+    public void Connection_loss_clears_personal_cards_without_changing_existing_quota()
+    {
+        var provider = new CodexRateLimitProvider(subscriptionDetailsEnabled: false);
+        var cards = new QuotaResetCreditsSnapshot(2, [], DateTimeOffset.UnixEpoch);
+        var snapshot = QuotaSnapshot.Available([], DateTimeOffset.UnixEpoch) with { ResetCredits = cards };
+        var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        typeof(CodexRateLimitProvider).GetMethod("Set", flags)!.Invoke(provider, [snapshot]);
+        typeof(CodexRateLimitProvider).GetMethod("OnConnectionLost", flags)!.Invoke(provider, null);
+        Assert.Equal(QuotaResetCreditsSnapshot.Unknown, provider.Current.ResetCredits);
+        Assert.Same(snapshot.Windows, provider.Current.Windows);
+        Assert.Equal(snapshot.Availability, provider.Current.Availability);
+    }
+
+    [Fact]
     public void Clearing_web_metadata_preserves_quota_but_removes_its_expiration()
     {
         var now = DateTimeOffset.UtcNow;

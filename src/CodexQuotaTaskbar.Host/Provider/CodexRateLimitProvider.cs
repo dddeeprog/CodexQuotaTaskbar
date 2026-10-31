@@ -196,7 +196,8 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
                     "连接中断，显示上次额度",
                     Current.SubscriptionPlan,
                     Current.SubscriptionExpiration,
-                    Current.ExtraCredits) with { UnresolvedWindows = Current.UnresolvedWindows }
+                    Current.ExtraCredits) with { UnresolvedWindows = Current.UnresolvedWindows,
+                        ResetCredits = Current.ResetCredits with { IsStale = true } }
                 : QuotaSnapshot.Unavailable("暂时无法读取 Codex 额度"), generation);
             }
         }
@@ -311,6 +312,7 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
             Interlocked.Increment(ref accountGeneration);
             resetTracker.InvalidateSample(accountChanged: true);
             PublishResetConfirmation(null);
+            Set(Current with { ResetCredits = QuotaResetCreditsSnapshot.Unknown });
         }
     }
 

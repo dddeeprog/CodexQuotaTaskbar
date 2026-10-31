@@ -194,6 +194,7 @@ public partial class QuotaPopoverWindow : Window
         ExpiryText.Tag = snapshot.SubscriptionExpiration.Availability == SubscriptionExpirationAvailability.Available ? null : "secondary";
         ExtraCreditsText.Text = FormatExtraCredits(snapshot.ExtraCredits);
         ExtraCreditsText.Tag = snapshot.ExtraCredits is null ? "secondary" : null;
+        RenderResetCredits(DateTimeOffset.UtcNow);
         RowsPanel.Children.Clear();
         if (snapshot.Availability != QuotaAvailability.Available || snapshot.UnresolvedWindows.Count > 0)
             RowsPanel.Children.Add(new TextBlock { Text = snapshot.Availability == QuotaAvailability.Stale
@@ -356,7 +357,8 @@ public partial class QuotaPopoverWindow : Window
                 : Equals(text.Tag, "secondary") ? new SolidColorBrush(System.Windows.Media.Color.FromRgb(174, 174, 178))
                 : System.Windows.Media.Brushes.White;
         }
-        foreach (var text in FindTextBlocks(RowsPanel).Concat(FindResetElements<TextBlock>(ShortcutsSection)))
+        foreach (var text in FindTextBlocks(RowsPanel).Concat(FindResetElements<TextBlock>(ShortcutsSection))
+            .Concat(FindResetElements<TextBlock>(ResetCreditsSection)))
         {
             text.Foreground = opaque
                 ? System.Windows.SystemColors.WindowTextBrush

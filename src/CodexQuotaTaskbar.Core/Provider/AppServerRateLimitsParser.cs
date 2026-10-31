@@ -47,7 +47,7 @@ public static class AppServerRateLimitsParser
                 windows,
                 capturedAt,
                 subscriptionPlan,
-                extraCredits: ParseCredits(root)) with { UnresolvedWindows = unresolved };
+                extraCredits: ParseCredits(root)) with { UnresolvedWindows = unresolved, ResetCredits = ParseResetCredits(root, capturedAt) };
         }
         catch (AppServerProtocolException)
         {
@@ -132,6 +132,53 @@ public static class AppServerRateLimitsParser
             unresolved.Add((limitId, kind)); return;
         }
         destination.Add(new QuotaWindowSnapshot(kind, 100d - used, duration, resets, limitId, limitName));
+    }
+
+    private static QuotaResetCreditsSnapshot ParseResetCredits(JsonElement root, DateTimeOffset capturedAt)
+    {
+        if (!root.TryGetProperty("rateLimitResetCredits", out var reset) || reset.ValueKind != JsonValueKind.Object
+            || !reset.TryGetProperty("availableCount", out var countNode) || !countNode.TryGetInt64Safe(out var count) || count < 0)
+            return QuotaResetCreditsSnapshot.Unknown;
+        if (!reset.TryGetProperty("credits", out var cards) || cards.ValueKind == JsonValueKind.Null)
+            return new(count, null, capturedAt);
+        if (cards.ValueKind != JsonValueKind.Array) return new(count, null, capturedAt);
+        var result = new List<QuotaResetCredit>();
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var card in cards.EnumerateArray())
+        {
+            if (card.ValueKind != JsonValueKind.Object
+                || !card.TryGetProperty("id", out var id) || id.ValueKind != JsonValueKind.String
+                || string.IsNullOrWhiteSpace(id.GetString())
+                || !card.TryGetProperty("resetType", out var type) || type.ValueKind != JsonValueKind.String
+                || type.GetString() is not ("codexRateLimits" or "unknown")
+                || !card.TryGetProperty("status", out var status) || status.ValueKind != JsonValueKind.String
+                || status.GetString() is not ("available" or "redeeming" or "redeemed" or "unknown")
+                || !card.TryGetProperty("grantedAt", out var granted) || !TryUnixTime(granted, out _)) continue;
+            DateTimeOffset? expiresAt = null;
+            if (card.TryGetProperty("expiresAt", out var expiry) && expiry.ValueKind != JsonValueKind.Null)
+            {
+                if (!TryUnixTime(expiry, out var parsed)) continue;
+                expiresAt = parsed;
+            }
+            if (ids.Add(id.GetString()!)) result.Add(new(type.GetString()!, status.GetString()!, expiresAt)
+                { HasExpiryInformation = card.TryGetProperty("expiresAt", out _) });
+        }
+        return new(count, result, capturedAt);
+    }
+
+    private static bool TryUnixTime(JsonElement value, out DateTimeOffset time)
+    {
+        time = default;
+        if (value.ValueKind != JsonValueKind.Number || !value.TryGetInt64(out var seconds)
+            || seconds < DateTimeOffset.MinValue.ToUnixTimeSeconds() || seconds > DateTimeOffset.MaxValue.ToUnixTimeSeconds()) return false;
+        time = DateTimeOffset.FromUnixTimeSeconds(seconds);
+        return true;
+    }
+
+    private static bool TryGetInt64Safe(this JsonElement value, out long number)
+    {
+        number = default;
+        return value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out number);
     }
 
     private static QuotaCreditsSnapshot? ParseCredits(JsonElement root)
