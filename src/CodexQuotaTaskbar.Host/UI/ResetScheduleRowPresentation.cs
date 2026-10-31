@@ -6,6 +6,7 @@ namespace CodexQuotaTaskbar.Host.UI;
 internal sealed record ResetScheduleRowPresentation(bool IsVisible, string Countdown, string LocalTime, string Tooltip)
 {
     internal bool IsTimingKnown { get; init; } = true;
+    internal string Deadline { get; init; } = string.Empty;
     private static readonly CultureInfo Chinese = CultureInfo.GetCultureInfo("zh-CN");
     private static readonly ResetScheduleRowPresentation Hidden = new(false, string.Empty, string.Empty, string.Empty);
 
@@ -28,7 +29,9 @@ internal sealed record ResetScheduleRowPresentation(bool IsVisible, string Count
         // The locked estimate remains directly readable even after its deadline.
         var checkedText = snapshot.LastUpdatedAt is { } check ? TimeZoneInfo.ConvertTime(check, zone).ToString("M月d日 HH:mm:ss", Chinese) : "暂未知";
         var tooltip = $"Codex Resets 第三方公告预告，并非本账号额度到账确认。\n{(snapshot.IsLatchedSchedule ? "首次锁定预计时间" : "预计最晚")}：{local.ToString("yyyy年M月d日 HH:mm", Chinese)}（本地 {zone.DisplayName}）\n数据检查：{checkedText}\n来源：{CodexResetFeedClient.SiteUri}\n公告：{snapshot.Schedule!.SourceUri}";
-        return new(true, snapshot.IsLatchedSchedule && deadline <= now
-            ? "预计时间已到，等待额度恢复" : $"即将重置 最晚{local.ToString("M月d日", Chinese)}周{"日一二三四五六"[(int)local.DayOfWeek]} {local.ToString("HH:mm", Chinese)}", localTime, tooltip);
+        var overdue = snapshot.IsLatchedSchedule && deadline <= now;
+        var deadlineText = overdue ? string.Empty : $"最晚{local.ToString("M月d日", Chinese)}周{"日一二三四五六"[(int)local.DayOfWeek]} {local.ToString("HH:mm", Chinese)}";
+        return new(true, overdue ? "预计时间已到，等待额度恢复" : $"即将重置 {deadlineText}", localTime, tooltip)
+            { Deadline = deadlineText };
     }
 }

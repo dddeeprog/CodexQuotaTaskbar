@@ -37,8 +37,11 @@ public sealed class ResetScheduleRowTests
         try
         {
             window.ApplyResetSchedule(Fresh(now, deadline) with { IsLatchedSchedule = true }, now, zone);
-            Assert.Equal(expected, Named<TextBlock>(window, "ResetScheduleCountdown").Text);
-            Assert.Equal(expected, Named<TextBlock>(window, "CompactResetCountdown").Text);
+            foreach (var prefix in new[] { "ResetSchedule", "CompactReset" })
+            {
+                Assert.Equal("即将重置", Named<TextBlock>(window, prefix + "Countdown").Text);
+                Assert.Equal(expected[5..], Named<TextBlock>(window, prefix + "Deadline").Text);
+            }
         }
         finally { window.Close(); }
     });
@@ -66,11 +69,15 @@ public sealed class ResetScheduleRowTests
             ball.SetResetState(ResetVisualState.Upcoming);
             var root = Layout(window, dpi);
             var text = Named<TextBlock>(window, compact ? "CompactResetCountdown" : "ResetScheduleCountdown");
-            var measured = new FormattedText(expected, CultureInfo.GetCultureInfo("zh-CN"), text.FlowDirection,
+            var deadlineText = Named<TextBlock>(window, compact ? "CompactResetDeadline" : "ResetScheduleDeadline");
+            var measured = new FormattedText("即将重置", CultureInfo.GetCultureInfo("zh-CN"), text.FlowDirection,
                 new Typeface(text.FontFamily, text.FontStyle, text.FontWeight, text.FontStretch), text.FontSize, Brushes.White, dpi / 96d);
+            var measuredDeadline = new FormattedText(expected[5..], CultureInfo.GetCultureInfo("zh-CN"), deadlineText.FlowDirection,
+                new Typeface(deadlineText.FontFamily, deadlineText.FontStyle, deadlineText.FontWeight, deadlineText.FontStretch), deadlineText.FontSize, Brushes.White, dpi / 96d);
             Rect Bounds(FrameworkElement element) => element.TransformToAncestor(root).TransformBounds(new Rect(element.RenderSize));
-            measurements.Add(new { dpi, compact, width, dateVariant, expected, actual = text.Text, measuredWidth = measured.WidthIncludingTrailingWhitespace,
+            measurements.Add(new { dpi, compact, width, dateVariant, expected, actual = text.Text + " " + deadlineText.Text, measuredWidth = measured.WidthIncludingTrailingWhitespace,
                 availableWidth = text.ActualWidth, measuredHeight = measured.Height, availableHeight = text.ActualHeight,
+                deadlineBounds = Bounds(deadlineText).ToString(CultureInfo.InvariantCulture), deadlineAvailableWidth = deadlineText.ActualWidth,
                 desiredHeight = window.DesiredHeight, layoutWidth = window.LayoutWidth, bounds = Bounds(text).ToString(CultureInfo.InvariantCulture),
                 extraHeight = window.AppliedCompactResetExtraHeight, syntheticGoldVisual = true, visible = window.IsVisible, hwnd = new WindowInteropHelper(window).Handle.ToInt64() });
             var configured = Environment.GetEnvironmentVariable("CQT_GOLD_SINGLE_LINE_PREVIEW_DIR");
@@ -78,7 +85,7 @@ public sealed class ResetScheduleRowTests
             {
                 var directory = Path.GetFullPath(configured);
                 var evidenceRoot = Path.GetFullPath(Path.Combine(RepositoryPaths.Root, "artifacts/reliability/gold-single-line"));
-                Assert.Contains(directory, new[] { Path.Combine(evidenceRoot, "before"), Path.Combine(evidenceRoot, "after"), Path.Combine(evidenceRoot, "after", "verified"), Path.Combine(evidenceRoot, "after", "final") }, StringComparer.OrdinalIgnoreCase);
+                Assert.Contains(directory, new[] { Path.Combine(evidenceRoot, "before"), Path.Combine(evidenceRoot, "after"), Path.Combine(evidenceRoot, "after", "verified"), Path.Combine(evidenceRoot, "after", "final"), Path.Combine(evidenceRoot, "aligned") }, StringComparer.OrdinalIgnoreCase);
                 Directory.CreateDirectory(directory);
                 var stem = $"{(compact ? "compact" : "full")}-{dpi}-{width}-{(dateVariant == 2 ? "year-end" : dateVariant == 1 ? "long" : "example")}";
                 var png = Path.Combine(directory, stem + ".png"); Assert.False(File.Exists(png));
@@ -91,7 +98,16 @@ public sealed class ResetScheduleRowTests
             Assert.True(measured.WidthIncludingTrailingWhitespace <= text.ActualWidth + .5, "Candidate single line must fit existing width.");
             // The baseline preview deliberately records the old two rows before this behavioral assertion fails.
             if (Environment.GetEnvironmentVariable("CQT_GOLD_SINGLE_LINE_BASELINE") == "1") continue;
-            Assert.Equal(expected, text.Text);
+            Assert.Equal("即将重置", text.Text);
+            Assert.Equal(expected[5..], deadlineText.Text);
+            Assert.Equal(HorizontalAlignment.Right, deadlineText.HorizontalAlignment);
+            var line = Assert.IsType<Grid>(text.Parent);
+            var lineBounds = Bounds(line);
+            Assert.Equal(lineBounds.Left, Bounds(text).Left, 3);
+            Assert.Equal(lineBounds.Right, Bounds(deadlineText).Right, 3);
+            Assert.True(Bounds(text).Right + 7.5 <= Bounds(deadlineText).Left);
+            Assert.True(measuredDeadline.WidthIncludingTrailingWhitespace <= deadlineText.ActualWidth + .5);
+            Assert.True(measuredDeadline.Height <= deadlineText.ActualHeight + .5);
             Assert.Equal(TextWrapping.NoWrap, text.TextWrapping); Assert.Equal(TextTrimming.None, text.TextTrimming);
             Assert.True(measured.Height <= text.ActualHeight + .5);
             Assert.Equal(0, window.AppliedCompactResetExtraHeight);
@@ -137,6 +153,8 @@ public sealed class ResetScheduleRowTests
         var row = Named<Border>(window, "ResetScheduleRow");
         var expected = green ? "额度已回升" : "重置预告查询失败";
         Assert.Equal(expected, title.Text); Assert.Empty(detail.Text);
+        Assert.Equal(Visibility.Collapsed, Named<TextBlock>(window, "ResetScheduleDeadline").Visibility);
+        Assert.Equal(Visibility.Collapsed, Named<TextBlock>(window, "CompactResetDeadline").Visibility);
         Assert.Equal(Visibility.Collapsed, detail.Visibility);
         Assert.Equal(0, Assert.IsType<Grid>(detail.Parent).RowDefinitions[1].Height.Value);
         Assert.Equal(26, row.ActualHeight);

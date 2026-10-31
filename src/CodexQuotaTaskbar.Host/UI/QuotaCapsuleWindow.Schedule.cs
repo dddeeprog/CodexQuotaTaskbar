@@ -162,10 +162,17 @@ public partial class QuotaCapsuleWindow
         var text = kind == ResetFooterKind.Schedule ? resetScheduleView!.Countdown
             : kind == ResetFooterKind.Status ? state == ResetVisualState.Confirmed ? "额度已回升" : "重置预告查询失败" : string.Empty;
         var detail = string.Empty;
-        if (ResetScheduleCountdown.Text != text) ResetScheduleCountdown.Text = text;
+        var deadline = kind == ResetFooterKind.Schedule ? resetScheduleView!.Deadline : string.Empty;
+        var title = deadline.Length > 0 ? "即将重置" : text;
+        if (ResetScheduleCountdown.Text != title) ResetScheduleCountdown.Text = title;
         if (ResetScheduleLocalTime.Text != detail) ResetScheduleLocalTime.Text = detail;
-        if (CompactResetCountdown.Text != text) CompactResetCountdown.Text = text;
+        if (CompactResetCountdown.Text != title) CompactResetCountdown.Text = title;
         if (CompactResetLocalTime.Text != detail) CompactResetLocalTime.Text = detail;
+        if (ResetScheduleDeadline.Text != deadline) ResetScheduleDeadline.Text = deadline;
+        if (CompactResetDeadline.Text != deadline) CompactResetDeadline.Text = deadline;
+        ResetScheduleDeadline.Visibility = CompactResetDeadline.Visibility = deadline.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        Grid.SetColumnSpan(ResetScheduleCountdown, deadline.Length > 0 ? 1 : 2);
+        Grid.SetColumnSpan(CompactResetCountdown, deadline.Length > 0 ? 1 : 2);
         var wasCompact = CompactResetNotice.Visibility == Visibility.Visible;
         var previousCompactExtra = AppliedCompactResetExtraHeight;
         ResetFooter = kind;
@@ -255,5 +262,6 @@ public partial class QuotaCapsuleWindow
         ResetScheduleCountdown.Foreground = ResetScheduleLocalTime.Foreground = highContrast
             ? System.Windows.SystemColors.WindowTextBrush : normalLabelForeground;
         CompactResetCountdown.Foreground = CompactResetLocalTime.Foreground = ResetScheduleCountdown.Foreground;
+        ResetScheduleDeadline.Foreground = CompactResetDeadline.Foreground = ResetScheduleCountdown.Foreground;
     }
 }

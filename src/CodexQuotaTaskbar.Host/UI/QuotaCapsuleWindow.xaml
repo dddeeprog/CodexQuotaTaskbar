@@ -152,18 +152,24 @@
           </Border>
         </Grid>
         <StackPanel x:Name="CompactResetNotice" Height="14" Margin="16,24,16,0" Background="Transparent" VerticalAlignment="Top" Visibility="Collapsed" IsHitTestVisible="False">
+          <Grid>
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
           <TextBlock x:Name="CompactResetCountdown" TextWrapping="NoWrap" TextTrimming="None" FontSize="9" LineHeight="14" LineStackingStrategy="BlockLineHeight" Foreground="#D8D8DC"/>
+          <TextBlock x:Name="CompactResetDeadline" Grid.Column="1" HorizontalAlignment="Right" Margin="8,0,0,0" TextWrapping="NoWrap" FontSize="9" LineHeight="14" LineStackingStrategy="BlockLineHeight" Foreground="#D8D8DC" Visibility="Collapsed"/>
+          </Grid>
           <TextBlock x:Name="CompactResetLocalTime" FontSize="9" LineHeight="14" LineStackingStrategy="BlockLineHeight" Foreground="#D8D8DC"/>
         </StackPanel>
         <Grid x:Name="ResetScheduleReveal" Grid.Row="2" Height="0" VerticalAlignment="Top" Visibility="Collapsed">
         <Border x:Name="ResetScheduleRow" Height="26" VerticalAlignment="Top" Margin="12,0,12,0" Background="Transparent" BorderBrush="Transparent" BorderThickness="0,1,0,0" Padding="4,0,4,8" Visibility="Collapsed">
           <Grid>
             <Grid.RowDefinitions><RowDefinition Height="16"/><RowDefinition Height="0"/></Grid.RowDefinitions>
-            <Border x:Name="ResetScheduleDivider" Height="1" VerticalAlignment="Top" Margin="-4,-1,-4,0" BorderBrush="#28FFFFFF" BorderThickness="0,1,0,0" IsHitTestVisible="False">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <Border x:Name="ResetScheduleDivider" Grid.ColumnSpan="2" Height="1" VerticalAlignment="Top" Margin="-4,-1,-4,0" BorderBrush="#28FFFFFF" BorderThickness="0,1,0,0" IsHitTestVisible="False">
               <Border.RenderTransform><TranslateTransform Y="-4"/></Border.RenderTransform>
             </Border>
             <TextBlock x:Name="ResetScheduleCountdown" FontSize="10" Foreground="#D8D8DC" VerticalAlignment="Center" TextWrapping="NoWrap"/>
-            <TextBlock x:Name="ResetScheduleLocalTime" Grid.Row="1" FontSize="10" Foreground="#D8D8DC" VerticalAlignment="Center" TextWrapping="NoWrap"/>
+            <TextBlock x:Name="ResetScheduleDeadline" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="8,0,0,0" FontSize="10" Foreground="#D8D8DC" TextWrapping="NoWrap" Visibility="Collapsed"/>
+            <TextBlock x:Name="ResetScheduleLocalTime" Grid.Row="1" Grid.ColumnSpan="2" FontSize="10" Foreground="#D8D8DC" VerticalAlignment="Center" TextWrapping="NoWrap"/>
           </Grid>
         </Border>
         </Grid>
