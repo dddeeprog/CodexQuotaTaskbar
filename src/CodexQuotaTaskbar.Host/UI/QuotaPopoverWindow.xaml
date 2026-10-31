@@ -131,14 +131,11 @@
               </Grid>
               <StackPanel x:Name="ResetCreditsRows" Margin="0,5,0,0"/>
               <TextBlock x:Name="ResetCreditsStatusText" FontSize="11" Tag="secondary" TextWrapping="Wrap" Margin="0,3,0,0"/>
-              <TextBlock x:Name="ResetCreditsSourceText" FontSize="10" Tag="secondary" TextWrapping="Wrap" Margin="0,4,0,0"/>
-              <StackPanel x:Name="ResetCreditUseActions" Margin="0,8,0,0">
+              <StackPanel x:Name="ResetCreditUseActions" Margin="0,4,0,0" Visibility="Collapsed">
                 <WrapPanel>
-                  <Button x:Name="UseResetCreditButton" Content="使用重置卡" Style="{StaticResource GlassButton}" Height="28" FontSize="11" Margin="0,0,6,4" IsEnabled="False"/>
-                  <Button x:Name="CheckResetCreditUseButton" Content="只读刷新核对" Style="{StaticResource GlassButton}" Height="28" FontSize="11" Margin="0,0,6,4" IsEnabled="False"/>
                   <Button x:Name="RetryResetCreditUseButton" Content="继续上次使用" Style="{StaticResource GlassButton}" Height="28" FontSize="11" Margin="0,0,0,4" Visibility="Collapsed"/>
                 </WrapPanel>
-                <TextBlock x:Name="ResetCreditUseStatusText" FontSize="11" Tag="secondary" TextWrapping="Wrap" Margin="0,3,0,0"/>
+                <TextBlock x:Name="ResetCreditUseStatusText" FontSize="11" Tag="secondary" TextWrapping="Wrap" Margin="0,3,0,0" Visibility="Collapsed"/>
                 <StackPanel x:Name="ResetCreditUseConfirmationPanel" Visibility="Collapsed" Margin="0,8,0,4">
                   <TextBlock x:Name="ResetCreditUseConfirmationText" FontSize="11" Tag="secondary" TextWrapping="Wrap"/>
                   <WrapPanel Margin="0,8,0,0">

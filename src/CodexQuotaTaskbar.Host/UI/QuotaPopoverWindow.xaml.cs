@@ -198,7 +198,6 @@ public partial class QuotaPopoverWindow : Window
         ExtraCreditsText.Text = FormatExtraCredits(snapshot.ExtraCredits);
         ExtraCreditsText.Tag = snapshot.ExtraCredits is null ? "secondary" : null;
         RenderResetCredits(DateTimeOffset.UtcNow);
-        RenderResetCreditUse();
         RowsPanel.Children.Clear();
         if (snapshot.Availability != QuotaAvailability.Available || snapshot.UnresolvedWindows.Count > 0)
             RowsPanel.Children.Add(new TextBlock { Text = snapshot.Availability == QuotaAvailability.Stale

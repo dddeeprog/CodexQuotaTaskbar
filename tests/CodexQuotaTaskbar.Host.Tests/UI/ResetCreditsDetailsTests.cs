@@ -38,7 +38,7 @@ public sealed class ResetCreditsDetailsTests
     }
 
     [Fact]
-    public void Expiry_groups_use_local_weekdays_and_omit_redeemed_expired_and_unknown_rows()
+    public void Each_card_has_its_own_action_and_local_expiry_even_when_dates_match()
     {
         Sta(() =>
         {
@@ -52,8 +52,9 @@ public sealed class ResetCreditsDetailsTests
                     Card("expired", "2026-10-31T23:59:00Z"), Card("unknown", null, "unknown"))), Now));
                 details.RenderResetCredits(Now, TimeZoneInfo.CreateCustomTimeZone("fixture+8", TimeSpan.FromHours(8), "UTC+8", "UTC+8"));
                 Assert.Equal("5 张（读取时）", Named<TextBlock>(details, "ResetCreditsCountText").Text);
-                Assert.Equal(new[] { "11月22日周日 23:59 到期 · 1 张", "12月31日周四 23:59 到期 · 2 张", "未设置到期时间 · 1 张" },
-                    Named<StackPanel>(details, "ResetCreditsRows").Children.OfType<TextBlock>().Select(text => text.Text));
+                Assert.Equal(new[] { "11月22日周日 23:59 到期", "12月31日周四 23:59 到期", "12月31日周四 23:59 到期", "未设置到期时间", "1 张 · 有效期未提供" },
+                    CardTexts(details).Select(text => text.Text));
+                Assert.Equal(5, CardButtons(details).Count());
                 Assert.Contains("数量需刷新确认", Named<TextBlock>(details, "ResetCreditsStatusText").Text);
                 Assert.Contains("状态不明", Named<TextBlock>(details, "ResetCreditsStatusText").Text);
             }
@@ -94,6 +95,14 @@ public sealed class ResetCreditsDetailsTests
                 var snapshot = AppServerRateLimitsParser.Parse(QuotaJson(Summary(0)), Now);
                 details.Apply(snapshot with { ResetCredits = snapshot.ResetCredits with { IsStale = stale } });
                 Assert.Contains(expected, Named<TextBlock>(details, "ResetCreditsStatusText").Text);
+                if (!stale)
+                {
+                    Assert.Empty(Named<StackPanel>(details, "ResetCreditsRows").Children);
+                    Assert.Equal(Visibility.Collapsed, Named<TextBlock>(details, "ResetCreditsCountText").Visibility);
+                    Assert.Equal(Visibility.Collapsed, Named<StackPanel>(details, "ResetCreditUseActions").Visibility);
+                }
+                Assert.Null(details.FindName("ResetCreditsSourceText"));
+                Assert.Null(details.FindName("CheckResetCreditUseButton"));
             }
             finally { details.Close(); }
         });
@@ -112,17 +121,17 @@ public sealed class ResetCreditsDetailsTests
                 details.RenderResetCredits(Now.AddMinutes(2), TimeZoneInfo.Utc);
                 Assert.Equal("2 张（读取时）", Named<TextBlock>(details, "ResetCreditsCountText").Text);
                 Assert.Contains("数量需刷新确认", Named<TextBlock>(details, "ResetCreditsStatusText").Text);
-                Assert.Single(Named<StackPanel>(details, "ResetCreditsRows").Children);
+                Assert.Equal(2, Named<StackPanel>(details, "ResetCreditsRows").Children.Count);
             }
             finally { details.Close(); }
         });
     }
 
     [Theory]
-    [InlineData("2027-01-01T00:15:00Z", "12月31日周四 19:15 到期 · 1 张", "-05:00")]
-    [InlineData("2027-07-01T00:15:00Z", "6月30日周三 20:15 到期 · 1 张", "-04:00")]
-    [InlineData("2026-11-01T05:30:00Z", "11月1日周日 01:30 到期 · 1 张", "-04:00")]
-    [InlineData("2026-11-01T06:30:00Z", "11月1日周日 01:30 到期 · 1 张", "-05:00")]
+    [InlineData("2027-01-01T00:15:00Z", "12月31日周四 19:15 到期", "-05:00")]
+    [InlineData("2027-07-01T00:15:00Z", "6月30日周三 20:15 到期", "-04:00")]
+    [InlineData("2026-11-01T05:30:00Z", "11月1日周日 01:30 到期", "-04:00")]
+    [InlineData("2026-11-01T06:30:00Z", "11月1日周日 01:30 到期", "-05:00")]
     public void Expiry_uses_the_selected_zone_across_year_and_dst(string expiry, string expected, string offset)
     {
         Sta(() =>
@@ -132,7 +141,7 @@ public sealed class ResetCreditsDetailsTests
             {
                 details.Apply(AppServerRateLimitsParser.Parse(QuotaJson(Summary(1, Card("fixture", expiry))), Now));
                 details.RenderResetCredits(Now, TimeZoneInfo.FindSystemTimeZoneById("America/New_York"));
-                var row = Assert.IsType<TextBlock>(Assert.Single(Named<StackPanel>(details, "ResetCreditsRows").Children));
+                var row = Assert.Single(CardTexts(details));
                 Assert.Equal(expected, row.Text);
                 Assert.Contains(offset, Assert.IsType<string>(row.ToolTip));
             }
@@ -151,8 +160,7 @@ public sealed class ResetCreditsDetailsTests
                 details.Apply(AppServerRateLimitsParser.Parse(QuotaJson(Summary(2, Card("explicit-null", null),
                     new { id = "missing", resetType = "codexRateLimits", status = "available", grantedAt = 1793400000 })), Now));
                 details.RenderResetCredits(Now);
-                Assert.Equal(new[] { "未设置到期时间 · 1 张", "有效期未提供 · 1 张" },
-                    Named<StackPanel>(details, "ResetCreditsRows").Children.OfType<TextBlock>().Select(t => t.Text));
+                Assert.Equal(new[] { "未设置到期时间", "有效期未提供" }, CardTexts(details).Select(t => t.Text));
             }
             finally { details.Close(); }
         });
@@ -211,10 +219,15 @@ public sealed class ResetCreditsDetailsTests
                     Export(root, dpi, state, "top");
                     scroll.ScrollToEnd(); root.UpdateLayout();
                     if (state == "long") Assert.True(scroll.ScrollableHeight > 0);
-                    foreach (var text in Named<StackPanel>(details, "ResetCreditsRows").Children.OfType<TextBlock>())
+                    foreach (var text in CardTexts(details))
                     {
                         Assert.True(text.DesiredSize.Width <= scroll.ViewportWidth + 0.1);
                         Assert.True(text.ActualHeight >= text.FontSize);
+                        var row = Assert.IsType<Grid>(text.Parent);
+                        var button = Assert.Single(row.Children.OfType<Button>());
+                        Assert.Equal("使用重置卡", button.Content);
+                        Assert.True(text.TranslatePoint(new Point(text.ActualWidth, 0), row).X <= button.TranslatePoint(new Point(), row).X + 0.1);
+                        Assert.True(button.ActualWidth >= 70);
                     }
                     Export(root, dpi, state, "bottom");
                     var output = PreviewDirectory();
@@ -223,7 +236,7 @@ public sealed class ResetCreditsDetailsTests
                         {
                             dpi, state, synthetic = true, visible = details.IsVisible, hwnd = 0,
                             count = Named<TextBlock>(details, "ResetCreditsCountText").Text,
-                            groups = Named<StackPanel>(details, "ResetCreditsRows").Children.OfType<TextBlock>().Select(t => t.Text).ToArray(),
+                            groups = CardTexts(details).Select(t => t.Text).ToArray(),
                             scrollHeight = scroll.ViewportHeight, scrollExtent = scroll.ExtentHeight,
                             footerTop = refreshBounds.Top, scrollBottom = scrollBounds.Bottom, footerBottom = refreshBounds.Bottom,
                             height = root.ActualHeight, width = root.ActualWidth,
@@ -236,6 +249,10 @@ public sealed class ResetCreditsDetailsTests
     }
 
     private static T Named<T>(Window window, string name) where T : class => Assert.IsType<T>(window.FindName(name));
+    private static IEnumerable<TextBlock> CardTexts(Window window) => Named<StackPanel>(window, "ResetCreditsRows").Children
+        .OfType<Grid>().SelectMany(row => row.Children.OfType<TextBlock>());
+    private static IEnumerable<Button> CardButtons(Window window) => Named<StackPanel>(window, "ResetCreditsRows").Children
+        .OfType<Grid>().SelectMany(row => row.Children.OfType<Button>());
 
     private static string Summary(int count, params object[] rows) => JsonSerializer.Serialize(new { availableCount = count, credits = rows });
 
@@ -252,7 +269,9 @@ public sealed class ResetCreditsDetailsTests
         if (string.IsNullOrEmpty(output)) return null;
         var full = Path.GetFullPath(output);
         var allowed = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../artifacts/reliability/reset-details/previews/final"));
-        if (!string.Equals(full.TrimEnd(Path.DirectorySeparatorChar), allowed.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
+        var layout = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../artifacts/reliability/reset-card-layout/previews"));
+        if (!new[] { allowed, layout }.Any(path => string.Equals(full.TrimEnd(Path.DirectorySeparatorChar),
+            path.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase)))
             throw new InvalidOperationException("Preview output must remain in this task's reserved directory.");
         Directory.CreateDirectory(full);
         return full;

@@ -1,4 +1,5 @@
 using System.Windows;
+using Button = System.Windows.Controls.Button;
 using CodexQuotaTaskbar.Core.Quota;
 using CodexQuotaTaskbar.Host.Resets;
 
@@ -8,10 +9,10 @@ public partial class QuotaPopoverWindow
 {
     private ResetCreditUseService? resetCreditUseService;
     private string? resetCreditUseToken;
+    private readonly List<Button> resetCreditUseButtons = [];
 
     private void InitializeResetCreditUse()
     {
-        UseResetCreditButton.Click += async (_, _) => await PrepareResetCreditUseAsync(false);
         RetryResetCreditUseButton.Click += async (_, _) => await PrepareResetCreditUseAsync(true);
         ConfirmResetCreditUseButton.Click += async (_, _) =>
         {
@@ -20,11 +21,6 @@ public partial class QuotaPopoverWindow
                 await service.ConfirmAsync(token);
         };
         CancelResetCreditUseButton.Click += (_, _) => { if (!closingAnimated && !popupClosed) resetCreditUseService?.CancelConfirmation(); };
-        CheckResetCreditUseButton.Click += async (_, _) =>
-        {
-            if (closingAnimated || popupClosed) return;
-            if (resetCreditUseService is { } service) await service.CheckAsync();
-        };
         Closing += (_, _) => CancelResetCreditUseForClose();
         Closed += (_, _) =>
         {
@@ -58,7 +54,7 @@ public partial class QuotaPopoverWindow
     {
         resetCreditUseToken = null;
         resetCreditUseService?.CancelConfirmation();
-        UseResetCreditButton.IsEnabled = CheckResetCreditUseButton.IsEnabled = false;
+        foreach (var button in resetCreditUseButtons) button.IsEnabled = false;
         RetryResetCreditUseButton.IsEnabled = ConfirmResetCreditUseButton.IsEnabled = false;
         CancelResetCreditUseButton.IsEnabled = false;
     }
@@ -80,16 +76,17 @@ public partial class QuotaPopoverWindow
             && cards.AvailableCount is > 0 && cards.Credits?.Any(card => card.Status == "available"
                 && card.ResetType == "codexRateLimits" && card.ExpiresAt <= DateTimeOffset.UtcNow) != true
             && resetCreditUseService?.CanStartNewRequest(cards) == true;
-        UseResetCreditButton.IsEnabled = view is { IsBusy: false, Confirmation: null }
+        var canUse = view is { IsBusy: false, Confirmation: null }
             && view.State is not (ResetCreditUseState.Unknown or ResetCreditUseState.Blocked) && eligible;
-        CheckResetCreditUseButton.IsEnabled = view is { IsBusy: false, Confirmation: null }
-            && view.State != ResetCreditUseState.Blocked;
+        foreach (var button in resetCreditUseButtons) button.IsEnabled = canUse;
         RetryResetCreditUseButton.Visibility = view?.CanRetry == true ? Visibility.Visible : Visibility.Collapsed;
         RetryResetCreditUseButton.IsEnabled = view is { CanRetry: true, IsBusy: false, Confirmation: null };
-        ResetCreditUseStatusText.Text = view?.Message is { Length: > 0 } message ? message
-            : view is null ? "使用功能未连接到当前账号"
-            : !eligible ? "当前卡信息不满足使用条件，请先只读刷新核对" : "仅在再次确认后使用，不会后台自动消耗";
+        // Keep actual operation results/errors, without an idle instruction row.
+        ResetCreditUseStatusText.Text = view?.Message ?? string.Empty;
+        ResetCreditUseStatusText.Visibility = ResetCreditUseStatusText.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         ResetCreditUseConfirmationPanel.Visibility = confirmation is null ? Visibility.Collapsed : Visibility.Visible;
+        ResetCreditUseActions.Visibility = confirmation is not null || view?.CanRetry == true
+            || ResetCreditUseStatusText.Visibility == Visibility.Visible ? Visibility.Visible : Visibility.Collapsed;
         if (confirmation is not null)
         {
             ResetCreditUseConfirmationText.Text = $"当前账号：{confirmation.DisplayName}\n"
@@ -103,7 +100,7 @@ public partial class QuotaPopoverWindow
         if (closingAnimated || popupClosed)
         {
             resetCreditUseToken = null;
-            UseResetCreditButton.IsEnabled = CheckResetCreditUseButton.IsEnabled = false;
+            foreach (var button in resetCreditUseButtons) button.IsEnabled = false;
             RetryResetCreditUseButton.IsEnabled = ConfirmResetCreditUseButton.IsEnabled = false;
             CancelResetCreditUseButton.IsEnabled = false;
         }

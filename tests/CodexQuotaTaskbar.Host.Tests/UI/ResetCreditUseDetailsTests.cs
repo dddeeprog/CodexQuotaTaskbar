@@ -66,6 +66,40 @@ public sealed class ResetCreditUseDetailsTests
     });
 
     [Fact]
+    public void Per_card_action_prepares_confirmation_and_panel_refresh_only_requests_a_read() => Sta(async () =>
+    {
+        using var fixture = new Fixture();
+        fixture.Transport.Context = fixture.Transport.Context with
+        {
+            Cards = new(3, Enumerable.Range(0, 3).Select(_ => new QuotaResetCredit("codexRateLimits", "available", DateTimeOffset.UtcNow.AddDays(30))).ToArray(), DateTimeOffset.UtcNow),
+        };
+        var window = fixture.Window();
+        try
+        {
+            Assert.Equal(3, UseButtons(window).Count());
+            var button = UseButtons(window).Last();
+            Assert.Equal("使用重置卡", button.Content);
+            Assert.True(button.IsEnabled);
+            Assert.Equal(Visibility.Collapsed, Named<TextBlock>(window, "ResetCreditUseStatusText").Visibility);
+            button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.NotNull(fixture.Service.View.Confirmation);
+            Assert.All(UseButtons(window), b => Assert.False(b.IsEnabled));
+            Click(window, "CancelResetCreditUseButton");
+            var refreshes = 0;
+            window.RefreshRequested += (_, _) => ++refreshes;
+            Click(window, "RefreshButton");
+            Assert.Equal(1, refreshes);
+            Assert.Equal(0, fixture.Transport.Sends);
+            window.Apply(QuotaSnapshot.Unavailable("synthetic account change"));
+            Assert.Empty(UseButtons(window));
+            Assert.Null(window.FindName("CheckResetCreditUseButton"));
+            Assert.Null(window.FindName("UseResetCreditButton"));
+            await Task.CompletedTask;
+        }
+        finally { window.Close(); }
+    });
+
+    [Fact]
     public void Sent_attempt_survives_close_and_reopening_shares_its_lock() => Sta(async () =>
     {
         using var fixture = new Fixture(); var first = fixture.Window();
@@ -76,7 +110,7 @@ public sealed class ResetCreditUseDetailsTests
         try
         {
             Assert.Equal(ResetCreditUseState.Sending, fixture.Service.View.State);
-            Assert.False(Named<Button>(reopened, "UseResetCreditButton").IsEnabled);
+            Assert.All(UseButtons(reopened), button => Assert.False(button.IsEnabled));
             await reopened.PrepareResetCreditUseAsync(false); Assert.Equal(1, fixture.Transport.Sends);
             fixture.Transport.SendGate.SetResult("unknown"); await sending;
             Assert.True(Named<Button>(reopened, "RetryResetCreditUseButton").IsEnabled);
@@ -122,9 +156,14 @@ public sealed class ResetCreditUseDetailsTests
                 var footer = footerButton.TransformToAncestor(root).TransformBounds(new Rect(footerButton.RenderSize));
                 var bounds = scroll.TransformToAncestor(root).TransformBounds(new Rect(scroll.RenderSize));
                 Assert.True(bounds.Bottom <= footer.Top); Assert.True(footer.Bottom <= root.ActualHeight + 0.01); AssertUnshown(window);
-                if (state == "completed-refresh-failed") Assert.False(Named<Button>(window, "UseResetCreditButton").IsEnabled);
-                if (state == "blocked") Assert.False(Named<Button>(window, "CheckResetCreditUseButton").IsEnabled);
-                if (state is "unknown" or "zero") Assert.True(Named<Button>(window, "CheckResetCreditUseButton").IsEnabled);
+                if (state is "completed-refresh-failed" or "blocked" or "unknown") Assert.All(UseButtons(window), b => Assert.False(b.IsEnabled));
+                if (state == "zero")
+                {
+                    Assert.Empty(UseButtons(window));
+                    Assert.Equal(Visibility.Collapsed, Named<StackPanel>(window, "ResetCreditUseActions").Visibility);
+                    Assert.Equal("当前没有可用重置卡", Named<TextBlock>(window, "ResetCreditsStatusText").Text);
+                }
+                Assert.True(footerButton.IsEnabled);
                 Export(root, dpi, state, "top"); scroll.ScrollToEnd(); root.UpdateLayout();
                 if (state is "confirm" or "retry")
                 {
@@ -138,7 +177,7 @@ public sealed class ResetCreditUseDetailsTests
                     using var stream = new FileStream(Path.Combine(output, $"use-{dpi}-{state}.json"), FileMode.CreateNew);
                     JsonSerializer.Serialize(stream, new { dpi, state, synthetic = true, visible = window.IsVisible, hwnd = 0,
                         serviceState = fixture.Service.View.State.ToString(), status = Named<TextBlock>(window, "ResetCreditUseStatusText").Text,
-                        useEnabled = Named<Button>(window, "UseResetCreditButton").IsEnabled,
+                        useEnabled = UseButtons(window).Any(b => b.IsEnabled),
                         scrollHeight = scroll.ViewportHeight, scrollExtent = scroll.ExtentHeight, footerTop = footer.Top,
                         scrollBottom = bounds.Bottom, footerBottom = footer.Bottom, height = root.ActualHeight, width = root.ActualWidth }, new JsonSerializerOptions { WriteIndented = true });
                 }
@@ -147,6 +186,8 @@ public sealed class ResetCreditUseDetailsTests
         }
     });
     private static T Named<T>(Window window, string name) where T : class => Assert.IsType<T>(window.FindName(name));
+    private static IEnumerable<Button> UseButtons(Window window) => Named<StackPanel>(window, "ResetCreditsRows").Children
+        .OfType<Grid>().SelectMany(row => row.Children.OfType<Button>());
     private static void Click(Window window, string name) => Named<Button>(window, name).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     private static void AssertUnshown(Window window) { Assert.Equal(nint.Zero, new WindowInteropHelper(window).Handle); Assert.False(window.IsVisible); }
     private static string? PreviewDirectory()
