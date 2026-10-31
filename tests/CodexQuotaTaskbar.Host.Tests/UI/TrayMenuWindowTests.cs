@@ -18,6 +18,47 @@ namespace CodexQuotaTaskbar.Host.Tests.UI;
 public sealed class TrayMenuWindowTests
 {
     [Theory]
+    [InlineData(null, "0.2.0")]
+    [InlineData("0.2.0+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "0.2.0")]
+    [InlineData("0.2.0+trial.install-integrated-026.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "0.2.0 · 本机试用 · aaaaaaa")]
+    [InlineData("0.2.1+trial.install-integrated-026.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "0.2.0")]
+    [InlineData("0.2.0+trial.install-integrated-026.bad", "0.2.0")]
+    [InlineData("0.2.0+trial.bad task.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "0.2.0")]
+    public void Trial_build_label_preserves_numeric_baseline(string? identity, string expected) =>
+        Assert.Equal(expected, ProductVersion.FormatDisplayText("0.2.0", identity));
+
+    [Fact]
+    public void Trial_build_label_fits_the_existing_unshown_menu_header()
+    {
+        Exception? failure = null;
+        var thread = new Thread(() =>
+        {
+            var window = new TrayMenuWindow(AppSettings.Default);
+            try
+            {
+                var version = (TextBlock)window.FindName("VersionText");
+                version.Text = "v" + ProductVersion.FormatDisplayText("0.2.0", "0.2.0+trial.install-integrated-026.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+                var root = (FrameworkElement)window.Content;
+                root.Measure(new System.Windows.Size(272, 460));
+                root.Arrange(new Rect(0, 0, 272, Math.Min(460, root.DesiredSize.Height)));
+                root.UpdateLayout();
+                var title = (TextBlock)window.FindName("TitleText");
+                var titleBounds = title.TransformToAncestor(root).TransformBounds(new Rect(title.RenderSize));
+                var versionBounds = version.TransformToAncestor(root).TransformBounds(new Rect(version.RenderSize));
+                Assert.True(titleBounds.Left + title.DesiredSize.Width + 8 <= versionBounds.Left);
+                Assert.True(version.DesiredSize.Width <= version.ActualWidth + 0.1);
+                Assert.Equal(nint.Zero, new System.Windows.Interop.WindowInteropHelper(window).Handle);
+                Assert.False(window.IsVisible);
+            }
+            catch (Exception error) { failure = error; }
+            finally { window.Close(); System.Windows.Threading.Dispatcher.CurrentDispatcher.InvokeShutdown(); }
+        });
+        thread.SetApartmentState(ApartmentState.STA); thread.Start();
+        Assert.True(thread.Join(TimeSpan.FromSeconds(20)));
+        if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
+    [Theory]
     [InlineData(272, 300)]
     [InlineData(306, 700)]
     [InlineData(408, 900)]

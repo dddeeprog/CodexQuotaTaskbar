@@ -66,7 +66,8 @@ public partial class TrayMenuWindow : Window
             FocusWhenPageReady(target);
         };
         InitializeMenuInteraction();
-        VersionText.Text = $"v{ProductVersion.Text}";
+        VersionText.Text = $"v{ProductVersion.DisplayText}";
+        VersionText.ToolTip = ProductVersion.BuildIdentity;
         RefreshButton.Click += (_, _) => InvokeAndHide(RefreshRequested);
         CheckUpdatesButton.Click += (_, _) => InvokeAndHide(CheckUpdatesRequested);
         OpenCodexButton.Click += (_, _) => InvokeAndHide(OpenCodexRequested);
