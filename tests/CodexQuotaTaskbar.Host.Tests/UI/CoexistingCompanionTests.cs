@@ -61,6 +61,7 @@ public sealed class CoexistingCompanionTests
                 var ballPhysical = new Rect(physical.Left + bounds.Left * scale, physical.Top + bounds.Top * scale,
                     bounds.Width * scale, bounds.Height * scale);
                 var model = owner.BongoModelBounds;
+                AssertNonOverlapping(bounds, owner.BongoModelBoundsDip);
                 AssertNonOverlapping(ballPhysical, new Rect(model.Left, model.Top, model.Width, model.Height));
                 AssertProtectedControlsClear(owner, bounds, unified);
             }

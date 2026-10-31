@@ -500,14 +500,18 @@ public sealed class ResetNoticeLatchTests : IDisposable
                 window.ApplyResetSchedule(original, time, TimeZoneInfo.Utc);
                 var text = (System.Windows.Controls.TextBlock)window.FindName("ResetScheduleCountdown");
                 var detail = (System.Windows.Controls.TextBlock)window.FindName("ResetScheduleLocalTime");
-                Assert.Equal("即将重置 最晚10月28日周三 13:00", text.Text);
+                var deadline = (System.Windows.Controls.TextBlock)window.FindName("ResetScheduleDeadline");
+                Assert.Equal("即将重置", text.Text);
+                Assert.Equal("最晚10月28日周三 13:00", deadline.Text);
                 Assert.Empty(detail.Text);
                 var changed = original with { Schedule = null, LastUpdatedAt = time.AddMinutes(1) };
                 tracker.SetSchedule(changed, time.AddMinutes(1));
                 window.ApplyResetSchedule(changed, time.AddMinutes(1), TimeZoneInfo.Utc);
-                Assert.Equal("即将重置 最晚10月28日周三 13:00", text.Text);
+                Assert.Equal("即将重置", text.Text);
+                Assert.Equal("最晚10月28日周三 13:00", deadline.Text);
                 window.RefreshResetSchedule(time.AddHours(3), TimeZoneInfo.Utc);
                 Assert.Equal("预计时间已到，等待额度恢复", text.Text);
+                Assert.Equal(System.Windows.Visibility.Collapsed, deadline.Visibility);
                 Assert.Null(tracker.ActiveUntil(time.AddHours(3)));
 
                 // Render only the production content tree: no HWND, native input, account or settings.

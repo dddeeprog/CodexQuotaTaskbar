@@ -18,7 +18,7 @@ public partial class QuotaCapsuleWindow
     internal bool StatusBallVisibleForLayout => CompanionReady && companion?.Visibility == Visibility.Visible;
     internal double StatusBallTopOffsetForLayout => DotTopExtensionHeight + (BongoHasFrame
         ? GlassBorder.Margin.Top + GlassBorder.BorderThickness.Top + (companionStatusDock == CompanionStatusDock.QuotaCorner
-            ? BongoStageHeight + 1 : BongoIslandSurface.ModelTopInsetDip) : 0);
+            ? BongoStageHeight + 1 + StatusBallLiftDip : BongoIslandSurface.ModelTopInsetDip) : 0);
     internal Rect StatusBallBoundsDip => StatusBallVisibleForLayout
         && Shell.IsAncestorOf(companion!)
         ? companion!.TransformToAncestor(Shell).TransformBounds(new Rect(0, 0, companion.Width, companion.Height)) : Rect.Empty;

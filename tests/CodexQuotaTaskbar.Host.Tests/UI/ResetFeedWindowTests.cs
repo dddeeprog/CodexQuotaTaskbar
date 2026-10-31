@@ -423,7 +423,17 @@ public sealed class ResetFeedWindowTests
                     Assert.True(bounds.Top >= previousBottom);
                     previousBottom = bounds.Bottom;
                     var titleBounds = title.TransformToAncestor(scroll).TransformBounds(new Rect(title.RenderSize));
-                    Assert.True(titleBounds.Bottom <= scroll.ViewportHeight, label + " should be discoverable on initial open.");
+                    if (ReferenceEquals(group, shortcutsGroup))
+                    {
+                        // Reset-card details add variable content above websites; the existing scroll must keep them reachable.
+                        scroll.ScrollToBottom();
+                        content.UpdateLayout();
+                        titleBounds = title.TransformToAncestor(scroll).TransformBounds(new Rect(title.RenderSize));
+                        Assert.True(titleBounds.Top >= 0 && titleBounds.Bottom <= scroll.ViewportHeight,
+                            label + " should remain reachable by scrolling.");
+                    }
+                    else
+                        Assert.True(titleBounds.Bottom <= scroll.ViewportHeight, label + " should be discoverable on initial open.");
                 }
                 foreach (var name in new[] { "AccountSectionDivider", "QuotaSectionDivider" })
                     Assert.Equal(new Thickness(0, 0, 0, 1), Named<Border>(window, name).BorderThickness);
