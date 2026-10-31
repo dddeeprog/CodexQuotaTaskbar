@@ -11,9 +11,9 @@ internal enum ResetFooterKind { None, Schedule, Status }
 
 public partial class QuotaCapsuleWindow
 {
-    internal const double ResetScheduleRowHeight = 42;
+    internal const double ResetScheduleRowHeight = 26;
     internal const double ResetStatusRowHeight = 26;
-    internal const double CompactResetExtraHeight = 4;
+    internal const double CompactResetExtraHeight = 0;
     internal double AppliedCompactResetExtraHeight => CompactResetNotice.Visibility == Visibility.Visible
         && ResetFooter == ResetFooterKind.Schedule ? CompactResetExtraHeight : 0;
     internal double RequiredResetFooterHeight => ResetFooter == ResetFooterKind.Schedule ? ResetScheduleRowHeight
@@ -161,7 +161,7 @@ public partial class QuotaCapsuleWindow
             : active && resetScheduleView?.IsVisible == true && state == ResetVisualState.Upcoming ? ResetFooterKind.Schedule : ResetFooterKind.None;
         var text = kind == ResetFooterKind.Schedule ? resetScheduleView!.Countdown
             : kind == ResetFooterKind.Status ? state == ResetVisualState.Confirmed ? "额度已回升" : "重置预告查询失败" : string.Empty;
-        var detail = kind == ResetFooterKind.Schedule ? resetScheduleView!.LocalTime : string.Empty;
+        var detail = string.Empty;
         if (ResetScheduleCountdown.Text != text) ResetScheduleCountdown.Text = text;
         if (ResetScheduleLocalTime.Text != detail) ResetScheduleLocalTime.Text = detail;
         if (CompactResetCountdown.Text != text) CompactResetCountdown.Text = text;
@@ -171,12 +171,11 @@ public partial class QuotaCapsuleWindow
         ResetFooter = kind;
         resetSchedulePresentationAllowed = resetFooterAvailableHeight >= RequiredResetFooterHeight;
         compactResetPresentationAllowed = resetFooterAvailableHeight >= (kind == ResetFooterKind.Schedule ? CompactResetExtraHeight : 0);
-        var twoLines = kind == ResetFooterKind.Schedule;
         ResetScheduleRow.Height = RequiredResetFooterHeight;
-        ((Grid)ResetScheduleLocalTime.Parent).RowDefinitions[1].Height = new GridLength(twoLines ? 16 : 0);
-        ResetScheduleLocalTime.Visibility = twoLines ? Visibility.Visible : Visibility.Collapsed;
-        CompactResetLocalTime.Visibility = twoLines ? Visibility.Visible : Visibility.Collapsed;
-        CompactResetNotice.Height = twoLines ? 28 : 14;
+        ((Grid)ResetScheduleLocalTime.Parent).RowDefinitions[1].Height = new GridLength(0);
+        ResetScheduleLocalTime.Visibility = Visibility.Collapsed;
+        CompactResetLocalTime.Visibility = Visibility.Collapsed;
+        CompactResetNotice.Height = 14;
         var compact = kind != ResetFooterKind.None && !resetSchedulePresentationAllowed && compactResetPresentationAllowed;
         CompactResetNotice.Visibility = compact ? Visibility.Visible : Visibility.Collapsed;
         CompactResetNotice.IsHitTestVisible = compact && kind == ResetFooterKind.Schedule;
@@ -228,7 +227,7 @@ public partial class QuotaCapsuleWindow
             OpenResetSourceRequested?.Invoke(CodexResetFeedClient.SiteUri);
     }
 
-    // Status fits one line in the original header. A dated schedule needs four extra DIPs.
+    // Every reset footer fits one line in the original header.
     internal void SetResetSchedulePresentationAllowed(bool allowed, bool compactAllowed = true) =>
         SetResetScheduleAvailableHeight(allowed ? double.PositiveInfinity : compactAllowed ? CompactResetExtraHeight : double.NegativeInfinity);
 

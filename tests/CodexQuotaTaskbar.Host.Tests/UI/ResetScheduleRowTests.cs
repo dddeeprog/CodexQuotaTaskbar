@@ -24,6 +24,93 @@ public sealed class ResetScheduleRowTests
     private static readonly Uri Announcement = new("https://x.com/thsottiaux/status/2113492502355562875");
 
     [Theory]
+    [InlineData("2026-11-02T08:00:00Z", 8, "即将重置 最晚11月2日周一 16:00")]
+    [InlineData("2026-11-22T15:59:00Z", 8, "即将重置 最晚11月22日周日 23:59")]
+    [InlineData("2026-12-31T23:05:00Z", 8, "即将重置 最晚1月1日周五 07:05")]
+    [InlineData("2027-01-01T01:05:00Z", -8, "即将重置 最晚12月31日周四 17:05")]
+    [InlineData("2026-07-23T17:00:00Z", -4, "即将重置 最晚7月23日周四 13:00")]
+    public void Gold_single_line_formats_the_actual_reset_in_the_requested_local_zone(string target, int offset, string expected) => Sta(() =>
+    {
+        var deadline = DateTimeOffset.Parse(target); var now = deadline.AddHours(-1);
+        var zone = TimeZoneInfo.CreateCustomTimeZone("GoldTest", TimeSpan.FromHours(offset), "GoldTest", "GoldTest");
+        var window = new QuotaCapsuleWindow("gold-format-offscreen");
+        try
+        {
+            window.ApplyResetSchedule(Fresh(now, deadline) with { IsLatchedSchedule = true }, now, zone);
+            Assert.Equal(expected, Named<TextBlock>(window, "ResetScheduleCountdown").Text);
+            Assert.Equal(expected, Named<TextBlock>(window, "CompactResetCountdown").Text);
+        }
+        finally { window.Close(); }
+    });
+
+    [Theory]
+    [InlineData(96, false)] [InlineData(120, false)] [InlineData(144, false)] [InlineData(192, false)]
+    [InlineData(96, true)] [InlineData(120, true)] [InlineData(144, true)] [InlineData(192, true)]
+    public void Gold_single_line_actual_layout_and_optional_offscreen_evidence(int dpi, bool compact) => WithStatusBall((window, ball) =>
+    {
+        using var fixture = DpiFixture();
+        var measurements = new List<object>();
+        foreach (var width in new[] { 280, 230 })
+        foreach (var dateVariant in new[] { 0, 1, 2 })
+        {
+            window.Width = width; window.ApplySessions(Sessions(100)); window.SetDotMarker(100, canAcknowledge: true);
+            var now = DateTimeOffset.Parse("2026-10-31T08:00:00Z");
+            var deadline = DateTimeOffset.Parse(dateVariant switch { 1 => "2026-11-22T15:59:00Z", 2 => "2026-12-31T15:59:00Z", _ => "2026-11-02T08:00:00Z" });
+            var expected = dateVariant switch { 1 => "即将重置 最晚11月22日周日 23:59", 2 => "即将重置 最晚12月31日周四 23:59", _ => "即将重置 最晚11月2日周一 16:00" };
+            window.Apply(QuotaSnapshot.Available([new(QuotaWindowKind.Primary, 100, 300, now.AddHours(5)),
+                new(QuotaWindowKind.Secondary, 100, 10080, now.AddDays(7))], now));
+            window.ApplyResetSchedule(Fresh(now, deadline) with { IsLatchedSchedule = true }, now, China);
+            window.SetResetSchedulePresentationAllowed(!compact);
+            // Synthetic visual sampling only: the unshown owner correctly suppresses its active ring.
+            ball.Visual!.SetState("35", false);
+            ball.SetResetState(ResetVisualState.Upcoming);
+            var root = Layout(window, dpi);
+            var text = Named<TextBlock>(window, compact ? "CompactResetCountdown" : "ResetScheduleCountdown");
+            var measured = new FormattedText(expected, CultureInfo.GetCultureInfo("zh-CN"), text.FlowDirection,
+                new Typeface(text.FontFamily, text.FontStyle, text.FontWeight, text.FontStretch), text.FontSize, Brushes.White, dpi / 96d);
+            Rect Bounds(FrameworkElement element) => element.TransformToAncestor(root).TransformBounds(new Rect(element.RenderSize));
+            measurements.Add(new { dpi, compact, width, dateVariant, expected, actual = text.Text, measuredWidth = measured.WidthIncludingTrailingWhitespace,
+                availableWidth = text.ActualWidth, measuredHeight = measured.Height, availableHeight = text.ActualHeight,
+                desiredHeight = window.DesiredHeight, layoutWidth = window.LayoutWidth, bounds = Bounds(text).ToString(CultureInfo.InvariantCulture),
+                extraHeight = window.AppliedCompactResetExtraHeight, syntheticGoldVisual = true, visible = window.IsVisible, hwnd = new WindowInteropHelper(window).Handle.ToInt64() });
+            var configured = Environment.GetEnvironmentVariable("CQT_GOLD_SINGLE_LINE_PREVIEW_DIR");
+            if (!string.IsNullOrWhiteSpace(configured))
+            {
+                var directory = Path.GetFullPath(configured);
+                var evidenceRoot = Path.GetFullPath(Path.Combine(RepositoryPaths.Root, "artifacts/reliability/gold-single-line"));
+                Assert.Contains(directory, new[] { Path.Combine(evidenceRoot, "before"), Path.Combine(evidenceRoot, "after"), Path.Combine(evidenceRoot, "after", "verified"), Path.Combine(evidenceRoot, "after", "final") }, StringComparer.OrdinalIgnoreCase);
+                Directory.CreateDirectory(directory);
+                var stem = $"{(compact ? "compact" : "full")}-{dpi}-{width}-{(dateVariant == 2 ? "year-end" : dateVariant == 1 ? "long" : "example")}";
+                var png = Path.Combine(directory, stem + ".png"); Assert.False(File.Exists(png));
+                var bitmap = new RenderTargetBitmap((int)Math.Ceiling(width * dpi / 96d), (int)Math.Ceiling(window.DesiredHeight * dpi / 96d), dpi, dpi, PixelFormats.Pbgra32);
+                bitmap.Render(root); var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                using (var file = File.Create(png)) encoder.Save(file);
+                var metadata = Path.Combine(directory, stem + ".json"); Assert.False(File.Exists(metadata));
+                File.WriteAllText(metadata, System.Text.Json.JsonSerializer.Serialize(measurements[^1], new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+            }
+            Assert.True(measured.WidthIncludingTrailingWhitespace <= text.ActualWidth + .5, "Candidate single line must fit existing width.");
+            // The baseline preview deliberately records the old two rows before this behavioral assertion fails.
+            if (Environment.GetEnvironmentVariable("CQT_GOLD_SINGLE_LINE_BASELINE") == "1") continue;
+            Assert.Equal(expected, text.Text);
+            Assert.Equal(TextWrapping.NoWrap, text.TextWrapping); Assert.Equal(TextTrimming.None, text.TextTrimming);
+            Assert.True(measured.Height <= text.ActualHeight + .5);
+            Assert.Equal(0, window.AppliedCompactResetExtraHeight);
+            Assert.Equal(26, window.RequiredResetFooterHeight);
+            Assert.Equal(Visibility.Collapsed, Named<TextBlock>(window, "ResetScheduleLocalTime").Visibility);
+            Assert.Equal(Visibility.Collapsed, Named<TextBlock>(window, "CompactResetLocalTime").Visibility);
+            Assert.Empty(Named<TextBlock>(window, "ResetScheduleLocalTime").Text);
+            Assert.Equal(0, ((Grid)Named<TextBlock>(window, "ResetScheduleLocalTime").Parent).RowDefinitions[1].Height.Value);
+            Assert.True(Bounds(text).Left >= 0 && Bounds(text).Right <= width + .5);
+            var notice = compact ? (FrameworkElement)Named<StackPanel>(window, "CompactResetNotice") : Named<Border>(window, "ResetScheduleRow");
+            Assert.Equal(compact ? 14 : 26, notice.ActualHeight);
+            Assert.True(Bounds(notice).Bottom <= root.ActualHeight + .5);
+            if (compact) Assert.True(Bounds(Named<Grid>(window, "QuotaHeader")).Bottom <= Bounds(notice).Top + .5);
+            else Assert.True(Bounds(Named<Grid>(window, "PanelSessionsRegion")).Bottom <= Bounds(notice).Top + .5);
+            Assert.False(window.IsVisible); Assert.Equal(IntPtr.Zero, new WindowInteropHelper(window).Handle);
+        }
+    });
+
+    [Theory]
     [InlineData(96, false, false)] [InlineData(144, false, false)] [InlineData(192, false, false)]
     [InlineData(96, true, false)] [InlineData(144, true, false)] [InlineData(192, true, false)]
     [InlineData(96, false, true)] [InlineData(144, false, true)] [InlineData(192, false, true)]
@@ -96,7 +183,7 @@ public sealed class ResetScheduleRowTests
                 void Reconcile() => update.Invoke(coordinator, [window, work, scale, 0]);
                 void Check(bool gold)
                 {
-                    var increment = gold ? available >= 42 ? 42d : available >= 4 ? 4d : 0d : available >= 26 ? 26d : 0d;
+                    var increment = available >= 26 ? 26d : 0d;
                     Assert.Equal(baseline + 37 + increment, window.DesiredHeight);
                     Assert.Equal(baseline + increment, window.CoreBodyReservedHeight + (double)reservation.Invoke(null, [window])!);
                     var generation = window.ExtensionMotionGeneration;
@@ -242,7 +329,7 @@ public sealed class ResetScheduleRowTests
                     Assert.True(Available() >= 36, $"Dot needs its original 36 DIP content plus one border; remaining={remaining}, existing={alreadyOpen}");
                     if (!alreadyOpen) window.ShowDotTopExtension(content, 36);
                     Available();
-                    var increment = state == 2 ? remaining >= 42 ? 42d : remaining >= 4 ? 4d : 0d : remaining >= 26 ? 26d : 0d;
+                    var increment = remaining >= 26 ? 26d : 0d;
                     Assert.Equal(baseline + 37 + increment, window.DesiredHeight);
                     Assert.Equal(window.DesiredHeight, window.ReservedHeight);
                     Assert.True(window.DesiredHeight * scale + 8 <= work.Height + .01);
@@ -287,7 +374,7 @@ public sealed class ResetScheduleRowTests
         var compact = Named<StackPanel>(window, "CompactResetNotice");
         Rect Bounds(FrameworkElement element) => element.TransformToAncestor(root).TransformBounds(new Rect(element.RenderSize));
         Assert.Equal(Visibility.Visible, compact.Visibility);
-        Assert.Equal(baseline + 37 + (state == 2 ? 4 : 0), window.DesiredHeight);
+        Assert.Equal(baseline + 37, window.DesiredHeight);
         Assert.True(Bounds(Named<Grid>(window, "QuotaHeader")).Bottom <= Bounds(compact).Top + .5);
         Assert.True(Bounds(compact).Bottom <= root.ActualHeight);
         Assert.Equal("100%", Named<TextBlock>(window, "FirstValue").Text);
@@ -340,7 +427,7 @@ public sealed class ResetScheduleRowTests
         Assert.True(window.BeginPointerGesture(System.Windows.Input.MouseButton.Left, down, 901, 0, 0, () => true));
         if (replacement == 0) window.ApplyResetQueryState(new(1, ResetQueryPhase.Failed));
         if (replacement == 1) window.ApplyConfirmedReset(now.AddHours(1));
-        if (replacement == 2) window.SetResetScheduleAvailableHeight(3);
+        if (replacement == 2) window.SetResetScheduleAvailableHeight(-1);
         Layout(window, 192);
         var release = window.PointerRegion(point);
         Assert.NotEqual(IslandHitRegion.ResetNotice, release);
@@ -388,11 +475,11 @@ public sealed class ResetScheduleRowTests
     }
 
     [Fact]
-    public void Visible_text_contains_only_approximate_remaining_and_local_time()
+    public void Visible_text_contains_local_reset_date_and_source_disclaimer()
     {
         var nextDay = ResetScheduleRowPresentation.Create(Fresh(), Now.AddMinutes(-1), China);
         Assert.True(nextDay.IsVisible);
-        Assert.Equal("约 1 小时后重置", nextDay.Countdown);
+        Assert.Equal("即将重置 最晚10月24日周六 01:00", nextDay.Countdown);
         Assert.Equal("本地 2026-10-24 01:00", nextDay.LocalTime);
         Assert.Contains("第三方", nextDay.Tooltip, StringComparison.Ordinal);
         Assert.Contains("并非本账号", nextDay.Tooltip, StringComparison.Ordinal);
@@ -410,6 +497,7 @@ public sealed class ResetScheduleRowTests
         var clock = deadline.AddHours(-1);
         var view = ResetScheduleRowPresentation.Create(Fresh(clock, deadline), clock, TimeZoneInfo.FindSystemTimeZoneById("Eastern Standard Time"));
         Assert.Equal("本地 " + target[..10] + " " + localTime, view.LocalTime);
+        Assert.Equal(target.Contains("07-23") ? "即将重置 最晚7月23日周四 13:00" : "即将重置 最晚1月23日周五 12:00", view.Countdown);
     }
 
     [Theory]
@@ -450,16 +538,16 @@ public sealed class ResetScheduleRowTests
     }
 
     [Fact]
-    public void Countdown_is_minute_grained_and_stops_at_the_deadline()
+    public void Absolute_reset_line_stays_stable_until_the_deadline()
     {
         var snapshot = Fresh(Now, Now.AddMinutes(59));
         var minute = ResetScheduleRowPresentation.Create(snapshot, Now, China);
-        Assert.Equal("约 59 分钟后重置", minute.Countdown);
+        Assert.Equal("即将重置 最晚10月24日周六 00:59", minute.Countdown);
         for (var seconds = 1; seconds < 60; seconds++)
             Assert.Equal(minute, ResetScheduleRowPresentation.Create(snapshot, Now.AddSeconds(seconds), China));
-        Assert.Equal("约 58 分钟后重置", ResetScheduleRowPresentation.Create(snapshot, Now.AddMinutes(1), China).Countdown);
+        Assert.Equal("即将重置 最晚10月24日周六 00:59", ResetScheduleRowPresentation.Create(snapshot, Now.AddMinutes(1), China).Countdown);
         var final = Fresh(Now, Now.AddMilliseconds(1));
-        Assert.Equal("约 1 分钟后重置", ResetScheduleRowPresentation.Create(final, Now, China).Countdown);
+        Assert.Equal("即将重置 最晚10月24日周六 00:00", ResetScheduleRowPresentation.Create(final, Now, China).Countdown);
         Assert.False(ResetScheduleRowPresentation.Create(final, Now.AddMilliseconds(1), China).IsVisible);
     }
 
@@ -597,7 +685,7 @@ public sealed class ResetScheduleRowTests
             for (var index = 0; index < 80; index++) window.RefreshResetSchedule(Now.AddMilliseconds(index * 750), China);
             Assert.Equal(0, textChanges);
             window.RefreshResetSchedule(Now.AddMinutes(1), China);
-            Assert.Equal(1, textChanges);
+            Assert.Equal(0, textChanges);
             Assert.Equal(0, layoutChanges);
             window.RefreshResetSchedule(Now.AddMinutes(3), China);
             Assert.Equal(1, layoutChanges); // Freshness expiry removes the complete footer once.
@@ -680,9 +768,9 @@ public sealed class ResetScheduleRowTests
             var countdown = Named<TextBlock>(window, "ResetScheduleCountdown");
             Assert.Equal(TextWrapping.NoWrap, countdown.TextWrapping);
             Assert.Equal(TextTrimming.None, countdown.TextTrimming);
-            var formatted = new FormattedText(time.Text, CultureInfo.GetCultureInfo("zh-CN"), time.FlowDirection,
-                new Typeface(time.FontFamily, time.FontStyle, time.FontWeight, time.FontStretch), time.FontSize, time.Foreground, dpi / 96d);
-            Assert.True(time.ActualWidth + 0.5 >= formatted.WidthIncludingTrailingWhitespace);
+            var formatted = new FormattedText(countdown.Text, CultureInfo.GetCultureInfo("zh-CN"), countdown.FlowDirection,
+                new Typeface(countdown.FontFamily, countdown.FontStyle, countdown.FontWeight, countdown.FontStretch), countdown.FontSize, countdown.Foreground, dpi / 96d);
+            Assert.True(countdown.ActualWidth + 0.5 >= formatted.WidthIncludingTrailingWhitespace);
             Assert.InRange(rowBounds.Right, 0, width);
             Assert.Equal(QuotaCapsuleWindow.ResetScheduleRowHeight, row.ActualHeight);
             window.ApplyResetSchedule(new(null, Now, false, null), Now, China);
@@ -897,17 +985,17 @@ public sealed class ResetScheduleRowTests
         }
         Layout(window, dpi);
         Fits(Named<TextBlock>(window, "ResetScheduleCountdown"));
-        if (state >= 2) Fits(Named<TextBlock>(window, "ResetScheduleLocalTime"));
-        Assert.Equal(baseline + (state >= 2 ? 42 : 26), window.DesiredHeight);
+        Assert.Equal(Visibility.Collapsed, Named<TextBlock>(window, "ResetScheduleLocalTime").Visibility);
+        Assert.Equal(baseline + 26, window.DesiredHeight);
         var generation = window.ExtensionMotionGeneration;
         window.SetResetSchedulePresentationAllowed(false);
         var root = Layout(window, dpi);
-        Assert.Equal(baseline + (state >= 2 ? 4 : 0), window.DesiredHeight);
+        Assert.Equal(baseline, window.DesiredHeight);
         Assert.Equal(expected, window.ResetFooter);
         var compact = Named<StackPanel>(window, "CompactResetNotice");
         Assert.Equal(Visibility.Visible, compact.Visibility);
         Fits(Named<TextBlock>(window, "CompactResetCountdown"));
-        if (state >= 2) Fits(Named<TextBlock>(window, "CompactResetLocalTime"));
+        Assert.Equal(Visibility.Collapsed, Named<TextBlock>(window, "CompactResetLocalTime").Visibility);
         Rect Bounds(FrameworkElement element) => element.TransformToAncestor(root).TransformBounds(new Rect(element.RenderSize));
         var bounds = Bounds(compact);
         foreach (var element in new FrameworkElement[] { Named<Grid>(window, "FirstRow"), Named<Grid>(window, "SecondRow"), Named<System.Windows.Controls.Button>(window, "SessionToggle") })
@@ -919,7 +1007,7 @@ public sealed class ResetScheduleRowTests
         Assert.Equal(expected, window.ResetFooter);
         window.SetResetSchedulePresentationAllowed(true);
         Assert.Equal(expected, window.ResetFooter);
-        Assert.Equal(baseline + (state >= 2 ? 42 : 26), window.DesiredHeight);
+        Assert.Equal(baseline + 26, window.DesiredHeight);
         Assert.Equal(until, Private<DateTimeOffset?>(window, "confirmedResetUntil"));
         var recoveredGeneration = window.ExtensionMotionGeneration;
         window.SetResetSchedulePresentationAllowed(true);
@@ -1179,7 +1267,7 @@ public sealed class ResetScheduleRowTests
         Assert.Equal(expected, ball.ResetState);
         ms = 800; frame.Invoke(visual, [null, EventArgs.Empty]);
         Assert.InRange(visual.FloatFrame.BodyY, -6.01, -5.99);
-        if (space) window.SetResetScheduleAvailableHeight(0);
+        if (space) window.SetResetScheduleAvailableHeight(-1);
         else OwnerVisible(window, false);
         Assert.Equal(ResetVisualState.None, ball.ResetState);
         // Production's animation clock pauses while hidden; keep the injected clock fixed too.

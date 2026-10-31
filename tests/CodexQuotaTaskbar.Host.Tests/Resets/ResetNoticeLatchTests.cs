@@ -78,27 +78,27 @@ public sealed class ResetNoticeLatchTests : IDisposable
     }
 
     [Fact]
-    public void Hour_countdown_has_one_decimal_and_decreases_from_the_original_instant()
+    public void Absolute_reset_line_keeps_the_original_instant_as_time_passes()
     {
         var tracker = BoundTracker();
         var original = Fresh(deadline: Now.AddHours(13));
         tracker.SetSchedule(original, Now);
 
-        Assert.Equal("约 13.0 小时后重置", View(tracker, original, Now).Countdown);
-        Assert.Equal("约 1.4 小时后重置", View(tracker, original, Now.AddHours(11).AddMinutes(36)).Countdown);
+        Assert.Equal("即将重置 最晚10月28日周三 23:00", View(tracker, original, Now).Countdown);
+        Assert.Equal("即将重置 最晚10月28日周三 23:00", View(tracker, original, Now.AddHours(11).AddMinutes(36)).Countdown);
         Assert.Equal(Now.AddHours(13), tracker.ProjectSchedule(original, Now.AddHours(12)).Schedule!.ScheduledFor);
     }
 
     [Fact]
-    public void Subhour_countdown_uses_ceiling_minutes_without_zero_or_negative_values()
+    public void Absolute_reset_line_stays_stable_during_the_last_hour()
     {
         var tracker = BoundTracker();
         var original = Fresh(deadline: Now.AddHours(1));
         tracker.SetSchedule(original, Now);
 
-        Assert.Equal("约 1.0 小时后重置", View(tracker, original, Now).Countdown);
-        Assert.Equal("约 60 分钟后重置", View(tracker, original, Now.AddSeconds(1)).Countdown);
-        Assert.Equal("约 1 分钟后重置", View(tracker, original, Now.AddHours(1).AddTicks(-1)).Countdown);
+        Assert.Equal("即将重置 最晚10月28日周三 11:00", View(tracker, original, Now).Countdown);
+        Assert.Equal("即将重置 最晚10月28日周三 11:00", View(tracker, original, Now.AddSeconds(1)).Countdown);
+        Assert.Equal("即将重置 最晚10月28日周三 11:00", View(tracker, original, Now.AddHours(1).AddTicks(-1)).Countdown);
     }
 
     [Fact]
@@ -116,7 +116,8 @@ public sealed class ResetNoticeLatchTests : IDisposable
         Assert.Equal("本地 2026-10-28 21:00", china.LocalTime);
         Assert.Contains("2026年10月28日 13:00", utc.Tooltip);
         Assert.Contains("2026年10月28日 21:00", china.Tooltip);
-        Assert.Equal(utc.Countdown, china.Countdown);
+        Assert.Equal("即将重置 最晚10月28日周三 13:00", utc.Countdown);
+        Assert.Equal("即将重置 最晚10月28日周三 21:00", china.Countdown);
         Assert.Equal(Now.AddHours(3), projected.Schedule!.ScheduledFor);
     }
 
@@ -478,7 +479,7 @@ public sealed class ResetNoticeLatchTests : IDisposable
     }
 
     [Fact]
-    public void Actual_popup_uses_latched_countdown_then_waiting_and_only_quota_recovery_hides_it()
+    public void Actual_popup_uses_latched_date_then_waiting_and_only_quota_recovery_hides_it()
     {
         Exception? failure = null;
         var thread = new Thread(() =>
@@ -486,7 +487,7 @@ public sealed class ResetNoticeLatchTests : IDisposable
             QuotaCapsuleWindow? window = null;
             try
             {
-                var time = DateTimeOffset.UtcNow;
+                var time = Now;
                 var tracker = new QuotaResetTracker();
                 tracker.SetSchedule(ResetScheduleSnapshot.Loading, time);
                 tracker.Observe(Sample(time, 20), Scope, time);
@@ -499,12 +500,12 @@ public sealed class ResetNoticeLatchTests : IDisposable
                 window.ApplyResetSchedule(original, time, TimeZoneInfo.Utc);
                 var text = (System.Windows.Controls.TextBlock)window.FindName("ResetScheduleCountdown");
                 var detail = (System.Windows.Controls.TextBlock)window.FindName("ResetScheduleLocalTime");
-                Assert.Equal("约 3.0 小时后重置", text.Text);
-                Assert.Equal("本地 " + time.AddHours(3).ToString("yyyy-MM-dd HH:mm", System.Globalization.CultureInfo.InvariantCulture), detail.Text);
+                Assert.Equal("即将重置 最晚10月28日周三 13:00", text.Text);
+                Assert.Empty(detail.Text);
                 var changed = original with { Schedule = null, LastUpdatedAt = time.AddMinutes(1) };
                 tracker.SetSchedule(changed, time.AddMinutes(1));
                 window.ApplyResetSchedule(changed, time.AddMinutes(1), TimeZoneInfo.Utc);
-                Assert.Equal("约 3.0 小时后重置", text.Text);
+                Assert.Equal("即将重置 最晚10月28日周三 13:00", text.Text);
                 window.RefreshResetSchedule(time.AddHours(3), TimeZoneInfo.Utc);
                 Assert.Equal("预计时间已到，等待额度恢复", text.Text);
                 Assert.Null(tracker.ActiveUntil(time.AddHours(3)));
