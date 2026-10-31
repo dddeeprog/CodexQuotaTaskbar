@@ -45,6 +45,7 @@ internal sealed partial class OverlayCoordinator : IDisposable
     private WebShortcutsSnapshot webShortcuts = new([], null, true);
     private readonly Dictionary<string, WebShortcutIcon> shortcutIcons = new(StringComparer.Ordinal);
     private QuotaPopoverWindow? popover;
+    private ResetCreditUseService? resetCreditUse;
     private QuotaCapsuleWindow? popoverOwner;
     private string? dotOwnerId;
     internal event Action<DotAnchor>? DotAnchorChanged;
@@ -69,6 +70,7 @@ internal sealed partial class OverlayCoordinator : IDisposable
     }
 
     internal event EventHandler? RefreshRequested;
+    internal void SetResetCreditUseService(ResetCreditUseService service) => resetCreditUse = service;
     internal event EventHandler? OpenCodexRequested;
     internal event EventHandler? OpenDotChatRequested;
     internal event EventHandler? OpenSubscriptionLoginRequested;
@@ -623,6 +625,11 @@ internal sealed partial class OverlayCoordinator : IDisposable
         CloseContextRequested?.Invoke(this, EventArgs.Empty);
         dotOwnerId = owner.MonitorId;
         var details = new QuotaPopoverWindow { Owner = owner };
+        details.SetResetCreditUseService(resetCreditUse);
+        details.SizeChanged += (_, _) =>
+        {
+            if (ReferenceEquals(popover, details) && details.IsVisible) RepositionPopover(owner);
+        };
         OverlayLifecycleDiagnostics.Local.Window(details, OverlayLifecycleEvent.DetailsCreated);
         details.SetMaterialTransparency(materialTransparency);
         popover = details;

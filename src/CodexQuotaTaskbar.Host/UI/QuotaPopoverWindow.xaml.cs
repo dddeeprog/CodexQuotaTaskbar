@@ -78,6 +78,7 @@ public partial class QuotaPopoverWindow : Window
             SystemParameters.StaticPropertyChanged -= OnSystemParametersChanged;
         };
         ApplySystemAppearance();
+        InitializeResetCreditUse();
     }
 
     internal event EventHandler? RefreshRequested;
@@ -147,13 +148,15 @@ public partial class QuotaPopoverWindow : Window
         {
             return;
         }
+        // Revoke unsent work before the exit animation begins, not 130 ms later.
+        closingAnimated = true;
+        CancelResetCreditUseForClose();
         if (!SystemParameters.ClientAreaAnimation)
         {
             Close();
             return;
         }
 
-        closingAnimated = true;
         var opacity = CreateSurfaceAnimation(Opacity, 0, false);
         opacity.Completed += (_, _) => Close();
         BeginAnimation(OpacityProperty, opacity);
@@ -195,6 +198,7 @@ public partial class QuotaPopoverWindow : Window
         ExtraCreditsText.Text = FormatExtraCredits(snapshot.ExtraCredits);
         ExtraCreditsText.Tag = snapshot.ExtraCredits is null ? "secondary" : null;
         RenderResetCredits(DateTimeOffset.UtcNow);
+        RenderResetCreditUse();
         RowsPanel.Children.Clear();
         if (snapshot.Availability != QuotaAvailability.Available || snapshot.UnresolvedWindows.Count > 0)
             RowsPanel.Children.Add(new TextBlock { Text = snapshot.Availability == QuotaAvailability.Stale

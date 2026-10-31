@@ -7,9 +7,9 @@ using CodexQuotaTaskbar.Host.Resets;
 
 namespace CodexQuotaTaskbar.Host.Provider;
 
-internal sealed class CodexRateLimitProvider : IQuotaProvider
+internal sealed partial class CodexRateLimitProvider : IQuotaProvider, IResetCreditUseTransport
 {
-    private readonly CodexAppServerClient client = new();
+    private readonly ICodexAppServerClient client;
     private readonly CodexSubscriptionMetadataService subscriptionMetadataService;
     private readonly QuotaResetTracker resetTracker;
     private readonly object resetGate = new();
@@ -33,13 +33,15 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
     internal CodexRateLimitProvider(
         bool subscriptionDetailsEnabled = true,
         CodexSubscriptionMetadataService? subscriptionMetadataService = null,
-        QuotaResetTracker? resetTracker = null)
+        QuotaResetTracker? resetTracker = null,
+        ICodexAppServerClient? client = null)
     {
+        this.client = client ?? new CodexAppServerClient();
         this.subscriptionDetailsEnabled = subscriptionDetailsEnabled ? 1 : 0;
         this.subscriptionMetadataService = subscriptionMetadataService ?? new CodexSubscriptionMetadataService();
         this.resetTracker = resetTracker ?? new QuotaResetTracker();
-        client.Notification += OnNotification;
-        client.ConnectionLost += OnConnectionLost;
+        this.client.Notification += OnNotification;
+        this.client.ConnectionLost += OnConnectionLost;
     }
 
     public event EventHandler<QuotaSnapshot>? SnapshotChanged;
@@ -87,6 +89,7 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
                 {
                     if (generation == Interlocked.Read(ref accountGeneration))
                     {
+                        InvalidateResetUseContext();
                         resetTracker.InvalidateSample(accountChanged: true);
                         PublishResetConfirmation(null);
                         SetForGeneration(QuotaSnapshot.Unavailable(accountMessage), generation);
@@ -101,6 +104,7 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
                 if (generation != Interlocked.Read(ref accountGeneration)) return;
                 if (nextContext != quotaAccountContext)
                 {
+                    InvalidateResetUseContext();
                     quotaAccountContext = nextContext;
                     quotaScope = null;
                     resetTracker.InvalidateSample(accountChanged: true);
@@ -125,6 +129,7 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
                 lock (resetGate)
                 {
                     if (generation != Interlocked.Read(ref accountGeneration)) return;
+                    InvalidateResetUseContext();
                     quotaScope = null;
                     resetTracker.InvalidateSample(accountChanged: true);
                     PublishResetConfirmation(null);
@@ -137,6 +142,7 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
                 lock (resetGate)
                 {
                     if (generation != Interlocked.Read(ref accountGeneration)) return;
+                    InvalidateResetUseContext();
                     quotaScope = scope;
                     resetTracker.InvalidateSample(accountChanged: true);
                     PublishResetConfirmation(null);
@@ -147,6 +153,9 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
             lock (resetGate)
             {
                 if (generation != Interlocked.Read(ref accountGeneration)) return;
+                resetUseContext = CreateResetUseContext(accountResult, result, accountAfter,
+                    connection, client.InitializedConnectionId, generation, Interlocked.Read(ref accountGeneration),
+                    baseSnapshot.ResetCredits);
                 PublishResetConfirmation(resetTracker.Observe(baseSnapshot, scope, DateTimeOffset.Now));
             }
             var previousExpiration = Current.SubscriptionExpiration;
@@ -180,7 +189,11 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
         catch (OperationCanceledException)
         {
             lock (resetGate)
-                if (generation == Interlocked.Read(ref accountGeneration)) resetTracker.InvalidateSample();
+                if (generation == Interlocked.Read(ref accountGeneration))
+                {
+                    InvalidateResetUseContext();
+                    resetTracker.InvalidateSample();
+                }
             throw;
         }
         catch (Exception exception) when (exception is InvalidOperationException or IOException or TimeoutException or AppServerProtocolException or JsonException)
@@ -188,6 +201,7 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
             lock (resetGate)
             {
                 if (generation != Interlocked.Read(ref accountGeneration)) return;
+                InvalidateResetUseContext();
                 resetTracker.InvalidateSample(); // Break continuity, preserving an already fixed expiry.
                 SetForGeneration(quotaScope is not null && Current.Windows.Count > 0 && Current.CapturedAt is { } captured
                 ? QuotaSnapshot.Stale(
@@ -290,6 +304,7 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
         {
             lock (resetGate)
             {
+                InvalidateResetUseContext();
                 quotaScope = null;
                 Interlocked.Increment(ref accountGeneration);
                 resetTracker.InvalidateSample(accountChanged: true);
@@ -308,6 +323,7 @@ internal sealed class CodexRateLimitProvider : IQuotaProvider
     {
         lock (resetGate)
         {
+            InvalidateResetUseContext();
             quotaScope = null;
             Interlocked.Increment(ref accountGeneration);
             resetTracker.InvalidateSample(accountChanged: true);

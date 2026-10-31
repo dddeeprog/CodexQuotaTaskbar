@@ -23,6 +23,7 @@ public partial class App : System.Windows.Application
     private OverlayCoordinator? coordinator;
     private TrayController? tray;
     private IQuotaProvider? provider;
+    private ResetCreditUseService? resetCreditUse;
     private SettingsStore? settingsStore;
     private LowQuotaGate? lowQuotaGate;
     private GitHubUpdateService? updateService;
@@ -145,10 +146,17 @@ public partial class App : System.Windows.Application
             provider = options.Demo ? new DemoQuotaProvider() : new CodexRateLimitProvider(settings.SubscriptionDetailsEnabled, subscriptionService,
                 recoveryTracker);
             if (provider is CodexRateLimitProvider liveProvider)
+            {
+                resetCreditUse = new ResetCreditUseService(liveProvider, new ResetCreditPendingStore(
+                    System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "CodexQuotaTaskbar", "reset-credit-pending.json")));
+                liveProvider.ResetUseContextInvalidated += resetCreditUse.Invalidate;
+                coordinator.SetResetCreditUseService(resetCreditUse);
                 liveProvider.ResetConfirmationChanged += until => Dispatcher.BeginInvoke(() =>
                 {
                     if (!shuttingDown) coordinator?.ApplyConfirmedReset(until);
                 });
+            }
             provider.SetSubscriptionDetailsEnabled(settings.SubscriptionDetailsEnabled);
             updateService = options.Demo ? null : new GitHubUpdateService();
             resetFeedClient = options.Demo ? null : new CodexResetFeedClient();
@@ -633,6 +641,7 @@ public partial class App : System.Windows.Application
             await provider.DisposeAsync().ConfigureAwait(true);
         }
         WriteDemoShutdownStage("provider-disposed");
+        resetCreditUse?.Dispose();
         updateService?.Dispose();
         if (resetFeedLoop is not null) await resetFeedLoop;
         await resetRefreshTask;
@@ -672,6 +681,7 @@ public partial class App : System.Windows.Application
             {
                 _ = Task.Run(async () => await provider.DisposeAsync()).Wait(TimeSpan.FromSeconds(5));
             }
+            resetCreditUse?.Dispose();
             updateService?.Dispose();
             resetFeedClient?.Dispose();
             resetScheduleClient?.Dispose();

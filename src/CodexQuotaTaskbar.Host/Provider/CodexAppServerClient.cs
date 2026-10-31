@@ -6,7 +6,7 @@ using System.Text.Json;
 
 namespace CodexQuotaTaskbar.Host.Provider;
 
-internal sealed class CodexAppServerClient : IAsyncDisposable
+internal sealed class CodexAppServerClient : ICodexAppServerClient
 {
     private const int MaximumMessageCharacters = 262_144;
     private readonly ConcurrentDictionary<long, TaskCompletionSource<JsonElement>> pending = new();
@@ -21,13 +21,13 @@ internal sealed class CodexAppServerClient : IAsyncDisposable
     private string? initializedConnectionId;
 
     // A namespace for this initialized transport, not proof of an account identity.
-    internal string? InitializedConnectionId => Volatile.Read(ref connectionEnded) == 0
+    public string? InitializedConnectionId => Volatile.Read(ref connectionEnded) == 0
         ? Volatile.Read(ref initializedConnectionId) : null;
 
-    internal event EventHandler<string>? Notification;
-    internal event Action? ConnectionLost;
+    public event EventHandler<string>? Notification;
+    public event Action? ConnectionLost;
 
-    internal async Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
         if (process is not null)
         {
@@ -67,7 +67,8 @@ internal sealed class CodexAppServerClient : IAsyncDisposable
         Volatile.Write(ref initializedConnectionId, Guid.NewGuid().ToString("N"));
     }
 
-    internal Task<JsonElement> RequestAsync(string method, object? parameters, CancellationToken cancellationToken)
+    public Task<JsonElement> RequestAsync(string method, object? parameters, CancellationToken cancellationToken,
+        Func<bool>? authorizeBeforeSend = null)
     {
         var id = Interlocked.Increment(ref nextId);
         var completion = new TaskCompletionSource<JsonElement>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -76,17 +77,18 @@ internal sealed class CodexAppServerClient : IAsyncDisposable
             throw new InvalidOperationException("请求编号冲突。");
         }
 
-        return CompleteRequestAsync(id, method, parameters, completion, cancellationToken);
+        return CompleteRequestAsync(id, method, parameters, completion, cancellationToken, authorizeBeforeSend);
     }
 
-    private async Task<JsonElement> CompleteRequestAsync(long id, string method, object? parameters, TaskCompletionSource<JsonElement> completion, CancellationToken cancellationToken)
+    private async Task<JsonElement> CompleteRequestAsync(long id, string method, object? parameters, TaskCompletionSource<JsonElement> completion, CancellationToken cancellationToken,
+        Func<bool>? authorizeBeforeSend)
     {
         var acquired = false;
         try
         {
             await requestLock.WaitAsync(cancellationToken);
             acquired = true;
-            await SendAsync(new { method, id, @params = parameters ?? new { } }, cancellationToken);
+            await SendAsync(new { method, id, @params = parameters ?? new { } }, cancellationToken, authorizeBeforeSend);
             return await completion.Task.WaitAsync(TimeSpan.FromSeconds(15), cancellationToken);
         }
         finally
@@ -99,7 +101,7 @@ internal sealed class CodexAppServerClient : IAsyncDisposable
         }
     }
 
-    private async Task SendAsync(object message, CancellationToken cancellationToken)
+    private async Task SendAsync(object message, CancellationToken cancellationToken, Func<bool>? authorizeBeforeSend = null)
     {
         var writer = input ?? throw new InvalidOperationException("Codex App Server 尚未启动。");
         var json = JsonSerializer.Serialize(message);
@@ -111,6 +113,9 @@ internal sealed class CodexAppServerClient : IAsyncDisposable
         await writeLock.WaitAsync(cancellationToken);
         try
         {
+            // Revalidate after both queues, at the actual write boundary.
+            if (authorizeBeforeSend is not null && !authorizeBeforeSend())
+                throw new InvalidOperationException("账号或连接已变化，未发送重置请求。");
             await writer.WriteLineAsync(json.AsMemory(), cancellationToken);
             await writer.FlushAsync(cancellationToken);
         }
