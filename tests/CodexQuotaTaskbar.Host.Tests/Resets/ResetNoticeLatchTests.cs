@@ -7,6 +7,21 @@ namespace CodexQuotaTaskbar.Host.Tests.Resets;
 
 public sealed class ResetNoticeLatchTests : IDisposable
 {
+    [Fact]
+    public void Public_watch_survives_quota_context_loss_but_clears_when_the_site_withdraws_it()
+    {
+        var tracker = BoundTracker();
+        var snapshot = new ResetScheduleSnapshot(null, Now, false, null)
+        {
+            ActiveWatch = new(Now.AddMinutes(-1), Now.AddHours(1), 10, ResetScheduleClient.SiteUri),
+        };
+        tracker.SetSchedule(snapshot, Now);
+        tracker.Observe(QuotaSnapshot.Available([], Now), null, Now);
+        Assert.True(ResetScheduleRowPresentation.Create(tracker.ProjectSchedule(snapshot, Now), Now).IsVisible);
+        var withdrawn = snapshot with { ActiveWatch = null, LastUpdatedAt = Now.AddSeconds(1) };
+        Assert.False(ResetScheduleRowPresentation.Create(tracker.ProjectSchedule(withdrawn, Now), Now).IsVisible);
+    }
+
     private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-10-28T10:00:00Z");
     private static readonly string Scope = QuotaResetTracker.ScopeForSource("mock-continuous")!;
     private static readonly TimeZoneInfo China = TimeZoneInfo.CreateCustomTimeZone(

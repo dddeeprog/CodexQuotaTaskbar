@@ -18,7 +18,8 @@ internal sealed record AppSettings(
     int BongoSizeDip = 192,
     bool? BongoCatVisible = null,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    Workbench.WorkbenchSettings? Workbench = null)
+    Workbench.WorkbenchSettings? Workbench = null,
+    bool? HideOnFullscreen = true)
 {
     internal static AppSettings Default { get; } = new(true, false, true, 10, true, true);
     // Public appearance template only. Core acceptance never opts into input, Dot, or autostart.
@@ -27,6 +28,7 @@ internal sealed record AppSettings(
         ReduceCompanionMotion: false, ShowTrayIcon: false, DotRealtime: false, CompanionTyping: false,
         CompanionAppearance: "bongo-cat", BongoSizeDip: 192, BongoCatVisible: true);
     internal bool AutomaticUpdatesEnabled => AutomaticUpdates is not false;
+    internal bool HideOnFullscreenEnabled => HideOnFullscreen is not false;
     internal bool SubscriptionDetailsEnabled => SubscriptionDetails is not false;
     internal bool CompanionBallEnabled => CompanionBall is not false;
     internal string EffectiveCompanionAppearance => CompanionAppearance == "bongo-cat" ? "bongo-cat" : "white-ball";

@@ -9,7 +9,56 @@ namespace CodexQuotaTaskbar.Host.Tests.Resets;
 
 public sealed class ResetScheduleClientTests
 {
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(2, false)]
+    public void Active_watch_projects_possible_reset_and_expires_without_latching(int hours, bool visible)
+    {
+        var json = Status("null").Replace("\"scheduled_reset\":null", "\"scheduled_reset\":null,\"active_watch\":" + JsonSerializer.Serialize(new
+        {
+            level = "elevated", reset_chance_percent = 65,
+            observed_at = Now.AddHours(-1), expires_at = Now.AddHours(2),
+            source = new { type = "x_post", author = "thsottiaux", url = "https://x.com/thsottiaux/status/123" },
+        }));
+        var snapshot = Parse(json);
+        var latch = new ResetNoticeLatch();
+        latch.EstablishContext(); latch.Update(snapshot, Now);
+        Assert.Null(latch.LockedNotice);
+        var view = CodexQuotaTaskbar.Host.UI.ResetScheduleRowPresentation.Create(latch.Project(Now), Now.AddHours(hours), TimeZoneInfo.Utc);
+        Assert.Equal(visible, view.IsVisible);
+        if (visible)
+        {
+            Assert.Contains("可能重置", view.Countdown);
+            Assert.Contains("65%", view.Tooltip);
+            Assert.Equal(ResetVisualState.Upcoming, ResetQueryState.Idle.Select(view.IsVisible, null, Now));
+        }
+    }
+
     private static readonly DateTimeOffset Now = new(2026, 10, 23, 16, 0, 0, TimeSpan.Zero);
+
+    [Theory]
+    [InlineData("elevated", 65, true)]
+    [InlineData("low", 65, true)]
+    [InlineData("high", 20, true)]
+    [InlineData("future-level", 0, true)]
+    [InlineData("elevated", 101, false)]
+    public void Watch_withdrawal_and_validation_do_not_create_a_locked_announcement(string level, int chance, bool visible)
+    {
+        var watch = JsonSerializer.Serialize(new { level, reset_chance_percent = chance,
+            observed_at = Now.AddMinutes(-1), expires_at = Now.AddMinutes(1),
+            source = new { type = "x_post", author = "thsottiaux", url = "https://x.com/thsottiaux/status/123" } });
+        var json = Status("null").Replace("\"scheduled_reset\":null", "\"scheduled_reset\":null,\"active_watch\":" + watch);
+        var latch = new ResetNoticeLatch(); latch.EstablishContext(); latch.Update(Parse(json), Now);
+        Assert.Equal(visible, CodexQuotaTaskbar.Host.UI.ResetScheduleRowPresentation.Create(latch.Project(Now), Now).IsVisible);
+        var expiry = Now.AddMinutes(1);
+        var revalidated = latch.Project(Now) with { LastUpdatedAt = expiry };
+        Assert.False(CodexQuotaTaskbar.Host.UI.ResetScheduleRowPresentation.Create(revalidated, expiry).IsVisible);
+        latch.Update(Parse(Status("null")) with { LastUpdatedAt = Now.AddSeconds(1) }, Now.AddSeconds(1));
+        Assert.False(CodexQuotaTaskbar.Host.UI.ResetScheduleRowPresentation.Create(latch.Project(Now), Now).IsVisible);
+        // A real scheduled announcement keeps priority even when the watch remains present.
+        var scheduled = Parse(json.Replace("\"scheduled_reset\":null", "\"scheduled_reset\":" + Schedule()));
+        Assert.Contains("即将重置", CodexQuotaTaskbar.Host.UI.ResetScheduleRowPresentation.Create(scheduled, Now).Countdown);
+    }
 
     [Fact]
     public async Task Query_phase_spans_body_read_and_concurrent_cache_hits_do_not_restart_it()

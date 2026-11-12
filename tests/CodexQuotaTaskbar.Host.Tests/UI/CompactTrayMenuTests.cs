@@ -30,6 +30,24 @@ public sealed class CompactTrayMenuTests
         true, false, 37, true, true, false, false, false, false, "bongo-cat", 192);
 
     [Fact]
+    public void Fullscreen_preference_toggles_both_ways_without_changing_other_settings() => Sta(menu =>
+    {
+        var button = Named<Button>(menu, "HideOnFullscreenButton");
+        Assert.Equal("全屏时自动隐藏", AutomationProperties.GetName(button));
+        Assert.True(Named<FrameworkElement>(menu, "PreferencesRoot").IsAncestorOf(button));
+        var changes = new List<AppSettings>();
+        menu.SettingsChangeRequested += (_, value) => changes.Add(value);
+        button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        var disabled = Assert.Single(changes);
+        using var json = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(disabled));
+        Assert.False(json.RootElement.GetProperty("HideOnFullscreen").GetBoolean());
+        menu.ApplySettings(disabled);
+        button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal(DistinctSettings, changes[1]);
+        AssertNoNativeWindow(menu);
+    });
+
+    [Fact]
     public void Primary_page_excludes_workbench_without_dot_or_preview_entries() => Sta(menu =>
     {
         var primary = Named<StackPanel>(menu, "MenuItems");

@@ -7,11 +7,23 @@ internal sealed record ResetScheduleRowPresentation(bool IsVisible, string Count
 {
     internal bool IsTimingKnown { get; init; } = true;
     internal string Deadline { get; init; } = string.Empty;
+    internal string Title { get; init; } = "即将重置";
     private static readonly CultureInfo Chinese = CultureInfo.GetCultureInfo("zh-CN");
     private static readonly ResetScheduleRowPresentation Hidden = new(false, string.Empty, string.Empty, string.Empty);
 
     internal static ResetScheduleRowPresentation Create(ResetScheduleSnapshot snapshot, DateTimeOffset now, TimeZoneInfo? zone = null)
     {
+        if (snapshot.Schedule is null && snapshot.ActiveWatch is { } watch)
+        {
+            if (snapshot.IsLoading || snapshot.IsStale || !string.IsNullOrEmpty(snapshot.ErrorMessage)
+                || snapshot.LastUpdatedAt is not { } watchCheckedAt || now - watchCheckedAt >= ResetScheduleClient.FreshnessLifetime
+                || watchCheckedAt > now.AddMinutes(1) || watch.ExpiresAt <= now) return Hidden;
+            var watchLocal = TimeZoneInfo.ConvertTime(watch.ExpiresAt, zone ?? TimeZoneInfo.Local);
+            var window = $"观察至{watchLocal.ToString("M月d日 HH:mm", Chinese)}";
+            return new(true, $"可能重置 {window}", string.Empty,
+                $"Codex Resets 第三方观察信号，估计概率 {watch.ChancePercent}%；并非确定预告，也不代表本账号额度已恢复。\n观察截止：{watchLocal:yyyy-MM-dd HH:mm}（本地）\n来源：{watch.SourceUri}")
+                { Title = "可能重置", Deadline = window };
+        }
         if (snapshot.IsTimingUnknown)
             return new(true, "重置时间暂未知", string.Empty,
                 "公共预告的时间或当前连续额度上下文尚未验证；不代表本账号已重置。") { IsTimingKnown = false };

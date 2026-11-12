@@ -216,7 +216,37 @@ public sealed class ResetScheduleClient : IDisposable
             schedule = new(id, kind, announced, deadline, sourceUri);
         }
         var stale = now - generated >= FreshnessLifetime;
-        return new(schedule, now, stale, stale ? "来源预告数据较旧，等待更新" : null) { SourceGeneratedAt = generated };
+        return new(schedule, now, stale, stale ? "来源预告数据较旧，等待更新" : null)
+            { SourceGeneratedAt = generated, ActiveWatch = ReadWatch(data, now) };
+    }
+
+    private static ResetWatch? ReadWatch(JsonElement data, DateTimeOffset now)
+    {
+        if (!data.TryGetProperty("active_watch", out var watch) || watch.ValueKind == JsonValueKind.Null) return null;
+        try
+        {
+            RequireObject(watch);
+            // The site's active banner is the signal; do not impose a local level/probability threshold.
+            _ = ReadString(watch, "level", 24);
+            var observed = ReadTime(watch, "observed_at");
+            var expires = ReadTime(watch, "expires_at");
+            if (observed > now.AddMinutes(5) || expires <= observed || expires <= now) return null;
+            var chanceNode = Property(watch, "reset_chance_percent");
+            if (!chanceNode.TryGetInt32(out var chance) || chance is < 0 or > 100) return null;
+            var source = Property(watch, "source"); RequireObject(source);
+            if (ReadString(source, "type", 16) != "x_post" || ReadString(source, "author", 32) != "thsottiaux") return null;
+            var link = ReadString(source, "url", 256);
+            if (link.Contains('\\') || !Uri.TryCreate(link, UriKind.Absolute, out var uri) || !IsAllowedSource(uri)
+                || !uri.AbsolutePath.StartsWith("/thsottiaux/status/", StringComparison.Ordinal)
+                || !uri.AbsolutePath["/thsottiaux/status/".Length..].All(char.IsAsciiDigit)
+                || uri.AbsolutePath.Length == "/thsottiaux/status/".Length) return null;
+            return new(observed, expires, chance, uri);
+        }
+        catch (Exception error) when (error is InvalidDataException or InvalidOperationException or FormatException)
+        {
+            // An optional watch must not break a valid scheduled-reset response.
+            return null;
+        }
     }
 
     public static bool IsAllowedSource(Uri uri)

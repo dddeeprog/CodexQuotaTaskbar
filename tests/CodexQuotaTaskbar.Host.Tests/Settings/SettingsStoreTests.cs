@@ -6,6 +6,24 @@ namespace CodexQuotaTaskbar.Host.Tests.Settings;
 
 public sealed class SettingsStoreTests : IDisposable
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    [InlineData(null)]
+    public async Task Fullscreen_preference_defaults_on_and_roundtrips(bool? hide)
+    {
+        var old = JsonSerializer.Deserialize<AppSettings>("{\"ShowAllTaskbars\":true,\"LowQuotaThreshold\":10}")!;
+        Assert.True(old.HideOnFullscreenEnabled);
+        Assert.True(AppSettings.Default.HideOnFullscreenEnabled);
+        Assert.True(AppSettings.InstallerDefault.HideOnFullscreenEnabled);
+        var store = new SettingsStore(Path.Combine(directory, "settings.json"));
+        var settings = old with { HideOnFullscreen = hide };
+        await store.SaveAsync(settings, CancellationToken.None);
+        var loaded = await store.LoadAsync(CancellationToken.None);
+        Assert.Equal(settings, loaded);
+        Assert.Equal(hide is not false, loaded.HideOnFullscreenEnabled);
+    }
+
     [Fact]
     public async Task Dot_realtime_is_opt_in_and_persists_without_changing_the_ball()
     {

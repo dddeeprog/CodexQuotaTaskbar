@@ -19,6 +19,29 @@ namespace CodexQuotaTaskbar.Host.Tests.UI;
 
 public sealed class ResetScheduleRowTests
 {
+    [Fact]
+    public void Possible_watch_uses_distinct_title_in_both_native_footer_layouts() => Sta(() =>
+    {
+        var window = new QuotaCapsuleWindow("watch-offscreen");
+        try
+        {
+            var snapshot = new ResetScheduleSnapshot(null, Now, false, null)
+            {
+                ActiveWatch = new(Now.AddMinutes(-1), Now.AddHours(1), 65, Announcement),
+            };
+            window.ApplyResetSchedule(snapshot, Now, China);
+            foreach (var prefix in new[] { "ResetSchedule", "CompactReset" })
+            {
+                Assert.Equal("可能重置", Named<TextBlock>(window, prefix + "Countdown").Text);
+                Assert.StartsWith("观察至", Named<TextBlock>(window, prefix + "Deadline").Text);
+            }
+            Assert.Equal(ResetFooterKind.Schedule, window.ResetFooter);
+            window.ApplyResetSchedule(snapshot with { ActiveWatch = null }, Now);
+            Assert.Equal(ResetFooterKind.None, window.ResetFooter);
+        }
+        finally { window.Close(); }
+    });
+
     private static readonly DateTimeOffset Now = DateTimeOffset.Parse("2026-10-23T16:00:00Z");
     private static readonly TimeZoneInfo China = TimeZoneInfo.CreateCustomTimeZone("RowTest+08", TimeSpan.FromHours(8), "UTC+08", "UTC+08");
     private static readonly Uri Announcement = new("https://x.com/thsottiaux/status/2113492502355562875");

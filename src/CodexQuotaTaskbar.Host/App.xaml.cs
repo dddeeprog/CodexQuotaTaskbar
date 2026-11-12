@@ -122,7 +122,7 @@ public partial class App : System.Windows.Application
             lowQuotaGate = new LowQuotaGate(settings.LowQuotaThreshold);
             coordinator = new OverlayCoordinator(settings.ShowAllTaskbars, settings.EffectiveMaterialTransparencyPercent, settings.UnifiedPanel,
                 CreateCorePermittedRuntime,
-                observePointer: !RestrictedDemo);
+                observePointer: !RestrictedDemo, hideOnFullscreen: settings.HideOnFullscreenEnabled);
             ApplyCorePresentation(settings);
             coordinator.SetInlineDotMode(true);
             coordinator.SetDotPresentationEnabled(settings.DotRealtime && !RestrictedDemo);
@@ -551,6 +551,7 @@ public partial class App : System.Windows.Application
         coordinator?.SetDotPresentationEnabled(settings.DotRealtime && !RestrictedDemo);
         ApplyTypingInteraction(settings);
         coordinator?.SetShowAllTaskbars(settings.ShowAllTaskbars);
+        coordinator?.SetHideOnFullscreen(settings.HideOnFullscreenEnabled);
         coordinator?.SetMaterialTransparency(settings.EffectiveMaterialTransparencyPercent);
         var refreshSubscriptionDetails = provider?.SetSubscriptionDetailsEnabled(settings.SubscriptionDetailsEnabled) == true;
         if (settingsStore is not null)

@@ -1,9 +1,26 @@
 using CodexQuotaTaskbar.Host.UI;
+using CodexQuotaTaskbar.Host.Platform;
+using CodexQuotaTaskbar.Host.Overlay;
 
 namespace CodexQuotaTaskbar.Host.Tests.UI;
 
 public sealed class OverlayLifecycleDiagnosticsTests
 {
+    [Theory]
+    [InlineData(false, true, true, false, (int)OverlayVisibilityReason.Available)]
+    [InlineData(false, true, true, true, (int)OverlayVisibilityReason.Fullscreen)]
+    [InlineData(false, true, false, false, (int)OverlayVisibilityReason.Available)]
+    [InlineData(true, true, true, false, (int)OverlayVisibilityReason.Locked)]
+    [InlineData(false, false, true, false, (int)OverlayVisibilityReason.TaskbarHidden)]
+    public void Fullscreen_switch_only_overrides_fullscreen_visibility(bool locked, bool taskbarVisible,
+        bool fullscreen, bool hide, int expected)
+    {
+        var foreground = fullscreen ? ForegroundDisposition.Fullscreen : ForegroundDisposition.Normal;
+        Assert.Equal((OverlayVisibilityReason)expected, OverlayCoordinator.ResolveVisibilityReason(locked, taskbarVisible, foreground, hide));
+        Assert.Equal(OverlayVisibilityReason.CaptureOverlay, OverlayCoordinator.ResolveVisibilityReason(
+            false, true, ForegroundDisposition.CaptureOverlay, hide));
+    }
+
     [Fact]
     public void Policy_polling_is_deduplicated_but_reason_handle_and_process_changes_are_retained()
     {

@@ -163,7 +163,7 @@ public partial class QuotaCapsuleWindow
             : kind == ResetFooterKind.Status ? state == ResetVisualState.Confirmed ? "额度已回升" : "重置预告查询失败" : string.Empty;
         var detail = string.Empty;
         var deadline = kind == ResetFooterKind.Schedule ? resetScheduleView!.Deadline : string.Empty;
-        var title = deadline.Length > 0 ? "即将重置" : text;
+        var title = deadline.Length > 0 ? resetScheduleView!.Title : text;
         if (ResetScheduleCountdown.Text != title) ResetScheduleCountdown.Text = title;
         if (ResetScheduleLocalTime.Text != detail) ResetScheduleLocalTime.Text = detail;
         if (CompactResetCountdown.Text != title) CompactResetCountdown.Text = title;

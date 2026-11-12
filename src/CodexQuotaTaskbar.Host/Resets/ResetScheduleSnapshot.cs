@@ -27,6 +27,8 @@ public sealed record ResetSchedule(
     DateTimeOffset? ScheduledFor,
     Uri SourceUri);
 
+public sealed record ResetWatch(DateTimeOffset ObservedAt, DateTimeOffset ExpiresAt, int ChancePercent, Uri SourceUri);
+
 public sealed record ResetScheduleSnapshot(
     ResetSchedule? Schedule,
     DateTimeOffset? LastUpdatedAt,
@@ -35,6 +37,7 @@ public sealed record ResetScheduleSnapshot(
     bool IsLoading = false)
 {
     public DateTimeOffset? SourceGeneratedAt { get; init; }
+    public ResetWatch? ActiveWatch { get; init; }
     internal bool IsLatchedSchedule { get; init; }
     internal bool IsTimingUnknown { get; init; }
 

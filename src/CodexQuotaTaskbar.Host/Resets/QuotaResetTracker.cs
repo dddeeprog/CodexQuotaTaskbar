@@ -58,7 +58,16 @@ internal sealed class QuotaResetTracker
         }
     }
     internal ResetScheduleSnapshot ProjectSchedule(ResetScheduleSnapshot value, DateTimeOffset now)
-    { lock (gate) return usesLatchedSchedule ? WithoutConsumedNotice(noticeLatch.Project(now)) : value; }
+    {
+        lock (gate)
+        {
+            var projected = usesLatchedSchedule ? WithoutConsumedNotice(noticeLatch.Project(now)) : value;
+            // Public site watches do not depend on this account's continuity or consumed notices.
+            // Keep their own freshness metadata, including withdrawal, rather than a cached latch copy.
+            return projected.Schedule is null && value.Schedule is null
+                ? value with { IsLatchedSchedule = false, IsTimingUnknown = false } : projected;
+        }
+    }
     private ResetScheduleSnapshot WithoutConsumedNotice(ResetScheduleSnapshot value) =>
         IsNoticeConsumed(value.Schedule) ? value with { Schedule = null, IsLatchedSchedule = false, IsTimingUnknown = false } : value;
     internal bool IsNoticeConsumed(ResetSchedule? schedule)

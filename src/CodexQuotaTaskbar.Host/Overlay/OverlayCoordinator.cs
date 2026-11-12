@@ -34,6 +34,7 @@ internal sealed partial class OverlayCoordinator : IDisposable
     private readonly Dispatcher ownerDispatcher = Dispatcher.CurrentDispatcher;
     private volatile bool disposed;
     private bool showAllTaskbars;
+    private bool hideOnFullscreen;
     private int materialTransparency;
     private bool sessionLocked;
     private QuotaSnapshot snapshot = QuotaSnapshot.Unavailable("正在连接 Codex…");
@@ -56,9 +57,11 @@ internal sealed partial class OverlayCoordinator : IDisposable
             || windows.Values.Any(window => window.CanAnimateTyping));
 
     internal OverlayCoordinator(bool showAllTaskbars, int materialTransparency = 0, bool unifiedPanel = false,
-        Func<CodexQuotaTaskbar.Host.Bongo.BongoRuntime>? bongoRuntimeFactory = null, bool observePointer = true)
+        Func<CodexQuotaTaskbar.Host.Bongo.BongoRuntime>? bongoRuntimeFactory = null, bool observePointer = true,
+        bool hideOnFullscreen = true)
     {
         this.showAllTaskbars = showAllTaskbars;
+        this.hideOnFullscreen = hideOnFullscreen;
         this.unifiedPanel = unifiedPanel;
         this.materialTransparency = Math.Clamp(materialTransparency, 0, 100);
         createBongoRuntime = bongoRuntimeFactory ?? (() => new CodexQuotaTaskbar.Host.Bongo.BongoRuntime());
@@ -96,6 +99,20 @@ internal sealed partial class OverlayCoordinator : IDisposable
         showAllTaskbars = value;
         Reconcile();
     }
+
+    internal void SetHideOnFullscreen(bool value)
+    {
+        if (hideOnFullscreen == value) return;
+        hideOnFullscreen = value;
+        Reconcile();
+    }
+
+    internal static OverlayVisibilityReason ResolveVisibilityReason(bool locked, bool taskbarVisible,
+        ForegroundDisposition foreground, bool hideOnFullscreen) => locked ? OverlayVisibilityReason.Locked
+        : !taskbarVisible ? OverlayVisibilityReason.TaskbarHidden
+        : foreground == ForegroundDisposition.CaptureOverlay ? OverlayVisibilityReason.CaptureOverlay
+        : hideOnFullscreen && foreground == ForegroundDisposition.Fullscreen ? OverlayVisibilityReason.Fullscreen
+        : OverlayVisibilityReason.Available;
 
     internal void SetCompanion(bool enabled, bool reduced)
     {
@@ -322,10 +339,7 @@ internal sealed partial class OverlayCoordinator : IDisposable
                 captureStack.CaptureOccluded = window.CaptureOccluded;
             window.ApplyResets(resetFeed);
             window.SetCompanionTyping(companionTyping);
-            var visibilityReason = sessionLocked ? OverlayVisibilityReason.Locked
-                : !anchor.IsVisible ? OverlayVisibilityReason.TaskbarHidden
-                : window.CaptureOccluded ? OverlayVisibilityReason.CaptureOverlay
-                : foreground == ForegroundDisposition.Fullscreen ? OverlayVisibilityReason.Fullscreen : OverlayVisibilityReason.Available;
+            var visibilityReason = ResolveVisibilityReason(sessionLocked, anchor.IsVisible, foreground, hideOnFullscreen);
             var shouldShow = visibilityReason == OverlayVisibilityReason.Available;
             OverlayLifecycleDiagnostics.Local.Window(window, OverlayLifecycleEvent.VisibilityPolicy,
                 visibilityReason, deduplicate: true);

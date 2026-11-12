@@ -78,6 +78,7 @@ public partial class TrayMenuWindow : Window
         ClassicStyleButton.Click += (_, _) => RequestSettings(this.settings with { UnifiedPanel = false });
         UnifiedStyleButton.Click += (_, _) => RequestSettings(this.settings with { UnifiedPanel = true });
         AllTaskbarsButton.Click += (_, _) => RequestSettings(this.settings with { ShowAllTaskbars = !this.settings.ShowAllTaskbars });
+        HideOnFullscreenButton.Click += (_, _) => RequestSettings(this.settings with { HideOnFullscreen = !this.settings.HideOnFullscreenEnabled });
         TrayIconButton.Click += (_, _) => RequestSettings(this.settings with { ShowTrayIcon = !this.settings.TrayIconEnabled });
         NotificationsButton.Click += (_, _) => RequestSettings(this.settings with { LowQuotaNotifications = !this.settings.LowQuotaNotifications });
         AutomaticUpdatesButton.Click += (_, _) => RequestSettings(this.settings with { AutomaticUpdates = !this.settings.AutomaticUpdatesEnabled });
@@ -153,6 +154,7 @@ public partial class TrayMenuWindow : Window
         applyingSettings = false;
         ApplyMaterialAppearance();
         ApplyCheck(AllTaskbarsButton, AllTaskbarsCheck, value.ShowAllTaskbars);
+        ApplyCheck(HideOnFullscreenButton, HideOnFullscreenCheck, value.HideOnFullscreenEnabled);
         ApplyCheck(TrayIconButton, TrayIconCheck, value.TrayIconEnabled);
         ApplyCheck(DotRealtimeButton, DotRealtimeCheck, value.DotRealtime);
         ApplyCheck(NotificationsButton, NotificationsCheck, value.LowQuotaNotifications);
